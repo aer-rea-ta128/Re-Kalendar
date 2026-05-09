@@ -1695,8 +1695,10 @@ export default function SmartLifeOS() {
       `}</style>
 
       <div className="fixed-mobile-frame">
-        <header className="glass-panel" style={{ position: 'relative', padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1001, pointerEvents: 'auto', borderRadius: '0 0 20px 20px', minHeight: '60px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 10, flexShrink: 0 }}>
+        <header className="glass-panel" style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1001, pointerEvents: 'auto', borderRadius: '0 0 20px 20px', minHeight: '60px', gap: '4px' }}>
+          
+          {/* 左側：メニュー・追加・モード切替 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'flex-start', minWidth: 0 }}>
             <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} className="btn-icon">☰</button>
             <button
               onClick={() => {
@@ -1706,7 +1708,7 @@ export default function SmartLifeOS() {
                 setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsModalOpen(true);
               }}
               className="btn-icon"
-              style={{ border: `2px solid ${themeColor}`, color: themeColor, fontSize: '1.4rem', fontWeight: 'bold', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, paddingBottom: '2px' }}
+              style={{ border: `2px solid ${themeColor}`, color: themeColor, fontSize: '1.4rem', fontWeight: 'bold', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, paddingBottom: '2px', flexShrink: 0 }}
             >
               +
             </button>
@@ -1714,35 +1716,37 @@ export default function SmartLifeOS() {
               <button
                 onClick={() => setDisplayMode(m => m === 'normal' ? 'photo' : m === 'photo' ? 'dot' : 'normal')}
                 className="btn-icon"
-                style={{ background: 'var(--card-bg)', color: 'var(--text-main)', borderColor: 'var(--border-color)' }}
+                style={{ background: 'var(--card-bg)', color: 'var(--text-main)', borderColor: 'var(--border-color)', width: '32px', height: '32px', flexShrink: 0 }}
               >
-                {displayMode === 'normal' && <Edit3 size={18} />}
-                {displayMode === 'photo' && <ImageIcon size={18} />}
+                {displayMode === 'normal' && <Edit3 size={16} />}
+                {displayMode === 'photo' && <ImageIcon size={16} />}
                 {displayMode === 'dot' && <Circle size={14} fill="currentColor" />}
               </button>
             )}
           </div>
 
-          <div className="date-picker-btn" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '4px 8px', gap: '4px', zIndex: 10, minWidth: '120px' }}>
+          {/* 中央：年月表示（絶対配置をやめ、中央寄せ） */}
+          <div className="date-picker-btn" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '4px', gap: '2px', zIndex: 10, flexShrink: 0 }}>
             <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().prev(); const d = calendarRef.current?.getApi().getDate(); if(d) { setCurrentYear(String(d.getFullYear())); setCurrentMonthNum(String(d.getMonth() + 1)); } }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1rem', cursor: 'pointer', padding: '2px 4px' }}>◀</button>
-            <div onClick={() => { setPickerYear(parseInt(currentYear || String(new Date().getFullYear()))); setIsDatePickerOpen(true); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, cursor: 'pointer' }}>
-              <span style={{ fontSize: '0.6rem', color: themeColor, fontWeight: '900', opacity: 0.8, marginBottom: '-2px' }}>{currentYear}年</span>
+            <div onClick={() => { setPickerYear(parseInt(currentYear || String(new Date().getFullYear()))); setIsDatePickerOpen(true); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, cursor: 'pointer', padding: '0 4px' }}>
+              <span style={{ fontSize: '0.55rem', color: themeColor, fontWeight: '900', opacity: 0.8, marginBottom: '-2px' }}>{currentYear}年</span>
               <div style={{ fontSize: '1.1rem', color: themeColor, fontWeight: '900', letterSpacing: '-0.5px' }}>{currentMonthNum}月</div>
             </div>
             <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().next(); const d = calendarRef.current?.getApi().getDate(); if(d) { setCurrentYear(String(d.getFullYear())); setCurrentMonthNum(String(d.getMonth() + 1)); } }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1rem', cursor: 'pointer', padding: '2px 4px' }}>▶</button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', zIndex: 10, justifyContent: 'flex-end', width: '130px', flexShrink: 0, height: '38px' }}>
-            {!isViewSelectorOpen && <button onClick={handleToday} className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.75rem', borderRadius: '10px', marginRight: '6px' }}>今日</button>}
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: isViewSelectorOpen ? 'var(--border-color)' : 'transparent', borderRadius: '12px', transition: 'all 0.3s', padding: isViewSelectorOpen ? '4px' : '0', border: isViewSelectorOpen ? '1px solid var(--border-color)' : 'none' }}>
+          {/* 右側：今日ボタン・ビュー切替 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', zIndex: 10, flex: 1, justifyContent: 'flex-end', minWidth: 0 }}>
+            {!isViewSelectorOpen && <button onClick={handleToday} className="btn-secondary" style={{ padding: '6px 8px', fontSize: '0.7rem', borderRadius: '10px', whiteSpace: 'nowrap' }}>今日</button>}
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: isViewSelectorOpen ? 'var(--border-color)' : 'transparent', borderRadius: '12px', transition: 'all 0.3s', padding: isViewSelectorOpen ? '2px' : '0', border: isViewSelectorOpen ? '1px solid var(--border-color)' : 'none' }}>
               {!isViewSelectorOpen ? (
-                <button onClick={() => setIsViewSelectorOpen(true)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px' }}>
-                  {VIEW_OPTIONS.find(v => v.id === viewType)?.label}
+                <button onClick={() => setIsViewSelectorOpen(true)} className="btn-secondary" style={{ padding: '6px 8px', fontSize: '0.75rem', borderRadius: '10px', whiteSpace: 'nowrap' }}>
+                  {VIEW_OPTIONS.find(v => v.id === viewType)?.label || '月'}
                 </button>
               ) : (
-                <div style={{ display: 'flex', gap: '4px', flexDirection: 'row' }}>
+                <div style={{ display: 'flex', gap: '2px', flexDirection: 'row' }}>
                   {VIEW_OPTIONS.map((v: any) => (
-                    <button key={v.id} onClick={() => { calendarRef.current?.getApi().changeView(v.id); setIsViewSelectorOpen(false); }} style={{ background: viewType === v.id ? themeColor : 'transparent', color: viewType === v.id ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '8px', padding: '6px 10px', fontSize: '0.75rem', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s ease' }}>{v.label}</button>
+                    <button key={v.id} onClick={() => { calendarRef.current?.getApi().changeView(v.id); setIsViewSelectorOpen(false); }} style={{ background: viewType === v.id ? themeColor : 'transparent', color: viewType === v.id ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '8px', padding: '4px 6px', fontSize: '0.65rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap' }}>{v.label}</button>
                   ))}
                 </div>
               )}
@@ -1766,21 +1770,24 @@ export default function SmartLifeOS() {
               initialView="dayGridMonth"
               slotEventOverlap={overlapMode === 'cascade'}
               droppable={true}
-              drop={async (info) => {
-                const cat = info.draggedEl.getAttribute('data-cat') || '仕事';
-                const color = info.draggedEl.getAttribute('data-color') || themeColor;
-                const payload = {
-                  title: info.draggedEl.innerText,
-                  category: cat,
-                  start_at: new Date(`${info.dateStr}T09:00:00`).toISOString(),
-                  end_at: new Date(`${info.dateStr}T10:00:00`).toISOString(),
-                  metadata: { customColor: color }
-                };
-                await supabase.from('events').insert([payload]);
-                fetchEvents();
-              }}
-              nowIndicator={true} allDaySlot={true} fixedWeekCount={true} height="100%" dayMaxEvents={true}
-              moreLinkContent={(args: any) => `+他${args.num}件`} headerToolbar={false} events={displayEvents} selectable={true} select={handleSelect} eventClick={handleEventClick}
+              nowIndicator={true} 
+              allDaySlot={true} 
+              fixedWeekCount={true} 
+              height="100%" 
+              dayMaxEvents={true}
+              headerToolbar={false} 
+              events={displayEvents} 
+              selectable={true} 
+              select={handleSelect} 
+              eventClick={handleEventClick}
+              locale="ja"
+
+              /* スマホ対応のタップ判定 */
+              longPressDelay={50}
+              eventLongPressDelay={50}
+              selectLongPressDelay={50}
+
+              moreLinkContent={(args: any) => `+他${args.num}件`}
               eventClassNames={() => (displayMode === 'dot' && viewType === 'dayGridMonth') ? ['is-dot-mode-event'] : []}
               eventContent={renderEventContent}
               dayHeaderContent={(arg: any) => {
@@ -1825,7 +1832,6 @@ export default function SmartLifeOS() {
                 if (arg.date.getDay() === 0 || holidays[toLocalYYYYMMDD(arg.date)]) return ['holiday-cell'];
                 if (arg.date.getDay() === 6) return ['saturday-cell']; return [];
               }}
-              locale="ja"
             />
           </div>
 
