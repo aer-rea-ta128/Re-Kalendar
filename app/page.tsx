@@ -1695,11 +1695,11 @@ export default function SmartLifeOS() {
       `}</style>
 
       <div className="fixed-mobile-frame">
-        <header className="glass-panel" style={{ padding: '10px 8px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1001, pointerEvents: 'auto', borderRadius: '0 0 20px 20px', minHeight: '60px', gap: '4px' }}>
+        <header className="glass-panel" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 9999, pointerEvents: 'auto', borderRadius: '0 0 20px 20px', minHeight: '65px', gap: '8px' }}>
           
           {/* 左側：メニュー・追加・モード切替 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'flex-start', minWidth: 0 }}>
-            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} className="btn-icon">☰</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, justifyContent: 'flex-start' }}>
+            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} className="btn-icon" style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}>☰</button>
             <button
               onClick={() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
@@ -1708,49 +1708,38 @@ export default function SmartLifeOS() {
                 setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsModalOpen(true);
               }}
               className="btn-icon"
-              style={{ border: `2px solid ${themeColor}`, color: themeColor, fontSize: '1.4rem', fontWeight: 'bold', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, paddingBottom: '2px', flexShrink: 0 }}
+              style={{ border: `2px solid ${themeColor}`, color: themeColor, fontSize: '1.6rem', fontWeight: 'bold', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, paddingBottom: '2px' }}
             >
               +
             </button>
-            {viewType === 'dayGridMonth' && (
-              <button
-                onClick={() => setDisplayMode(m => m === 'normal' ? 'photo' : m === 'photo' ? 'dot' : 'normal')}
-                className="btn-icon"
-                style={{ background: 'var(--card-bg)', color: 'var(--text-main)', borderColor: 'var(--border-color)', width: '32px', height: '32px', flexShrink: 0 }}
-              >
-                {displayMode === 'normal' && <Edit3 size={16} />}
-                {displayMode === 'photo' && <ImageIcon size={16} />}
-                {displayMode === 'dot' && <Circle size={14} fill="currentColor" />}
-              </button>
-            )}
           </div>
 
-          {/* 中央：年月表示（絶対配置をやめ、中央寄せ） */}
-          <div className="date-picker-btn" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '4px', gap: '2px', zIndex: 10, flexShrink: 0 }}>
-            <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().prev(); const d = calendarRef.current?.getApi().getDate(); if(d) { setCurrentYear(String(d.getFullYear())); setCurrentMonthNum(String(d.getMonth() + 1)); } }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1rem', cursor: 'pointer', padding: '2px 4px' }}>◀</button>
-            <div onClick={() => { setPickerYear(parseInt(currentYear || String(new Date().getFullYear()))); setIsDatePickerOpen(true); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, cursor: 'pointer', padding: '0 4px' }}>
-              <span style={{ fontSize: '0.55rem', color: themeColor, fontWeight: '900', opacity: 0.8, marginBottom: '-2px' }}>{currentYear}年</span>
-              <div style={{ fontSize: '1.1rem', color: themeColor, fontWeight: '900', letterSpacing: '-0.5px' }}>{currentMonthNum}月</div>
+          {/* 中央：年月表示 */}
+          <div className="date-picker-btn" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '6px', gap: '4px', flexShrink: 0 }}>
+            <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().prev(); }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: '4px 8px' }}>◀</button>
+            <div onClick={() => { setPickerYear(parseInt(currentYear || String(new Date().getFullYear()))); setIsDatePickerOpen(true); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', padding: '0 8px' }}>
+              <span style={{ fontSize: '0.65rem', color: themeColor, fontWeight: '900', opacity: 0.8, marginBottom: '-2px' }}>{currentYear}年</span>
+              <div style={{ fontSize: '1.2rem', color: themeColor, fontWeight: '900', letterSpacing: '-0.5px' }}>{currentMonthNum}月</div>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().next(); const d = calendarRef.current?.getApi().getDate(); if(d) { setCurrentYear(String(d.getFullYear())); setCurrentMonthNum(String(d.getMonth() + 1)); } }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1rem', cursor: 'pointer', padding: '2px 4px' }}>▶</button>
+            <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().next(); }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: '4px 8px' }}>▶</button>
           </div>
 
-          {/* 右側：今日ボタン・ビュー切替 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', zIndex: 10, flex: 1, justifyContent: 'flex-end', minWidth: 0 }}>
-            {!isViewSelectorOpen && <button onClick={handleToday} className="btn-secondary" style={{ padding: '6px 8px', fontSize: '0.7rem', borderRadius: '10px', whiteSpace: 'nowrap' }}>今日</button>}
-            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: isViewSelectorOpen ? 'var(--border-color)' : 'transparent', borderRadius: '12px', transition: 'all 0.3s', padding: isViewSelectorOpen ? '2px' : '0', border: isViewSelectorOpen ? '1px solid var(--border-color)' : 'none' }}>
-              {!isViewSelectorOpen ? (
-                <button onClick={() => setIsViewSelectorOpen(true)} className="btn-secondary" style={{ padding: '6px 8px', fontSize: '0.75rem', borderRadius: '10px', whiteSpace: 'nowrap' }}>
-                  {VIEW_OPTIONS.find(v => v.id === viewType)?.label || '月'}
-                </button>
-              ) : (
-                <div style={{ display: 'flex', gap: '2px', flexDirection: 'row' }}>
-                  {VIEW_OPTIONS.map((v: any) => (
-                    <button key={v.id} onClick={() => { calendarRef.current?.getApi().changeView(v.id); setIsViewSelectorOpen(false); }} style={{ background: viewType === v.id ? themeColor : 'transparent', color: viewType === v.id ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '8px', padding: '4px 6px', fontSize: '0.65rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap' }}>{v.label}</button>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* 右側：今日ボタン・月週日切替（大きく、タップしやすく改善） */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
+            <button onClick={() => calendarRef.current?.getApi().today()} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem', borderRadius: '12px' }}>今日</button>
+            <select
+              value={viewType}
+              onChange={(e) => {
+                const newView = e.target.value;
+                setViewType(newView);
+                calendarRef.current?.getApi().changeView(newView);
+              }}
+              style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '8px 10px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', outline: 'none' }}
+            >
+              <option value="dayGridMonth">月</option>
+              <option value="timeGridWeek">週</option>
+              <option value="timeGridDay">日</option>
+            </select>
           </div>
         </header>
 
@@ -1783,9 +1772,9 @@ export default function SmartLifeOS() {
               locale="ja"
 
               /* スマホ対応のタップ判定 */
-              longPressDelay={50}
-              eventLongPressDelay={50}
-              selectLongPressDelay={50}
+              longPressDelay={250}
+              eventLongPressDelay={250}
+              selectLongPressDelay={250}
 
               moreLinkContent={(args: any) => `+他${args.num}件`}
               eventClassNames={() => (displayMode === 'dot' && viewType === 'dayGridMonth') ? ['is-dot-mode-event'] : []}
@@ -1799,22 +1788,21 @@ export default function SmartLifeOS() {
                 if (arg.view.type === 'dayGridMonth') {
                   const colorClass = isRed ? 'holiday-text' : (d.getDay() === 6 ? 'saturday-text' : '');
                   return (
-                    <div style={{cursor: 'pointer', padding: '4px 0', width: '100%', transition: 'background 0.2s', borderRadius: '4px'}} className={`hover-bg-glass ${colorClass}`}>
+                    <div style={{cursor: 'pointer', padding: '2px 0', width: '100%', fontSize: '0.75rem'}} className={`hover-bg-glass ${colorClass}`}>
                        {dayStr}
                     </div>
                   );
                 }
                 const m = d.getMonth() + 1; const dt = d.getDate();
                 const colorClass = isRed ? 'holiday-text' : (d.getDay() === 6 ? 'saturday-text' : '');
-                const isFirstOrOtherMonth = m !== Number(currentMonthNum) || dt === 1;
                 return (
                   <div
                     onClick={() => arg.view.type === 'timeGridDay' && setIsDayPickerOpen(true)}
-                    style={{cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1, padding: '4px 0', width: '100%', borderRadius: '4px'}}
+                    style={{cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.1, padding: '2px 0', width: '100%'}}
                     className={`hover-bg-glass ${colorClass}`}
                   >
-                    <span style={{fontSize: isFirstOrOtherMonth ? '0.95rem' : '1.1rem', fontWeight: 900}}>{isFirstOrOtherMonth ? m+'/'+dt : dt}</span>
-                    <span style={{fontSize: '0.7rem', marginTop: '2px'}}>({dayStr})</span>
+                    <span style={{fontSize: '0.9rem', fontWeight: 900}}>{dt}</span>
+                    <span style={{fontSize: '0.65rem'}}>{dayStr}</span>
                   </div>
                 );
               }}
