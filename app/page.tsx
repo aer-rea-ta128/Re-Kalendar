@@ -9,7 +9,9 @@ import { supabase } from '@/lib/supabase';
 import {
   Train, Footprints, MapPin, Clock, Star, Inbox, Settings, Trash2, TrendingUp, Target,
   History, PieChart, Image as ImageIcon, Repeat, Pin, Database, Palette, Gift, Calendar as CalendarIcon, Zap,
-  Home, Edit3, Flag, Monitor, Dumbbell, Beer, Circle, Search, Calendar, Plane, Bus, FileText, Sun, Moon, CreditCard, Check, CheckCircle, Banknote, BookOpen, Users, Download, Share2, Sparkles, Unlock, Lock, Globe, Store
+  Home, Edit3, Flag, Monitor, Dumbbell, Beer, Circle, Search, Calendar, Plane, Bus, FileText, Sun, Moon, CreditCard, 
+  Check, CheckCircle, Banknote, BookOpen, Users, Download, Share2, Sparkles, Unlock, Lock, Globe, Store,
+  Smartphone, Landmark, ChevronUp, ChevronDown
 } from 'lucide-react';
 
 // ★ 分割したファイルを読み込む（パスは画像の設定に合わせています）
@@ -20,7 +22,9 @@ import Sidebar from '@/app/components/Sidebar';
 
 // アイコンを取得するヘルパー関数
 const getSmartIcon = (type: string, color: string) => {
-  const props = { size: 14, strokeWidth: 2.5, style: { color } };
+  // デフォルトの黒文字色（var(--text-main)）が指定されている場合は、テーマカラーに上書きする
+  const finalColor = color === 'var(--text-main)' ? 'var(--theme)' : color;
+  const props = { size: 14, strokeWidth: 2.5, style: { color: finalColor } };
   switch (type) {
     case 'train': return <Train {...props} />;
     case 'walk':  return <Footprints {...props} />;
@@ -42,8 +46,7 @@ export default function SmartLifeOS() {
     try { return saved ? JSON.parse(saved) : defaultData; } catch (e) { return defaultData; }
   };
 
-  const [themeColor, setThemeColor] = useState('#4D96FF');
-  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [themeColor, setThemeColor] = useState(() => loadData('os_themeColor', '#4D96FF'));  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [userColors, setUserColors] = useState<string[]>(() => loadData('os_userColors', []));
   const [customColorCursor, setCustomColorCursor] = useState('#000000');
   const [isEditingColors, setIsEditingColors] = useState(false);
@@ -61,6 +64,7 @@ export default function SmartLifeOS() {
 
   const [isViewSelectorOpen, setIsViewSelectorOpen] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
+  const [isViewSelectorExpanded, setIsViewSelectorExpanded] = useState(false); // 👈 追加
 
   const [openSections, setOpenSections] = useState<string[]>(['settings', 'countdown']);
   const [nickname, setNickname] = useState('');
@@ -73,7 +77,16 @@ export default function SmartLifeOS() {
 
   const [events, setEvents] = useState<any[]>([]);
   const DEFAULT_CATEGORIES = [
-    { name: '仕事', color: '#4D96FF', fields: [] },
+    { 
+      name: '仕事', 
+      color: '#4D96FF', 
+      fields: [{ 
+        id: 'wage_1', 
+        name: '給与計算', 
+        type: 'wage', 
+        wageRules: [{ start: '00:00', end: '23:59', wage: '1000' }] // デフォルト時給1000円
+      }] 
+    },
     { name: '飲み', color: '#FF6B6B', fields: [{ id: 'f1', name: '飲んだ杯数', type: 'number', unit: '杯' }] },
     { name: '趣味', color: '#1DD1A1', fields: [] }
   ];
@@ -108,11 +121,13 @@ export default function SmartLifeOS() {
   const [analyticsSpan, setAnalyticsSpan] = useState<'month' | 'year' | 'pie'>('month');
   const [summarySpan, setSummarySpan] = useState<'month' | 'year'>('month');
   const [analyticsCat, setAnalyticsCat] = useState<string>('');
-  const [analyticsYear, setAnalyticsYear] = useState('');
-  const [analyticsMonth, setAnalyticsMonth] = useState('');
+  // ダッシュボードを開いた時、自動的に「今年の今の月」がセットされるように修正
+  const [analyticsYear, setAnalyticsYear] = useState(() => String(new Date().getFullYear()));
+  const [analyticsMonth, setAnalyticsMonth] = useState(() => String(new Date().getMonth() + 1).padStart(2, '0'));
   const [visibleDashboardFields, setVisibleDashboardFields] = useState<Record<string, boolean>>({});
 
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [galleryCategory, setGalleryCategory] = useState('すべて');
 
   const [externalCals, setExternalCals] = useState([
     { id: 'ext1', name: '🎸 アーティスト公式情報', color: '#ec4899', active: false, events: [{ title: '🎫 チケット先行', date: '2026-05-10' }, { title: '🎤 東京ドーム公演', date: '2026-05-25' }] },
@@ -134,9 +149,16 @@ export default function SmartLifeOS() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [currentSearchIndex, setCurrentSearchIndex] = useState(-1);
 
+  // 💸 支出・サブスク専用のState
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [subs, setSubs] = useState<any[]>(() => loadData('os_subs', []));
+  const [subName, setSubName] = useState('');
+  const [subAmount, setSubAmount] = useState('');
+  const [subCycle, setSubCycle] = useState('monthly');
+  const [subDate, setSubDate] = useState('1');
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [mode, setMode] = useState<'create' | 'detail' | 'dayOfWeekBulk' | 'routine_detail'>('create');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'create' | 'detail' | 'dayOfWeekBulk' | 'routine_detail' | 'expense' | 'subscription'>('create');  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [categoryName, setCategoryName] = useState('仕事');
@@ -168,6 +190,8 @@ export default function SmartLifeOS() {
   const draggableRef = useRef<HTMLDivElement>(null);
   const [isAllDayBackground, setIsAllDayBackground] = useState(false);
   const [useEventColorForTitle, setUseEventColorForTitle] = useState(false);
+  const [expandedBlocks, setExpandedBlocks] = useState<string[]>(['expense', 'gathering', 'transit']);
+  const toggleBlock = (b: string) => setExpandedBlocks(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
 
   useEffect(() => {
     const savedColorSetting = localStorage.getItem('useEventColorForTitle');
@@ -206,14 +230,16 @@ export default function SmartLifeOS() {
   useEffect(() => {
     if (!isDataLoaded) return;
     localStorage.setItem('os_categories', JSON.stringify(categories));
+    localStorage.setItem('os_themeColor', JSON.stringify(themeColor)); // 👈 これを追加
     localStorage.setItem('os_userColors', JSON.stringify(userColors));
+    localStorage.setItem('os_subs', JSON.stringify(subs));
     localStorage.setItem('os_anniversaries', JSON.stringify(anniversaries));
     localStorage.setItem('os_routines', JSON.stringify(monthlyRoutines));
     localStorage.setItem('os_home', JSON.stringify(homeLocation));
     localStorage.setItem('os_station', JSON.stringify(nearestStation));
     localStorage.setItem('os_walkTime', JSON.stringify(walkTime));
     localStorage.setItem('os_startPointType', JSON.stringify(startPointType));
-  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded]);
+  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor]); // 👈 配列の最後に themeColor を追加
 
   const activePresets: string[] = [...INITIAL_PRESETS, ...userColors];
 
@@ -310,6 +336,47 @@ export default function SmartLifeOS() {
     };
     fetchHolidays();
   }, []);
+
+// 👇 カレンダー描画後に、移動ブロックの幅を本体ブロックに強制同期させる
+  useEffect(() => {
+    if (viewType !== 'timeGridWeek' && viewType !== 'timeGridDay') return;
+
+    const syncWidths = () => {
+      const calendarEl = document.querySelector('.fc');
+      if (!calendarEl) return;
+
+      const transitEls = calendarEl.querySelectorAll('[data-travel-target]');
+      transitEls.forEach(tEl => {
+        const targetId = tEl.getAttribute('data-travel-target');
+        const mainEl = calendarEl.querySelector(`[data-main-id="${targetId}"]`);
+        
+        if (mainEl && tEl) {
+          // FullCalendarは親要素(.fc-timegrid-event-harness)で位置と幅を管理しているため、親を取得
+          const tHarness = tEl.closest('.fc-timegrid-event-harness') as HTMLElement;
+          const mainHarness = mainEl.closest('.fc-timegrid-event-harness') as HTMLElement;
+          
+          if (tHarness && mainHarness) {
+            // 本体の left, right (幅と位置) を移動枠にコピー！
+            tHarness.style.left = mainHarness.style.left;
+            tHarness.style.right = mainHarness.style.right;
+          }
+        }
+      });
+    };
+
+    // DOMの変更を監視して、カレンダーのレイアウトが変わるたびに幅を合わせる
+    const observer = new MutationObserver(() => {
+      setTimeout(syncWidths, 10);
+    });
+    
+    const container = document.querySelector('.fc');
+    if (container) {
+      observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    }
+    setTimeout(syncWidths, 100);
+
+    return () => observer.disconnect();
+  }, [events, viewType]);
 
   const handleDelete = async () => {
     if (confirm('本当に削除しますか？')) {
@@ -439,8 +506,10 @@ export default function SmartLifeOS() {
         customFields: {
           isIncomeSet: isIncome,
           standardIncomeAmount: isIncome ? String(totalAmount) : '',
+          isSalary: isIncome, // 👈 追加：これを「給料」としてマークし、二重計上を防ぐ
           isExpenseSet: !isIncome,
-          standardExpenseAmount: !isIncome ? String(totalAmount) : ''
+          standardExpenseAmount: !isIncome ? String(totalAmount) : '',
+          paymentMethod: !isIncome ? 'bank' : undefined // 支出ならデフォルト口座引落
         }
       }
     };
@@ -574,12 +643,41 @@ export default function SmartLifeOS() {
     setStartH('09'); setStartM('00'); setEndH('10'); setEndM('00');
     setIsModalOpen(true);
   };
+  // 👇 重なりレベル計算関数（特定のイベントが他のイベントとどれだけ重なっているか）
+  const calculateOverlapLevel = (event: any, events: any[]) => {
+    if (events.length === 0) return 0;
+    
+    // イベントを開始時間順にソート（すでにされている前提）
+    const sortedEvents = [...events];
+    
+    // 自分自身のインデックスを取得
+    const eventIndex = sortedEvents.findIndex(e => e.id === event.id);
+    if (eventIndex === -1) return 0;
+    
+    let overlapCount = 0;
+    const currentStart = new Date(event.start).getTime();
+    
+    // 自分より前のイベントとの重なりを調べる
+    for (let i = 0; i < eventIndex; i++) {
+      const prevEvent = sortedEvents[i];
+      const prevEnd = new Date(prevEvent.end || new Date(prevEvent.start).getTime() + 3600000).getTime();
+      
+      if (prevEnd > currentStart) {
+        overlapCount++;
+      }
+    }
+    return overlapCount;
+  };
 
   const handleSelect = (info: any) => {
     if (isDeleteMode) return;
     setMode('create'); setStartDate(toLocalYYYYMMDD(info.start));
     const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1); setEndDate(toLocalYYYYMMDD(adjEnd));
     setTitle(''); setLocation(''); setIsGathering(false); setGatheringTime(''); setDepartureTime(''); setDepartureType(startPointType === 'station' ? 'train' : 'home'); setSelectedDays([]);
+    
+    // 👇 修正：カレンダーのマスをタップして新しく追加する際も、過去の「支出」などの設定を確実にリセットする
+    setCustomFieldsData({});
+    
     if (info.allDay) {
       const nowH = new Date().getHours(); setStartH(String(nowH).padStart(2, '0')); setStartM('00'); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0')); setEndM('00');
     } else {
@@ -714,7 +812,7 @@ export default function SmartLifeOS() {
   };
 
   const handleSave = async () => {
-    if (!startDate) return;
+    if (!startDate || !title) return; // タイトルがない場合は保存しない
     const getISO = (d: string, h: string, m: string) => new Date(`${d}T${h}:${m}:00`).toISOString();
 
     const actualStartH = isAllDayBackground ? '00' : startH;
@@ -725,6 +823,8 @@ export default function SmartLifeOS() {
 
     const newCustomFields = { ...customFieldsData };
     const catObj = categories.find((c: any) => c.name === categoryName);
+
+    // 💰 給与計算ロジック（ここを維持するのが重要！）
     catObj?.fields?.forEach((f: any) => {
       if (f.type === 'wage' && f.wageRules) {
         let workStart = parseInt(actualStartH) * 60 + parseInt(actualStartM);
@@ -773,7 +873,6 @@ export default function SmartLifeOS() {
             let multiplier = 1.0;
             if (applyOvertime && actualWorkCount > 480) multiplier += 0.25;
             if (applyNight && (currentMin >= 1320 || currentMin < 300)) multiplier += 0.25;
-
             totalWage += (w * multiplier) / 60;
           }
         }
@@ -783,13 +882,21 @@ export default function SmartLifeOS() {
       }
     });
 
+    // 🚩 集合・出発時間の初期値補完
+    const finalGatheringTime = gatheringTime || `${startH}:${startM}`;
+    const finalDepartureTime = departureTime || `${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`;
+
     const metadata = {
-      location, isGathering, gatheringTime, departureTime, departureType, walkTime,
+      location, isGathering, 
+      gatheringTime: isGathering ? finalGatheringTime : '', 
+      departureTime: isGathering ? finalDepartureTime : '', 
+      departureType, walkTime,
       customColor: eventColor || undefined, isOutline, customFields: newCustomFields,
       photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
       startDateStr: startDate, endDateStr: endDate
     };
 
+    // 💾 保存処理（一括登録ロジックも維持）
     if (mode === 'dayOfWeekBulk' && bulkStartMonth && bulkEndMonth && selectedDays.length > 0) {
       const bulkEvents = [];
       const [sYear, sMonth] = bulkStartMonth.split('-');
@@ -804,7 +911,6 @@ export default function SmartLifeOS() {
         }
       }
       if (bulkEvents.length > 0) await supabase.from('events').insert(bulkEvents);
-      else alert('指定期間に該当する曜日がありませんでした');
     }
     else if (mode === 'create' && selectedDays.length > 0 && repeatUntil) {
       const endLimit = new Date(repeatUntil);
@@ -817,7 +923,7 @@ export default function SmartLifeOS() {
       await supabase.from('events').insert(bulkEvents);
     }
     else {
-      const payload = { title, category: categoryName, start_at: getISO(startDate, actualStartH, actualStartM), end_at: getISO(actualEndDate, actualEndH, actualEndM), metadata };
+      const payload = { title, category: categoryName, start_at: getISO(startDate, actualStartH, actualStartM), end_at: getISO(actualEndDate || startDate, actualEndH, actualEndM), metadata };
       if (mode === 'create') {
         await supabase.from('events').insert([payload]);
       } else {
@@ -828,6 +934,8 @@ export default function SmartLifeOS() {
     setIsModalOpen(false);
     fetchEvents();
   };
+
+  
 
   const ColorSelector = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
     const [tempColor, setTempColor] = useState(value);
@@ -891,27 +999,20 @@ export default function SmartLifeOS() {
     }
 
     if (extendedProps.isTransitEvent) {
-      if (viewType === 'dayGridMonth') return <div style={{display: 'none'}}></div>;
-
-      const sH = String(start.getHours()).padStart(2, '0');
-      const sM = String(start.getMinutes()).padStart(2, '0');
-      const eH = end ? String(end.getHours()).padStart(2, '0') : '';
-      const eM = end ? String(end.getMinutes()).padStart(2, '0') : '';
-      const tType = metadata.customFields?.transitType;
-
+      if (viewType === 'dayGridMonth') return null;
+      const sT = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+      const eT = end ? `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}` : '';
+      
       return (
-        <div style={{
-          width: '100%', height: '100%', padding: '4px',
-          background: `linear-gradient(135deg, ${hexToRgba(cColor, 0.05)} 0%, ${hexToRgba(cColor, 0.15)} 100%)`,
-          borderLeft: `4px solid ${cColor}`, borderRadius: '4px',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box',
-          border: `1px dashed ${cColor}`
+        // 👇 ここに data-travel-target を追加！
+        <div data-travel-target={event.id.replace('-travel', '')} style={{
+          width: '100%', height: '100%', padding: '2px',
+          background: 'transparent', border: `1.5px dashed ${cColor}`,
+          borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
         }}>
-          <span style={{ fontSize: '0.55rem', fontWeight: '900', color: cColor }}>{sH}:{sM} - {eH}:{eM}</span>
-          <div style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-main)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            {tType === 'plane' ? <Plane size={12} /> : tType === 'bus' ? <Bus size={12} /> : <Train size={12} />}
-            <span>移動</span>
-          </div>
+          <span style={{ fontSize: '0.6rem', fontWeight: '900', color: cColor, textAlign: 'center', lineHeight: 1.1 }}>
+            {sT} 〜 {eT}
+          </span>
         </div>
       );
     }
@@ -932,20 +1033,31 @@ export default function SmartLifeOS() {
     const isHighlighted = searchResults.length > 0 && event.id === String(searchResults[currentSearchIndex]?.id);
     const isSelectedForDelete = isDeleteMode && selectedForDelete.includes(event.id);
     const highlightClass = isHighlighted ? 'highlighted-event' : (isSelectedForDelete ? 'delete-selected-event' : '');
-
     const depTime = metadata.departureTime;
     const isGatheringSet = metadata.isGathering && depTime;
-    const DepartureBadge = isGatheringSet ? (
-      <div style={{
-        position: 'absolute', top: '-1px', left: '4px', zIndex: 50,
-        background: '#fff', border: `1.5px solid ${cColor}`, borderRadius: '4px',
-        padding: '0px 4px', display: 'flex', alignItems: 'center', gap: '2px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)', transform: 'translateY(-50%)'
-      }}>
-        {startPointType === 'address' ? <Home size={10} style={{color: cColor}} /> : <Train size={10} style={{color: cColor}} />}
-        <span style={{ fontSize: '0.6rem', fontWeight: '900', color: '#000' }}>{depTime} 出発</span>
-      </div>
-    ) : null;
+    const dType = metadata.departureType || (startPointType === 'station' ? 'train' : 'home');
+    const customStart = metadata.customFields?.customStartLocation;
+
+    let houseLeaveTimeStr = '';
+    if (isGatheringSet && depTime.includes(':')) { // 安全チェック追加
+      if (startPointType === 'station' || dType === 'train') {
+        const wTime = parseInt(metadata.walkTime || walkTime || '0', 10);
+        if (wTime > 0) {
+          const [h, m] = depTime.split(':').map(Number);
+          const dObj = new Date(); dObj.setHours(h, m, 0); dObj.setMinutes(dObj.getMinutes() - wTime);
+          houseLeaveTimeStr = `${String(dObj.getHours()).padStart(2, '0')}:${String(dObj.getMinutes()).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    // 移動イベント自体の場合は、追加の出発バッジを出さない（タイトルに含まれているため）
+    if (extendedProps.isTransitEvent) {
+        // すでに修正済みであればそのままでOKですが、
+        // 以下の DepartureBadge の定義を isGatheringSet && !extendedProps.isTransitEvent にするとより綺麗です
+    }
+
+    // 💡 予定本体に表示されていた出発バッジを削除（移動ブロックで表示するため）
+    const DepartureBadge = null;
 
     const transitBadge = metadata.customFields?.isTransit && (viewType === 'timeGridWeek' || viewType === 'timeGridDay') ? (
       <div style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.65rem', background: '#fff', color: cColor, padding: '2px 4px', borderRadius: '4px', border: `1px solid ${cColor}`, zIndex: 50, fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -1011,11 +1123,22 @@ export default function SmartLifeOS() {
     if (viewType === 'dayGridMonth') {
       const isRoutine = extendedProps.isRoutine;
       const isAnniversary = extendedProps.isAnniversary;
+      const isSub = String(event.id).startsWith('sub-');
+      const isPayment = (isRoutine && metadata.routineType === 'expense') || isSub;
 
       if (displayMode === 'dot') {
         return (
           <div className={highlightClass} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '24px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cColor, boxShadow: `0 2px 4px ${cColor}60` }} />
+          </div>
+        );
+      }
+
+      // 👇 追加：写真表示モード
+      if (displayMode === 'photo' && hasPhoto) {
+        return (
+          <div className={highlightClass} style={{ width: '100%', height: '40px', padding: '2px', display: 'flex', justifyContent: 'center' }}>
+            <img src={metadata.photoUrls[0]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }} alt="event" />
           </div>
         );
       }
@@ -1029,6 +1152,18 @@ export default function SmartLifeOS() {
           }}>
             <Gift size={12} style={{ color: cColor, marginRight: '4px', flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '900', fontSize: '0.75rem', color: cColor }}>{displayTitle}</span>
+          </div>
+        );
+      }
+
+      // 👇 追加：支払いやサブスクは「背景白＋枠線のみ」の控えめなデザインにする
+      if (isPayment) {
+        return (
+          <div className={highlightClass} style={{
+            display: 'flex', alignItems: 'center', padding: '2px 6px', overflow: 'hidden', width: '100%', height: '22px',
+            backgroundColor: 'var(--card-bg)', border: `1px solid ${cColor}`, borderRadius: '6px', boxSizing: 'border-box', marginBottom: '2px'
+          }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.7rem', color: cColor }}>{displayTitle.replace('🔄 ', '')}</span>
           </div>
         );
       }
@@ -1188,7 +1323,8 @@ export default function SmartLifeOS() {
         : displayTitle;
 
       return (
-        <div className={`${highlightClass} smart-event-container ${!isNarrow ? 'force-full-width' : ''}`} style={{
+        // 👇 ここに data-main-id を追加しました！
+        <div data-main-id={event.id} className={`${highlightClass} smart-event-container ${!isNarrow ? 'force-full-width' : ''}`} style={{
           height: '100%', width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column',
           backgroundColor: hexToRgba(cColor, 0.15),
           backgroundImage: `linear-gradient(to top, ${hexToRgba(cColor, 0.3)} 0%, transparent 12px)`,
@@ -1289,67 +1425,105 @@ export default function SmartLifeOS() {
     });
   });
 
-  const now = new Date();
-  const displayEvents = [...events, ...anniversaryEvents, ...routineEvents].flatMap((e: any) => {
-    let priority = 0;
-    const isPast = new Date(e.start) < now;
-    const hasPhoto = e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0;
-    const hasCustomFields = e.extendedProps?.metadata?.customFields && Object.keys(e.extendedProps.metadata.customFields).length > 0;
-    if (isPast && (hasPhoto || hasCustomFields)) priority = 1;
+  // 👇 追加：サブスクデータから「毎月/毎年の支払いイベント」を自動生成する魔法のロジック
+  const subEvents = subs.flatMap((sub: any) => {
+    const evts : any[] = [];
+    const years = [currentY - 1, currentY, currentY + 1]; // 前後1年分を自動生成
+    const catColor = categories.find((c: any) => c.name === sub.category)?.color || '#8b5cf6';
 
-    let overrideStart = e.start;
-    const metadata = e.extendedProps?.metadata || {};
-    if (metadata.isGathering && metadata.departureTime) {
-      const d = new Date(e.start);
-      const [h, m] = metadata.departureTime.split(':');
-      d.setHours(Number(h), Number(m), 0, 0);
-      if (d.getTime() < new Date(e.start).getTime()) {
-        overrideStart = d.toISOString();
+    years.forEach(y => {
+      if (sub.cycle === 'monthly') {
+        for (let m = 1; m <= 12; m++) {
+          evts.push({
+            id: `sub-${sub.name}-${y}-${m}`,
+            title: `🔄 ${sub.name}`,
+            start: `${y}-${String(m).padStart(2, '0')}-${String(sub.date).padStart(2, '0')}`,
+            allDay: true,
+            backgroundColor: 'transparent',
+            borderColor: catColor,
+            textColor: 'var(--text-main)',
+            display: 'block',
+            extendedProps: {
+              category: sub.category || 'サブスク',
+              metadata: { customColor: catColor, isAllDayBackground: false, customFields: { isExpenseSet: true, standardExpenseAmount: sub.amount } }
+            }
+          });
+        }
+      } else if (sub.cycle === 'yearly') {
+        evts.push({
+          id: `sub-${sub.name}-${y}`,
+          title: `🔄 ${sub.name}`,
+          start: `${y}-${sub.date}`,
+          allDay: true,
+          backgroundColor: 'transparent',
+          borderColor: catColor,
+          textColor: 'var(--text-main)',
+          display: 'block',
+          extendedProps: {
+            category: sub.category || 'サブスク',
+            metadata: { customColor: catColor, isAllDayBackground: false, customFields: { isExpenseSet: true, standardExpenseAmount: sub.amount } }
+          }
+        });
       }
-    }
+    });
+    return evts;
+  });
+    
+    const displayEvents = [...events, ...anniversaryEvents, ...routineEvents].flatMap((e: any) => {
+    const metadata = e.extendedProps?.metadata || {};
+    const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+    const results = [];
 
-    const mainEvent = { ...e, start: overrideStart, extendedProps: { ...e.extendedProps, originalStart: e.extendedProps?.originalStart || e.start }, customOrder: priority };
-    const results = [mainEvent];
-
-    if (metadata.customFields?.isTransit && metadata.customFields.transitDepTime && metadata.customFields.transitArrTime) {
-      const sDate = new Date(e.start);
-      const [dh, dm] = metadata.customFields.transitDepTime.split(':');
-      const [ah, am] = metadata.customFields.transitArrTime.split(':');
-
-      const tStart = new Date(sDate); tStart.setHours(Number(dh), Number(dm), 0, 0);
-      const tEnd = new Date(sDate); tEnd.setHours(Number(ah), Number(am), 0, 0);
-      if (tEnd < tStart) tEnd.setDate(tEnd.getDate() + 1);
-
-      const tType = metadata.customFields.transitType;
-      const icon = tType === 'plane' ? 'Plane' : tType === 'bus' ? 'Bus' : 'Train';
-      const cColor = e.extendedProps?.cColor || e.backgroundColor || '#94a3b8';
+    // 移動ブロックの生成
+    if (metadata.isGathering && metadata.departureTime) {
+      // ✅ ここで変数(dh, dm, gh, gm, wTime)をしっかり定義します
+      const [dh, dm] = metadata.departureTime.split(':').map(Number);
+      const [gh, gm] = (metadata.gatheringTime || "12:00").split(':').map(Number);
+      const wTime = parseInt(metadata.walkTime || walkTime || '0', 10);
+      
+      const moveStart = new Date(e.start);
+      moveStart.setHours(dh, dm, 0);
+      if (metadata.departureType !== 'home') moveStart.setMinutes(moveStart.getMinutes() - wTime);
+      
+      const moveEnd = new Date(e.start);
+      moveEnd.setHours(gh, gm, 0);
 
       results.push({
-        id: `${e.id}-transit`,
-        title: `${icon} 移動`,
-        start: tStart.toISOString(),
-        end: tEnd.toISOString(),
+        id: `${e.id}-travel`,
+        // 👇 groupId を追加して、幅計算のヒントをカレンダーに与える
+        groupId: e.id, 
+        title: `${moveStart.getHours()}:${String(moveStart.getMinutes()).padStart(2,'0')} → ${metadata.gatheringTime}`,
+        start: moveStart.toISOString(),
+        end: moveEnd.toISOString(),
         allDay: false,
-        backgroundColor: hexToRgba(cColor, 0.15),
+        backgroundColor: 'transparent',
         borderColor: cColor,
-        display: 'block',
-        extendedProps: {
-          category: '交通機関',
-          isTransitEvent: true,
-          cColor: cColor,
-          metadata: { isTransitBlock: true }
-        }
+        extendedProps: { isTransitEvent: true, cColor, transitType: metadata.departureType }
       });
     }
 
+    results.push({ 
+      ...e, 
+      // 👇 本体にも同じ groupId を持たせる
+      groupId: e.id, 
+      extendedProps: { ...e.extendedProps, originalStart: e.start } 
+    });
     return results;
   }).filter((e: any) => {
     if (e.extendedProps?.metadata?.isStocked) return false;
-    if (viewFilter !== 'すべて' && e.extendedProps.category !== viewFilter && !e.extendedProps.isTransitEvent) return false;
-    if (displayMode === 'photo') {
-      const hasPhoto = e.extendedProps.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0;
-      if (!hasPhoto) return false;
+    // 👇 月表示の時は移動枠を消して隙間を詰める！
+    if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
+    // 👇 単発の収支記録（金額だけの独立データ）をカレンダーのマス目から非表示にする
+    if (e.extendedProps?.metadata?.isPureFinance) return false;
+    
+    // 👇 追加：月毎カレンダーでは、サブスクや支払いをブロックとして表示しない！
+    if (viewType === 'dayGridMonth') {
+      const isSub = String(e.id).startsWith('sub-');
+      const isRoutineExpense = e.extendedProps?.isRoutine && e.extendedProps?.metadata?.routineType === 'expense';
+      const isManualPayment = e.extendedProps?.metadata?.customFields?.isExpenseSet && (e.title?.includes('支払') || e.title?.includes('引落'));
+      if (isSub || isRoutineExpense || isManualPayment) return false;
     }
+    
     return true;
   });
 
@@ -1357,6 +1531,37 @@ export default function SmartLifeOS() {
   const currentMonthStr = `${currentYear}-${currentMonthNum.padStart(2, '0')}`;
   const currentMonthEvents = displayEvents.filter((e: any) => e.start && e.start.startsWith(currentMonthStr) && !e.extendedProps.isAnniversary);
   const currentYearEvents = displayEvents.filter((e: any) => e.start && e.start.startsWith(currentYear));
+
+useEffect(() => {
+    if (viewType !== 'timeGridWeek' && viewType !== 'timeGridDay') return;
+    const syncWidths = () => {
+      const calendarEl = document.querySelector('.fc');
+      if (!calendarEl) return;
+      const transitEls = calendarEl.querySelectorAll('[data-travel-target]');
+      transitEls.forEach(tEl => {
+        const targetId = tEl.getAttribute('data-travel-target');
+        const mainEl = calendarEl.querySelector(`[data-main-id="${targetId}"]`);
+        if (mainEl && tEl) {
+          const tHarness = tEl.closest('.fc-timegrid-event-harness') as HTMLElement;
+          const mainHarness = mainEl.closest('.fc-timegrid-event-harness') as HTMLElement;
+          if (tHarness && mainHarness) {
+            // 本体の幅と位置（left/right）を、そのまま移動枠にコピー
+            tHarness.style.left = mainHarness.style.left;
+            tHarness.style.right = mainHarness.style.right;
+            tHarness.style.width = mainHarness.style.width;
+            tHarness.style.marginLeft = mainHarness.style.marginLeft;
+            tHarness.style.marginRight = mainHarness.style.marginRight;
+            tHarness.style.zIndex = mainHarness.style.zIndex;
+          }
+        }
+      });
+    };
+    const observer = new MutationObserver(() => syncWidths());
+    const container = document.querySelector('.fc');
+    if (container) observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    setTimeout(syncWidths, 50);
+    return () => observer.disconnect();
+  }, [events, viewType, currentWeekStartStr]);
 
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
@@ -1385,8 +1590,19 @@ export default function SmartLifeOS() {
           color-scheme: ${isDarkMode ? 'dark' : 'light'};
         }
 
-        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--theme-border) !important; transition: border-color 0.3s; }
-
+        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--theme-shadow) !important; transition: border-color 0.3s; }
+        .fc-scrollgrid { border: 1.5px solid var(--theme) !important; border-radius: 12px; overflow: hidden; }
+        .fc-col-header-cell { border-bottom: 2px solid var(--theme) !important; }
+        
+        /* 👇 全ての数値入力の矢印（スピナー）を消す */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type="number"] {
+          -moz-appearance: textfield;
+        }
         * { box-sizing: border-box; }
         body, .fixed-mobile-frame, .fc {
           color: var(--text-main);
@@ -1400,11 +1616,16 @@ export default function SmartLifeOS() {
         }
 
         .fc-event-main, .fc-v-event .fc-event-main { padding: 0 !important; color: inherit; }
-        .fc-timegrid-allday { min-height: 48px !important; height: 48px !important; }
+        
+        /* 👇 all-day枠（終日予定）の高さを予定の有無に関わらず完全に固定する */
+        .fc-scrollgrid-section-allday td, .fc-scrollgrid-section-allday th { height: 34px !important; min-height: 34px !important; max-height: 34px !important; overflow: hidden !important; }
+        .fc-timegrid-allday { height: 34px !important; min-height: 34px !important; max-height: 34px !important; padding: 0 !important; overflow: hidden !important; }
+        .fc-timegrid-allday .fc-daygrid-day-events { margin: 0 !important; min-height: 34px !important; display: flex; align-items: center; padding-top: 1px !important; }
+        
         .fc-timegrid-allday-cushion { display: none !important; }
-        .fc-timegrid-axis-cushion { font-size: 0.65rem !important; padding: 4px !important; }
+        .fc-timegrid-axis-cushion { font-size: 0.65rem !important; padding: 4px !important; line-height: 1; }
         .fc-timeGridWeek-view .fc-daygrid-day-events,
-        .fc-timeGridDay-view .fc-daygrid-day-events { margin: 0 !important; min-height: 0 !important; }
+        .fc-timeGridDay-view .fc-daygrid-day-events { margin: 0 !important; }
         .fc-timeGridWeek-view .fc-daygrid-day-frame,
         .fc-timeGridDay-view .fc-daygrid-day-frame { padding: 0 !important; justify-content: center; }
 
@@ -1447,9 +1668,10 @@ export default function SmartLifeOS() {
           box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
           min-width: 90% !important;
         }
-        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--border-color) !important; }
-        .fc-scrollgrid { border-color: transparent !important; }
-        .fc-col-header-cell { background-color: var(--glass-bg) !important; border-bottom: 2px solid var(--theme) !important; backdrop-filter: blur(5px); }
+        /* カレンダーの枠線を確実にテーマカラーで上書き */
+        .fc-theme-standard td, .fc-theme-standard th { border-color: var(--theme) !important; transition: border-color 0.3s; }
+        .fc-scrollgrid { border: 1px solid var(--theme) !important; border-radius: 8px; overflow: hidden; }
+        .fc-col-header-cell { border-bottom: 2px solid var(--theme) !important; }
         .fc-day-today { background-color: var(--theme-shadow) !important; }
         .fc-timegrid-now-indicator-line { border-color: var(--theme) !important; border-width: 2px !important; }
         .fc-timegrid-now-indicator-arrow { border-color: var(--theme) !important; border-width: 6px !important; border-top-color: transparent !important; border-bottom-color: transparent !important; }
@@ -1695,11 +1917,16 @@ export default function SmartLifeOS() {
       `}</style>
 
       <div className="fixed-mobile-frame">
-        <header className="glass-panel" style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 9999, pointerEvents: 'auto', borderRadius: '0 0 20px 20px', minHeight: '65px', gap: '8px' }}>
+        {/* 近未来感（SF・HUD風）なヘッダーUI */}
+        {/* 近未来感（SF・HUD風）なヘッダーUI */}
+        {/* 👇 修正: padding を '16px' から '12px 16px 4px 16px' に変更し、下の隙間を狭めました */}
+        <header style={{ padding: '12px 16px 4px 16px', background: 'linear-gradient(180deg, var(--bg-main) 40%, transparent 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100, pointerEvents: 'auto', gap: '12px' }}>
           
-          {/* 左側：メニュー・追加・モード切替 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, justifyContent: 'flex-start' }}>
-            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} className="btn-icon" style={{ width: '40px', height: '40px', fontSize: '1.2rem' }}>☰</button>
+          {/* 左側：メニュー・追加 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'flex-start' }}>
+            {/* 👇 修正: paddingBottom: '3px' を追加して ☰ を上下中央に補正 */}
+            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} style={{ width: '50px', height: '47px', fontSize: '1.6rem', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '16px', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow)`, transition: 'all 0.2s', paddingBottom: '3px' }}>☰</button>
+            {/* 👇 修正: fontSizeを少し大きくし、paddingBottom: '6px', lineHeight: 0 で ＋ を完璧な中央に補正 */}
             <button
               onClick={() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
@@ -1707,41 +1934,130 @@ export default function SmartLifeOS() {
                 setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
                 setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsModalOpen(true);
               }}
-              className="btn-icon"
-              style={{ border: `2px solid ${themeColor}`, color: themeColor, fontSize: '1.6rem', fontWeight: 'bold', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, paddingBottom: '2px' }}
+              style={{ background: 'var(--theme)', color: '#fff', fontSize: '2.2rem', fontWeight: 'bold', width: '50px', height: '47px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 15px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '6px', lineHeight: 0 }}
             >
               +
             </button>
           </div>
 
-          {/* 中央：年月表示 */}
-          <div className="date-picker-btn" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '6px', gap: '4px', flexShrink: 0 }}>
-            <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().prev(); }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: '4px 8px' }}>◀</button>
-            <div onClick={() => { setPickerYear(parseInt(currentYear || String(new Date().getFullYear()))); setIsDatePickerOpen(true); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', padding: '0 8px' }}>
-              <span style={{ fontSize: '0.65rem', color: themeColor, fontWeight: '900', opacity: 0.8, marginBottom: '-2px' }}>{currentYear}年</span>
-              <div style={{ fontSize: '1.2rem', color: themeColor, fontWeight: '900', letterSpacing: '-0.5px' }}>{currentMonthNum}月</div>
+          {/* 中央：年月表示（HUDスキャナー風ピル形状） */}
+          <div onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '9px 32px', gap: '20px', flexShrink: 0, background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '32px', cursor: 'pointer', boxShadow: `0 0 20px var(--theme-shadow), inset 0 0 10px var(--theme-shadow)` }}>
+            
+            {/* 👇 日毎ビューの時は「1ヶ月前」にジャンプする */}
+            <button onClick={(e) => { 
+              e.stopPropagation(); 
+              const api = calendarRef.current?.getApi();
+              if (viewType === 'timeGridDay' && api) {
+                const d = api.getDate(); d.setMonth(d.getMonth() - 1); api.gotoDate(d);
+              } else { api?.prev(); }
+            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.3rem', cursor: 'pointer', padding: 0 }}>◀</button>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 4px' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--theme)', fontWeight: '900', letterSpacing: '2px', marginBottom: '-2px', textShadow: `0 0 5px var(--theme-shadow)` }}>{currentYear}</span>
+              <div style={{ fontSize: '1.5rem', color: 'var(--text-main)', fontWeight: '900', letterSpacing: '-0.5px', lineHeight: 1, textShadow: `0 0 10px var(--theme-shadow)` }}>{currentMonthNum}月</div>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); calendarRef.current?.getApi().next(); }} style={{ border: 'none', background: 'transparent', color: themeColor, fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: '4px 8px' }}>▶</button>
+
+            {/* 👇 日毎ビューの時は「1ヶ月後」にジャンプする */}
+            <button onClick={(e) => { 
+              e.stopPropagation(); 
+              const api = calendarRef.current?.getApi();
+              if (viewType === 'timeGridDay' && api) {
+                const d = api.getDate(); d.setMonth(d.getMonth() + 1); api.gotoDate(d);
+              } else { api?.next(); }
+            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.3rem', cursor: 'pointer', padding: 0 }}>▶</button>
+
+            {/* 年月ポップアップ */}
+            {isDatePickerOpen && (
+              <>
+                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsDatePickerOpen(false); }} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 10000 }} />
+                <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 'calc(100% + 14px)', left: '50%', transform: 'translateX(-50%)', padding: '14px', borderRadius: '20px', display: 'flex', gap: '10px', zIndex: 10001, border: `1px solid var(--theme)`, background: 'var(--bg-main)', boxShadow: `0 10px 40px var(--theme-shadow)` }}>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', borderRadius: '12px', padding: '6px 10px' }}>
+                    <select value={currentYear} onChange={(e) => { const newDate = new Date(parseInt(e.target.value), parseInt(currentMonthNum) - 1, 1); calendarRef.current?.getApi().gotoDate(newDate); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
+                      {Array.from({length: 21}, (_, i) => new Date().getFullYear() - 10 + i).map(y => <option key={y} value={y}>{y}年</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', borderRadius: '12px', padding: '6px 10px' }}>
+                    <select value={currentMonthNum} onChange={(e) => { const newDate = new Date(parseInt(currentYear || String(new Date().getFullYear())), parseInt(e.target.value) - 1, 1); calendarRef.current?.getApi().gotoDate(newDate); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
+                      {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}月</option>)}
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
-          {/* 右側：今日ボタン・月週日切替（大きく、タップしやすく改善） */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
-            <button onClick={() => calendarRef.current?.getApi().today()} className="btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem', borderRadius: '12px' }}>今日</button>
-            <select
-              value={viewType}
-              onChange={(e) => {
-                const newView = e.target.value;
-                setViewType(newView);
-                calendarRef.current?.getApi().changeView(newView);
+          {/* 右側：今日・月週日切替 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-end', height: '47px' }}>
+            
+            {/* 展開中は「今日」ボタンを隠す */}
+            {!isViewSelectorExpanded && (
+              <button onClick={() => calendarRef.current?.getApi().today()} style={{ background: 'var(--card-bg)', border: `1px solid var(--theme)`, width: '47px', height: '47px', borderRadius: '16px', cursor: 'pointer', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px var(--theme-shadow)`, padding: 0, animation: 'fadeIn 0.2s' }}>
+                <Calendar size={20} />
+              </button>
+            )}
+            
+            {/* 👇 修正：展開時の幅をピッタリ 102px (47+8+47) に変更 */}
+            <div 
+              style={{ 
+                background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '16px', 
+                display: 'flex', alignItems: 'center', boxShadow: `0 0 10px var(--theme-shadow)`,
+                overflow: 'hidden', transition: 'width 0.25s ease-out',
+                width: isViewSelectorExpanded ? '102px' : '47px',
+                height: '47px'
               }}
-              style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '8px 10px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', outline: 'none' }}
             >
-              <option value="dayGridMonth">月</option>
-              <option value="timeGridWeek">週</option>
-              <option value="timeGridDay">日</option>
-            </select>
+              {isViewSelectorExpanded ? (
+                <div style={{ display: 'flex', width: '100%', height: '100%', animation: 'fadeIn 0.3s' }}>
+                  {/* 👇 幅が狭くなるため、文字サイズを 0.8rem に調整 */}
+                  <button onClick={() => { setViewType('dayGridMonth'); calendarRef.current?.getApi().changeView('dayGridMonth'); setIsViewSelectorExpanded(false); }} style={{ flex: 1, height: '100%', padding: 0, background: viewType === 'dayGridMonth' ? 'var(--theme)' : 'transparent', color: viewType === 'dayGridMonth' ? '#fff' : 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', transition: 'background 0.2s' }}>月</button>
+                  <button onClick={() => { setViewType('timeGridWeek'); calendarRef.current?.getApi().changeView('timeGridWeek'); setIsViewSelectorExpanded(false); }} style={{ flex: 1, height: '100%', padding: 0, background: viewType === 'timeGridWeek' ? 'var(--theme)' : 'transparent', color: viewType === 'timeGridWeek' ? '#fff' : 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', transition: 'background 0.2s', borderLeft: '1px dashed var(--theme-shadow)', borderRight: '1px dashed var(--theme-shadow)' }}>週</button>
+                  <button onClick={() => { setViewType('timeGridDay'); calendarRef.current?.getApi().changeView('timeGridDay'); setIsViewSelectorExpanded(false); }} style={{ flex: 1, height: '100%', padding: 0, background: viewType === 'timeGridDay' ? 'var(--theme)' : 'transparent', color: viewType === 'timeGridDay' ? '#fff' : 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', transition: 'background 0.2s' }}>日</button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setIsViewSelectorExpanded(true)} 
+                  style={{ width: '100%', height: '100%', padding: 0, background: 'transparent', color: 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '1.05rem', cursor: 'pointer' }}
+                >
+                  {viewType === 'dayGridMonth' ? '月' : viewType === 'timeGridWeek' ? '週' : '日'}
+                </button>
+              )}
+            </div>
           </div>
         </header>
+
+        {/* 👇 カレンダーの枠線と曜日下の線をテーマカラーに完全連動させるスタイル */}
+        <style dangerouslySetInnerHTML={{__html: `
+          /* 外側の不要な太い枠線を消す */
+          .fc-scrollgrid { border: none !important; }
+          
+          /* マス目の内側の線を、テーマカラーの薄い色（影色）にする */
+          .fc-theme-standard td, .fc-theme-standard th { 
+            border-color: var(--theme-shadow) !important; 
+            transition: border-color 0.3s; 
+          }
+
+          /* 👇 追加：アンバランスな一番右の線を消す */
+          .fc-theme-standard th:last-child, 
+          .fc-theme-standard td:last-child { 
+            border-right: none !important; 
+          }
+
+          /* 👇 追加：不要な一番下の線を消す */
+          .fc-theme-standard .fc-scrollgrid-section-body:last-child td,
+          .fc-theme-standard .fc-daygrid-body tr:last-child td {
+            border-bottom: none !important;
+          }
+          
+          /* 曜日の下の線をグレーからテーマカラーに変更し、少し太くする */
+          .fc-theme-standard th { 
+            padding: 0 !important; 
+            border-bottom: 1px solid var(--theme) !important; 
+          }
+          
+          /* 曜日の余白調整 */
+          .fc .fc-col-header-cell-cushion { padding: 4px 0 !important; }
+        `}} />
 
         {isSearchMode && (
           <div className="glass-panel" style={{ margin: '8px', padding: '12px', borderRadius: '16px', display: 'flex', gap: '8px', zIndex: 15, animation: 'fadeInDown 0.3s ease-out' }}>
@@ -1750,8 +2066,294 @@ export default function SmartLifeOS() {
           </div>
         )}
 
-        <div style={{ flex: 1, position: 'relative', padding: '6px' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-          <div className="glass-panel" style={{ position: 'absolute', top: '6px', left: '6px', right: '6px', bottom: '6px', padding: '4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* 👇 カレンダー全体ブロック（日毎ビューの円形ダッシュボード化を含む） */}
+        <div style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+          <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '6px', right: '6px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            
+            {/* 👇 新しい「日毎」のカスタム円形ダッシュボードUI 👇 */}
+            {viewType === 'timeGridDay' && (() => {
+              const targetDayStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(currentDayNum || '1').padStart(2, '0')}`;
+              const targetDateObj = new Date(`${targetDayStr}T00:00:00`);
+              const tomorrowObj = new Date(targetDateObj); tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+              const targetTime = targetDateObj.getTime();
+
+              const dayEvents = displayEvents.filter((e: any) => {
+                if (e.extendedProps?.isMilestone || e.extendedProps?.metadata?.isAllDayBackground || e.allDay) return false;
+                const s = new Date(e.start);
+                const eTime = e.end ? new Date(e.end) : new Date(s.getTime() + 3600000);
+                return eTime > targetDateObj && s < tomorrowObj;
+              }).sort((a:any, b:any) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+              const allDayEvents = displayEvents.filter((e: any) => {
+                if (!e.allDay && !e.extendedProps?.metadata?.isAllDayBackground) return false;
+                const sDate = new Date(e.start);
+                sDate.setHours(0, 0, 0, 0);
+                const eDate = e.end ? new Date(e.end) : new Date(sDate.getTime() + 86400000);
+                eDate.setHours(0, 0, 0, 0);
+                return targetTime >= sDate.getTime() && targetTime < eDate.getTime();
+              });
+
+              // 予定の重なり（クラスター）を正確に計算するロジック
+              const clusters: any[][] = [];
+              let currentCluster: any[] = [];
+              let clusterEnd = 0;
+
+              dayEvents.forEach((e: any) => {
+                const start = new Date(e.start).getTime();
+                const end = e.end ? new Date(e.end).getTime() : start + 3600000;
+                
+                if (currentCluster.length === 0) {
+                  currentCluster.push(e);
+                  clusterEnd = end;
+                } else {
+                  if (start < clusterEnd) {
+                    currentCluster.push(e);
+                    clusterEnd = Math.max(clusterEnd, end);
+                  } else {
+                    clusters.push(currentCluster);
+                    currentCluster = [e];
+                    clusterEnd = end;
+                  }
+                }
+              });
+              if (currentCluster.length > 0) clusters.push(currentCluster);
+
+              const eventLayout = new Map();
+              clusters.forEach(cluster => {
+                const active: any[] = [];
+                let maxTrack = 0;
+                
+                cluster.forEach(e => {
+                  for (let i = active.length - 1; i >= 0; i--) {
+                    if (active[i].end <= e._start) active.splice(i, 1);
+                  }
+                  const usedTracks = new Set(active.map(a => a.track));
+                  let track = 0;
+                  while (usedTracks.has(track)) track++;
+                  
+                  active.push({ end: e._end, track });
+                  maxTrack = Math.max(maxTrack, track);
+                  eventLayout.set(e.id, { track });
+                });
+                
+                const totalTracks = maxTrack + 1;
+                cluster.forEach((e: any) => {
+                  eventLayout.get(e.id).totalTracks = totalTracks;
+                });
+              });
+
+              const dayOfWeek = targetDateObj.getDay();
+              const isHoliday = holidays[toLocalYYYYMMDD(targetDateObj)];
+              const dayColor = (dayOfWeek === 0 || isHoliday) ? '#ef4444' : (dayOfWeek === 6 ? '#3b82f6' : 'var(--text-sub)');
+              const centerColor = allDayEvents.length > 0 ? (allDayEvents[0].extendedProps?.cColor || allDayEvents[0].backgroundColor || 'var(--theme)') : null;
+
+              const handleDayNav = (days: number) => {
+                const api = calendarRef.current?.getApi();
+                if (api) { const d = api.getDate(); d.setDate(d.getDate() + days); api.gotoDate(d); }
+              };
+
+              return (
+                <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'var(--bg-main)', display: 'flex', flexDirection: 'column', padding: '16px 16px 0 16px', overflow: 'hidden' }}>
+                  
+                  <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', marginBottom: '20px', padding: '10px 0' }}>
+                    <div style={{ position: 'relative', width: '280px', height: '280px' }}>
+                      <svg viewBox="0 0 160 160" style={{ width: '100%', height: '100%', overflow: 'visible', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.06))' }}>
+                        
+                        <circle cx="80" cy="80" r="50" fill="none" stroke="var(--border-color)" strokeWidth="24" opacity="0.4" />
+                        <circle cx="80" cy="80" r="38" fill={centerColor ? hexToRgba(centerColor, 0.1) : 'var(--bg-main)'} stroke={centerColor || 'var(--border-color)'} strokeWidth={centerColor ? "2.5" : "1"} style={{ transition: 'all 0.3s' }} />
+                        
+                        {Array.from({length: 24}).map((_, i) => {
+                          const angle = (i * 15 - 90) * (Math.PI / 180);
+                          const isMain = i % 3 === 0;
+                          const r1 = 64; 
+                          const r2 = isMain ? 68 : 66; 
+                          const x1 = (80 + r1 * Math.cos(angle)).toFixed(4); const y1 = (80 + r1 * Math.sin(angle)).toFixed(4);
+                          const x2 = (80 + r2 * Math.cos(angle)).toFixed(4); const y2 = (80 + r2 * Math.sin(angle)).toFixed(4);
+                          return (
+                            <g key={i}>
+                              {isMain ? (
+                                <text x={(80 + 74 * Math.cos(angle)).toFixed(4)} y={(80 + 74 * Math.sin(angle)).toFixed(4)} fontSize="6" fontWeight="900" fill="var(--text-sub)" textAnchor="middle" dominantBaseline="central">{i}</text>
+                              ) : (
+                                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--text-sub)" strokeWidth="1.5" opacity="0.4" />
+                              )}
+                            </g>
+                          );
+                        })}
+                        
+                        {/* 👇 移動時間は「枠線」、予定本体は「塗りつぶし」で繋げて描画 */}
+                        {/* 👇 移動時間は「枠線」、予定本体は「塗りつぶし」で繋げて描画 */}
+                        <g transform="rotate(-90 80 80)">
+                          {dayEvents.map((e: any, idx: number) => {
+                            if (e.extendedProps.isTransitEvent) return null;
+
+                            const metadata = e.extendedProps?.metadata || {};
+                            const cColor = e.extendedProps?.cColor || "var(--theme)";
+                            const elements = [];
+
+                            if (metadata.isGathering && metadata.departureTime && metadata.gatheringTime) {
+                                const [dh, dm] = metadata.departureTime.split(":").map(Number);
+                                const [gh, gm] = metadata.gatheringTime.split(":").map(Number);
+                                const wTime = parseInt(metadata.walkTime || walkTime || "0", 10);
+                                
+                                const leaveMin = (dh * 60 + dm) - (metadata.departureType === "home" ? 0 : wTime);
+                                const gatherMin = gh * 60 + gm;
+
+                                if (!isNaN(leaveMin) && !isNaN(gatherMin) && gatherMin > leaveMin) {
+                                    const rOut = 62;
+                                    const rIn = 38;
+                                    const angS = (leaveMin / 1440) * 2 * Math.PI;
+                                    const angE = (gatherMin / 1440) * 2 * Math.PI;
+                                    
+                                    const COut = 2 * Math.PI * rOut;
+                                    const CIn = 2 * Math.PI * rIn;
+
+                                    elements.push(
+                                        <g key={`move-frame-${idx}`}>
+                                            <circle cx="80" cy="80" r={rOut} fill="none" stroke={cColor} strokeWidth="1" strokeDasharray={`${((gatherMin-leaveMin)/1440)*COut} ${COut}`} strokeDashoffset={-(leaveMin/1440)*COut} opacity="0.8" />
+                                            <circle cx="80" cy="80" r={rIn} fill="none" stroke={cColor} strokeWidth="1" strokeDasharray={`${((gatherMin-leaveMin)/1440)*CIn} ${CIn}`} strokeDashoffset={-(leaveMin/1440)*CIn} opacity="0.8" />
+                                            <line x1={80+rIn*Math.cos(angS)} y1={80+rIn*Math.sin(angS)} x2={80+rOut*Math.cos(angS)} y2={80+rOut*Math.sin(angS)} stroke={cColor} strokeWidth="1" opacity="0.8" />
+                                            <line x1={80+rIn*Math.cos(angE)} y1={80+rIn*Math.sin(angE)} x2={80+rOut*Math.cos(angE)} y2={80+rOut*Math.sin(angE)} stroke={cColor} strokeWidth="1" opacity="0.8" />
+                                        </g>
+                                    );
+                                }
+                            }
+
+                            const sMin = new Date(e.start).getHours() * 60 + new Date(e.start).getMinutes();
+                            const eMin = new Date(e.end || new Date(e.start).getTime() + 3600000).getHours() * 60 + new Date(e.end || new Date(e.start).getTime() + 3600000).getMinutes();
+                            const CMain = 2 * Math.PI * 50;
+                            elements.push(
+                              <circle key={`main-${idx}`} cx="80" cy="80" r="50" fill="none" stroke={cColor} strokeWidth="24" strokeDasharray={`${((eMin-sMin)/1440)*CMain} ${CMain}`} strokeDashoffset={-(sMin/1440)*CMain} opacity="0.95" />
+                            );
+
+                            return <g key={idx}>{elements}</g>;
+                          })}
+                        </g>
+                      </svg>
+
+                      {/* 中央のナビゲーション */}
+                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10, width: '100%', height: '100%' }}>
+                        <button onClick={(e) => { e.stopPropagation(); handleDayNav(-7); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-sub)', marginTop: '-20px', transition: 'transform 0.2s' }}>
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                        </button>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', gap: '8px' }}>
+                          <button onClick={(e) => { e.stopPropagation(); handleDayNav(-1); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-sub)', transition: 'transform 0.2s' }}>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                          </button>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '60px', position: 'relative', cursor: 'pointer' }} title="タップして日付をジャンプ">
+                            <input type="date" value={`${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(currentDayNum).padStart(2, '0')}`} onChange={(e) => { if (e.target.value) calendarRef.current?.getApi().gotoDate(e.target.value); }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
+                            <div style={{ fontSize: '3.2rem', fontWeight: '900', color: centerColor || 'var(--text-main)', lineHeight: 1, margin: '0', textShadow: '0 2px 4px rgba(0,0,0,0.05)', transition: 'color 0.3s' }}>{currentDayNum}</div>
+                            <div style={{ fontSize: '1.1rem', color: dayColor, fontWeight: '900', marginTop: '2px' }}>{DAY_NAMES[dayOfWeek]}</div>
+                          </div>
+                          
+                          <button onClick={(e) => { e.stopPropagation(); handleDayNav(1); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-sub)', transition: 'transform 0.2s' }}>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                          </button>
+                        </div>
+
+                        <button onClick={(e) => { e.stopPropagation(); handleDayNav(7); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--text-sub)', marginBottom: '-20px', transition: 'transform 0.2s' }}>
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 👇 リスト表示：バッジを統合して1つのカードに */}
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' }} className="hide-scrollbar">
+                    
+                    {allDayEvents.map((e: any) => {
+                      const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                      const isPayment = e.extendedProps?.metadata?.routineType === 'expense' || String(e.id).startsWith('sub-') || e.extendedProps?.metadata?.customFields?.isExpenseSet;
+                      return (
+                        <div key={e.id} onClick={() => handleEventClick({event: e})} style={{ background: 'var(--card-bg)', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${cColor}`, borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{e.title.replace('🔄 ', '')}</div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: '900', color: cColor, background: hexToRgba(cColor, 0.1), padding: '4px 10px', borderRadius: '8px' }}>
+                            {isPayment ? '支払い' : '終日'}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {dayEvents.length === 0 && allDayEvents.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: 'var(--text-sub)', padding: '40px 20px', fontWeight: 'bold', fontSize: '0.95rem' }}>この日の予定はありません</div>
+                    ) : (
+                      dayEvents.map((e: any) => {
+                        if (e.extendedProps?.isTransitEvent) return null;
+                        const s = new Date(e.start);
+                        const end = e.end ? new Date(e.end) : new Date(s.getTime() + 3600000);
+                        
+                        const origS = new Date(e.extendedProps.originalStart);
+                        const sH = String(origS.getHours()).padStart(2, '0');
+                        const sM = String(origS.getMinutes()).padStart(2, '0');
+                        const eH = String(end.getHours()).padStart(2, '0');
+                        const eM = String(end.getMinutes()).padStart(2, '0');
+                        
+                        const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                        
+                        // 👇 ここから重要：ループ内のローカル変数を定義
+                        const m = e.extendedProps?.metadata || {};
+                        const loc = m.location;
+                        const depTime = m.departureTime;
+                        const isGatheringSet = m.isGathering && depTime;
+                        const customStart = m.customFields?.customStartLocation;
+                        const dType = m.departureType || (startPointType === 'station' ? 'train' : 'home');
+
+                        let houseLeaveTimeStr = '';
+                        if (isGatheringSet && depTime.includes(':')) {
+                          if (startPointType === 'station' || dType === 'train') {
+                            const wTime = parseInt(m.walkTime || walkTime || '0', 10);
+                            if (wTime > 0) {
+                              const [h, mVal] = depTime.split(':').map(Number);
+                              const dObj = new Date(); dObj.setHours(h, mVal, 0); dObj.setMinutes(dObj.getMinutes() - wTime);
+                              houseLeaveTimeStr = `${String(dObj.getHours()).padStart(2, '0')}:${String(dObj.getMinutes()).padStart(2, '0')}`;
+                            }
+                          }
+                        }
+                        // 👆 ここまで
+
+                        return (
+                          <div key={e.id} onClick={() => handleEventClick({event: e})} style={{ background: 'var(--card-bg)', borderRadius: '16px', border: `2px solid ${cColor}`, borderLeft: `8px solid ${cColor}`, padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
+                             
+                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden' }}>
+                                <div style={{ fontSize: '1.05rem', fontWeight: '900', color: 'var(--text-main)', whiteSpace: 'pre-wrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title}</div>
+                                
+                                {(loc || isGatheringSet) && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                                    {isGatheringSet && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '900', color: '#fff', background: cColor, padding: '4px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: `0 2px 6px ${hexToRgba(cColor, 0.3)}` }}>
+                                          {customStart ? <MapPin size={12}/> : (dType === 'train' ? <Train size={12}/> : <Home size={12}/>)} 
+                                          {customStart ? customStart : (dType === 'train' ? '駅' : '自宅')} {depTime} 出発
+                                        </span>
+                                        {houseLeaveTimeStr && (
+                                          <span style={{ fontSize: '0.7rem', fontWeight: '900', color: cColor, border: `1px solid ${cColor}`, background: 'transparent', padding: '3px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Footprints size={12} /> 家を出る: {houseLeaveTimeStr}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {loc && (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <MapPin size={14} style={{ color: cColor, flexShrink: 0 }} /> {loc}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                             </div>
+
+                             <span style={{ flexShrink: 0, fontSize: '0.85rem', fontWeight: '900', color: cColor, background: hexToRgba(cColor, 0.1), padding: '6px 12px', borderRadius: '12px' }}>
+                               {sH}:{sM} ~ {eH}:{eM}
+                             </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <FullCalendar
               key={displayMode + overlapMode}
               ref={calendarRef}
@@ -1770,12 +2372,9 @@ export default function SmartLifeOS() {
               select={handleSelect} 
               eventClick={handleEventClick}
               locale="ja"
-
-              /* スマホ対応のタップ判定 */
-              longPressDelay={250}
-              eventLongPressDelay={250}
-              selectLongPressDelay={250}
-
+              longPressDelay={120}
+              eventLongPressDelay={120}
+              selectLongPressDelay={120}
               moreLinkContent={(args: any) => `+他${args.num}件`}
               eventClassNames={() => (displayMode === 'dot' && viewType === 'dayGridMonth') ? ['is-dot-mode-event'] : []}
               eventContent={renderEventContent}
@@ -1806,15 +2405,41 @@ export default function SmartLifeOS() {
                   </div>
                 );
               }}
-              dayCellContent={(arg: any) => arg.view.type === 'dayGridMonth' ? arg.date.getDate().toString() : ''}
+              dayCellContent={(arg: any) => {
+                if (arg.view.type === 'dayGridMonth') {
+                  const dStr = toLocalYYYYMMDD(arg.date);
+                  // 👇 修正：サブスクを除外し、通常の支払いとルーティン支払いのみで判定
+                  const paymentEvent = [...events, ...routineEvents].find((e: any) => {
+                    const isRoutineExpense = e.extendedProps?.isRoutine && e.extendedProps?.metadata?.routineType === 'expense';
+                    const isManualPayment = e.extendedProps?.metadata?.customFields?.isExpenseSet && (e.title?.includes('支払') || e.title?.includes('引落'));
+                    return (isRoutineExpense || isManualPayment) && e.start?.startsWith(dStr);
+                  });
+
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                      {/* 👇 修正：相対位置のコンテナで数字を囲む */}
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span>{arg.date.getDate()}</span>
+                        {paymentEvent && (() => {
+                          const cColor = paymentEvent.extendedProps?.cColor || paymentEvent.extendedProps?.metadata?.customColor || paymentEvent.backgroundColor || 'var(--theme)';
+                          // 👇 修正：ドットを absolute（絶対配置）にして、数字の右側に浮かせて配置する
+                          return <div style={{ position: 'absolute', left: '100%', marginLeft: '3px', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: cColor, marginTop: '2px', boxShadow: `0 1px 3px ${hexToRgba(cColor, 0.4)}` }} title={paymentEvent.title} />;
+                        })()}
+                      </div>
+                    </div>
+                  );
+                }
+                return '';
+              }}
               datesSet={(arg: any) => {
                 setViewType(arg.view.type); const d = arg.view.currentStart;
-                let y = d.getFullYear(), m = d.getMonth() + 1;
+                let y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
                 if (arg.view.type === 'timeGridWeek') {
                   const midWeek = new Date(d); midWeek.setDate(midWeek.getDate() + 3);
                   y = midWeek.getFullYear(); m = midWeek.getMonth() + 1;
                 }
-                setCurrentYear(String(y)); setCurrentMonthNum(String(m));
+                // 👇 日付が変わるたびに currentDayNum も同期する魔法
+                setCurrentYear(String(y)); setCurrentMonthNum(String(m)); setCurrentDayNum(String(day));
               }}
               dayCellClassNames={(arg: any) => {
                 if (arg.date.getDay() === 0 || holidays[toLocalYYYYMMDD(arg.date)]) return ['holiday-cell'];
@@ -1899,6 +2524,14 @@ export default function SmartLifeOS() {
           setIsAnniversaryModalOpen={setIsAnniversaryModalOpen}
           syncWithCloud={syncWithCloud}
           handleEventClick={handleEventClick}
+          setCustomFieldsData={setCustomFieldsData}
+          homeLocation={homeLocation} setHomeLocation={setHomeLocation}
+          nearestStation={nearestStation} setNearestStation={setNearestStation}
+          walkTime={walkTime} setWalkTime={setWalkTime}
+          startPointType={startPointType} setStartPointType={setStartPointType}
+          // 👇 追加：表示モードと現在のビュー状態をサイドバーに渡す
+          displayMode={displayMode} setDisplayMode={setDisplayMode}
+          viewType={viewType}
         />
 
         {/* ギャラリー */}
@@ -1906,8 +2539,24 @@ export default function SmartLifeOS() {
           <div className="modal-overlay" onClick={() => setIsGalleryOpen(false)}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px' }}>
               <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px', maxHeight: '65vh', overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
-                {events.filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0).sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime()).flatMap((e: any) =>
+              
+              {/* 👇 追加：ジャンル絞り込みボタン */}
+              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '4px' }}>
+                <button onClick={() => setGalleryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: galleryCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
+                {categories.map((c: any) => (
+                  <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px', maxHeight: '55vh', overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
+                {/* 👇 修正：選択されたジャンルでフィルターをかける */}
+                {events
+                  .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
+                  .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
+                  .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
+                  .flatMap((e: any) =>
                   e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
                     <div key={`${e.id}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <div style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
@@ -2029,12 +2678,20 @@ export default function SmartLifeOS() {
           setUserColors={setUserColors}
         />
 
-        {/* 予定入力・編集モーダル */}
+        {/* 👇 ここから2行復活させます！ 👇 */}
         {isModalOpen && (
-          <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px' }}>
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }} onClick={() => setIsModalOpen(false)}>
+
+        {/* 👇 修正：サブスクモードの時だけ画面を大きく広げる（maxWidth を動的に変更） */}
+          <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: mode === 'subscription' ? '760px' : '400px', maxHeight: '85dvh', background: 'var(--bg-main)', padding: '24px', borderRadius: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', transition: 'max-width 0.3s ease' }}>
               <ModalHeader
-                title={mode === 'create' ? '予定を追加' : mode === 'dayOfWeekBulk' ? '曜日一括追加' : mode === 'routine_detail' ? 'ルーティンの確認' : '予定を編集'}
+                title={
+                  mode === 'expense' ? <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Banknote size={24} /> 支出を記録</div> : 
+                  mode === 'subscription' ? <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Repeat size={24} /> サブスクリプション管理</div> : 
+                  mode === 'create' ? '予定を追加' : 
+                  mode === 'dayOfWeekBulk' ? '曜日一括追加' : 
+                  mode === 'routine_detail' ? 'ルーティンの確認' : '予定を編集'
+                }
                 onClose={() => setIsModalOpen(false)}
                 rightEl={mode === 'detail' ? (
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -2044,7 +2701,193 @@ export default function SmartLifeOS() {
                 ) : null}
               />
 
-              {mode === 'routine_detail' ? (
+              {mode === 'expense' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '10px 0' }}>
+                  
+                  {/* 👇 収支切り替えトグル */}
+                  <div style={{ display: 'flex', background: 'var(--input-bg)', borderRadius: '16px', padding: '6px', border: '1px solid var(--border-color)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
+                    <button 
+                      onClick={() => setCustomFieldsData({...customFieldsData, transactionMode: 'expense'})} 
+                      style={{ flex: 1, padding: '10px', borderRadius: '12px', background: customFieldsData.transactionMode !== 'income' ? 'rgba(239,68,68,0.1)' : 'transparent', color: customFieldsData.transactionMode !== 'income' ? '#ef4444' : 'var(--text-sub)', border: `1px solid ${customFieldsData.transactionMode !== 'income' ? '#ef4444' : 'transparent'}`, fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s', boxShadow: customFieldsData.transactionMode !== 'income' ? '0 4px 10px rgba(239,68,68,0.15)' : 'none' }}>
+                      支出
+                    </button>
+                    <button 
+                      onClick={() => setCustomFieldsData({...customFieldsData, transactionMode: 'income'})} 
+                      style={{ flex: 1, padding: '10px', borderRadius: '12px', background: customFieldsData.transactionMode === 'income' ? 'rgba(16,185,129,0.1)' : 'transparent', color: customFieldsData.transactionMode === 'income' ? '#10b981' : 'var(--text-sub)', border: `1px solid ${customFieldsData.transactionMode === 'income' ? '#10b981' : 'transparent'}`, fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s', boxShadow: customFieldsData.transactionMode === 'income' ? '0 4px 10px rgba(16,185,129,0.15)' : 'none' }}>
+                      収入
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="form-label">日付</label>
+                    <input type="date" className="pop-input" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="form-label">金額</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="number" className="pop-input no-spin" style={{ flex: 1, textAlign: 'right', fontSize: '1.6rem', fontWeight: '900', color: customFieldsData.transactionMode === 'income' ? '#10b981' : '#ef4444' }} placeholder="0" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} autoFocus />
+                      <span style={{ fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
+                    </div>
+                  </div>
+                  {/* 👇 修正：ジャンルと支払方法を横並びで選択可能に */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label">ジャンル</label>
+                      <select className="pop-input" value={categoryName} onChange={e => setCategoryName(e.target.value)} style={{ padding: '0 8px' }}>
+                        <option value="">選択</option>
+                        {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label">{customFieldsData.transactionMode === 'income' ? '受取方法' : '支払方法'}</label>
+                      <select className="pop-input" value={customFieldsData.paymentMethod || 'cash'} onChange={e => handleCustomFieldChange('paymentMethod', e.target.value)} style={{ padding: '0 8px' }}>
+                        {customFieldsData.transactionMode === 'income' ? (
+                          <>
+                            <option value="bank">🏦 振込・口座</option>
+                            <option value="cash">💴 現金・手渡し</option>
+                            <option value="paypay">📱 電子マネー</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="cash">💴 現金</option>
+                            <option value="credit">💳 クレカ</option>
+                            <option value="paypay">📱 スマホ決済</option>
+                            <option value="ic">🪪 交通系IC</option>
+                            <option value="reimburse">🔄 立替 (要精算)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">メモ（用途など）</label>
+                    <input type="text" className="pop-input" value={title} onChange={e => setTitle(e.target.value)} placeholder={customFieldsData.transactionMode === 'income' ? "例：フリマアプリ売上" : "例：コンビニで水"} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                    <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1 }}>キャンセル</button>
+                    <button onClick={async () => {
+                      if (!expenseAmount || !categoryName) return alert('金額とジャンルを入力してください');
+                      const isInc = customFieldsData.transactionMode === 'income';
+                      const payload = {
+                        title: title ? title : `${categoryName}の${isInc ? '収入' : '支出'}`, category: categoryName,
+                        start_at: new Date(`${startDate}T12:00:00`).toISOString(), end_at: new Date(`${startDate}T13:00:00`).toISOString(),
+                        metadata: { 
+                          isAllDayBackground: true, 
+                          isPureFinance: true, // 👈 追加：カレンダーに表示させない専用フラグ
+                          customColor: categories.find(c => c.name === categoryName)?.color || (isInc ? '#10b981' : '#ef4444'), 
+                          customFields: { 
+                            isExpenseSet: !isInc, standardExpenseAmount: !isInc ? expenseAmount : '',
+                            isIncomeSet: isInc, standardIncomeAmount: isInc ? expenseAmount : '',
+                            paymentMethod: customFieldsData.paymentMethod || 'cash' // 👈 追加
+                          }
+                        }
+                      };
+                      await supabase.from('events').insert([payload]);
+                      setIsModalOpen(false); fetchEvents(); setExpenseAmount('');
+                    }} className="btn-pop" style={{ flex: 1.5, background: customFieldsData.transactionMode === 'income' ? '#10b981' : '#ef4444', boxShadow: `0 4px 15px rgba(${customFieldsData.transactionMode === 'income' ? '16,185,129' : '239,68,68'},0.4)` }}>記録する</button>
+                  </div>
+                </div>
+
+              ) : mode === 'subscription' ? (
+                /* 👇 2. サブスク専用ダッシュボードUI */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '10px 0' }}>
+                  
+                  {/* サマリーカード（月額・年額の自動計算） */}
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    {(() => {
+                      const monthlyTotal = subs.filter(s => s.cycle === 'monthly').reduce((acc, s) => acc + Number(s.amount), 0);
+                      const yearlyTotal = subs.filter(s => s.cycle === 'yearly').reduce((acc, s) => acc + Number(s.amount), 0) + (monthlyTotal * 12);
+                      return (
+                        <>
+                          <div style={{ flex: 1, minWidth: '200px', background: 'var(--card-bg)', border: `1px solid ${themeColor}`, borderRadius: '16px', padding: '20px', boxShadow: `0 4px 15px ${themeColor}15` }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>月額の支払い (月会費)</div>
+                            <div style={{ fontSize: '2rem', fontWeight: '900', color: themeColor }}>¥{monthlyTotal.toLocaleString()}</div>
+                          </div>
+                          <div style={{ flex: 1, minWidth: '200px', background: 'var(--card-bg)', border: `1px solid ${themeColor}`, borderRadius: '16px', padding: '20px', boxShadow: `0 4px 15px ${themeColor}15` }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>年額の支払い (年会費 + 月額×12)</div>
+                            <div style={{ fontSize: '2rem', fontWeight: '900', color: themeColor }}>¥{yearlyTotal.toLocaleString()}</div>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                    {/* 左側：登録済みリスト */}
+                    <div style={{ flex: 1.5, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)' }}>登録済みのサービス</span>
+                      <div style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }} className="hide-scrollbar">
+                        {subs.map((sub, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                            <div>
+                              <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '4px' }}>{sub.name}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{sub.cycle === 'monthly' ? `毎月 ${sub.date}日` : `毎年 ${sub.date.replace('-', '月')}日`}支払{sub.category ? ` / ${sub.category}` : ''}</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <span style={{ fontWeight: '900', color: '#ef4444', fontSize: '1.1rem' }}>¥{Number(sub.amount).toLocaleString()}</span>
+                              <button onClick={() => setSubs(subs.filter((_, i) => i !== idx))} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16}/></button>
+                            </div>
+                          </div>
+                        ))}
+                        {subs.length === 0 && <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-sub)', fontWeight: 'bold', padding: '24px', border: '1px dashed var(--border-color)', borderRadius: '12px' }}>登録されているサブスクはありません</div>}
+                      </div>
+                    </div>
+
+                    {/* 右側：新規追加フォーム */}
+                    <div style={{ flex: 1, minWidth: '250px' }}>
+                      <div className="card-box" style={{ margin: 0, border: `2px dashed ${themeColor}` }}>
+                        <label className="form-label" style={{ color: themeColor, fontSize: '0.9rem' }}>新しいサブスクを追加</label>
+                        <input type="text" className="pop-input" placeholder="サービス名 (Netflixなど)" value={subName} onChange={e => setSubName(e.target.value)} style={{ marginBottom: '12px' }} />
+                        
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                          <select className="pop-input" value={subCycle} onChange={e => {
+                            setSubCycle(e.target.value);
+                            if (e.target.value === 'yearly' && !subDate.includes('-')) setSubDate('01-01');
+                            if (e.target.value === 'monthly' && subDate.includes('-')) setSubDate('1');
+                          }} style={{ width: '90px', flexShrink: 0 }}>
+                            <option value="monthly">毎月</option><option value="yearly">毎年</option>
+                          </select>
+                          
+                          {subCycle === 'monthly' ? (
+                            <select className="pop-input" value={subDate} onChange={e => setSubDate(e.target.value)} style={{ flex: 1, padding: '0 8px', textAlign: 'center' }}>
+                              {Array.from({length:31}, (_,i)=>i+1).map(d => <option key={d} value={String(d)}>{d}日</option>)}
+                            </select>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
+                              <select className="pop-input" value={subDate.includes('-') ? subDate.slice(-5).split('-')[0] : '01'} onChange={e => setSubDate(`${e.target.value}-${subDate.includes('-') ? subDate.slice(-5).split('-')[1] : '01'}`)} style={{ flex: 1, padding: '0 4px', textAlign: 'center' }}>
+                                {Array.from({length: 12}, (_, i) => String(i + 1).padStart(2, '0')).map(m => <option key={m} value={m}>{m}月</option>)}
+                              </select>
+                              <select className="pop-input" value={subDate.includes('-') ? subDate.slice(-5).split('-')[1] : '01'} onChange={e => setSubDate(`${subDate.includes('-') ? subDate.slice(-5).split('-')[0] : '01'}-${e.target.value}`)} style={{ flex: 1, padding: '0 4px', textAlign: 'center' }}>
+                                {Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={String(d).padStart(2, '0')}>{d}日</option>)}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* 👇 ジャンルと金額を1行に横並び（flex）にする */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                          <select className="pop-input" value={categoryName} onChange={e => setCategoryName(e.target.value)} style={{ flex: 1.2, padding: '0 8px', fontSize: '0.9rem' }}>
+                            <option value="">ジャンル (任意)</option>
+                            {categories.map((c:any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                          </select>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                            <input type="number" className="pop-input no-spin" placeholder="金額" value={subAmount} onChange={e => setSubAmount(e.target.value)} style={{ width: '100%', textAlign: 'right', fontSize: '1.1rem', fontWeight: 'bold', padding: '0 8px' }} />
+                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)', whiteSpace: 'nowrap' }}>円</span>
+                          </div>
+                        </div>
+                        
+                        <button onClick={() => {
+                          if (!subName || !subAmount) return alert('サービス名と金額を入力してください');
+                          const finalDate = subCycle === 'yearly' ? subDate.slice(-5) : subDate;
+                          setSubs([...subs, { name: subName, amount: subAmount, cycle: subCycle, date: finalDate, category: categoryName || '' }]);
+                          setSubName(''); setSubAmount(''); setCategoryName('');
+                        }} className="btn-pop" style={{ width: '100%', padding: '14px', fontSize: '1rem' }}>＋ 登録する</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              ) : mode === 'routine_detail' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '10px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '900', color: eventColor }}>
                     <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: eventColor }} />{title}
@@ -2085,6 +2928,20 @@ export default function SmartLifeOS() {
                   {(() => {
                     const showRecords = mode === 'detail' && currentCategoryObj?.fields && currentCategoryObj.fields.length > 0;
 
+                    const PaymentMethodSelector = ({ value, onChange, isIncome }: any) => {
+                      const methods = isIncome 
+                        ? [{ id: 'bank', label: '振込', icon: Landmark }, { id: 'cash', label: '現金', icon: Banknote }, { id: 'paypay', label: '電子マネー', icon: Smartphone }]
+                        : [{ id: 'cash', label: '現金', icon: Banknote }, { id: 'credit', label: 'クレカ', icon: CreditCard }, { id: 'paypay', label: 'スマホ決済', icon: Smartphone }, { id: 'ic', label: '交通系IC', icon: Train }, { id: 'reimburse', label: '立替', icon: Repeat }];
+                      return (
+                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginTop: '12px' }} className="hide-scrollbar">
+                          {methods.map(m => (
+                            <button key={m.id} type="button" onClick={(e) => { e.preventDefault(); onChange(m.id); }} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', background: value === m.id ? 'var(--theme)' : 'var(--input-bg)', color: value === m.id ? '#fff' : 'var(--text-sub)', border: `1px solid ${value === m.id ? 'var(--theme)' : 'var(--border-color)'}`, whiteSpace: 'nowrap', transition: 'all 0.2s', cursor: 'pointer', boxShadow: value === m.id ? '0 4px 10px rgba(0,0,0,0.1)' : 'none' }}>
+                              <m.icon size={16} /> {m.label}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    };
                     const FuturisticDateInput = ({ label, value, onChange }: any) => (
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
                         <span style={{ fontSize: '0.65rem', color: 'var(--theme)', fontWeight: '900', letterSpacing: '1px' }}>{label}</span>
@@ -2140,22 +2997,39 @@ export default function SmartLifeOS() {
 
                     const BlockTime = (
                       <div key="time" className="card-box" style={{ padding: '16px', marginBottom: '16px' }}>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                          <FuturisticDateInput label="開始日" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} />
-                          <FuturisticTimeInput label="開始時刻" h={startH} m={startM} setH={handleStartHChange} setM={handleStartMChange} />
-                        </div>
-                        {!isMilestone && !isAllDayBackground && (
-                          <div style={{ display: 'flex', gap: '12px', marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed var(--border-color)' }}>
-                            <FuturisticDateInput label="終了日" value={endDate} onChange={(e: any) => setEndDate(e.target.value)} />
-                            <FuturisticTimeInput label="終了時刻" h={endH} m={endM} setH={(val:any) => setEndH(val)} setM={(val:any) => setEndM(val)} />
+                        {isAllDayBackground ? (
+                          // 👇 1日単位がオンの時は、開始日と終了日だけを表示
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            <FuturisticDateInput label="開始日" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} />
+                            <FuturisticDateInput label="終了日" value={endDate || startDate} onChange={(e: any) => setEndDate(e.target.value)} />
                           </div>
+                        ) : (
+                          // 👇 通常時・マイルストーンの時は時刻を表示
+                          <>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                              <FuturisticDateInput label="開始日" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} />
+                              <FuturisticTimeInput label="開始時刻" h={startH} m={startM} setH={handleStartHChange} setM={handleStartMChange} />
+                            </div>
+                            {!isMilestone && (
+                              <div style={{ display: 'flex', gap: '12px', marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed var(--border-color)' }}>
+                                <FuturisticDateInput label="終了日" value={endDate} onChange={(e: any) => setEndDate(e.target.value)} />
+                                <FuturisticTimeInput label="終了時刻" h={endH} m={endM} setH={(val:any) => setEndH(val)} setM={(val:any) => setEndM(val)} />
+                              </div>
+                            )}
+                          </>
                         )}
                         <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                           <label className="checkbox-label" style={{ fontSize: '0.75rem', minHeight: 'auto' }}>
-                            <input type="checkbox" checked={isAllDayBackground} onChange={e => setIsAllDayBackground(e.target.checked)} /> 1日単位
+                            <input type="checkbox" checked={isAllDayBackground} onChange={e => {
+                              setIsAllDayBackground(e.target.checked);
+                              if (e.target.checked) setIsMilestone(false); // 同時選択を防止
+                            }} /> 1日単位
                           </label>
                           <label className="checkbox-label" style={{ fontSize: '0.75rem', minHeight: 'auto' }}>
-                            <input type="checkbox" checked={isMilestone} onChange={e => setIsMilestone(e.target.checked)} /> 時刻のみ表示
+                            <input type="checkbox" checked={isMilestone} onChange={e => {
+                              setIsMilestone(e.target.checked);
+                              if (e.target.checked) setIsAllDayBackground(false); // 同時選択を防止
+                            }} /> 時刻のみ表示
                           </label>
                         </div>
                       </div>
@@ -2163,96 +3037,103 @@ export default function SmartLifeOS() {
 
                     const BlockLocationAndGathering = (
                       <div key="loc_gathering" style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        
                         <div>
                           <label className="form-label">場所</label>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <input type="text" className="pop-input" style={{ flex: 1 }} value={location} onChange={e => setLocation(e.target.value)} placeholder="目的地を入力" />
-                            {location && (
-                              <button
-                                onClick={() => {
-                                  const origin = startPointType === 'address' ? homeLocation : nearestStation;
-                                  window.open(`https://www.google.com/maps/dir/?api=1&origin=$?q=${encodeURIComponent(origin)}&destination=${encodeURIComponent(location)}&travelmode=transit`, '_blank');
-                                }}
-                                className="btn-icon"
-                                style={{ width: '46px', height: '46px', borderRadius: '12px', border: `2px solid var(--theme)`, color: 'var(--theme)', flexShrink: 0 }}
-                              >
-                                <MapPin size={20} />
+                          <input type="text" className="pop-input" style={{ flex: 1 }} value={location} onChange={e => setLocation(e.target.value)} placeholder="目的地を入力" />
+                        </div>
+
+                        {/* 💰 支出を記録（開閉式） */}
+                        <div className="card-box" style={{ margin: 0, padding: 0, background: customFieldsData.isExpenseSet ? 'var(--input-bg)' : 'transparent', borderStyle: customFieldsData.isExpenseSet ? 'solid' : 'dashed', overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: 1 }}>
+                              <input type="checkbox" checked={customFieldsData.isExpenseSet || false} onChange={e => { handleCustomFieldChange('isExpenseSet', e.target.checked); if (e.target.checked && !expandedBlocks.includes('expense')) toggleBlock('expense'); }} />
+                              <CreditCard size={16} style={{ color: 'var(--theme)' }} /> 支出を記録する
+                            </label>
+                            {customFieldsData.isExpenseSet && (
+                              <button type="button" onClick={() => toggleBlock('expense')} style={{ background: 'transparent', border: 'none', color: 'var(--text-sub)', cursor: 'pointer', display: 'flex' }}>
+                                {expandedBlocks.includes('expense') ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                               </button>
                             )}
                           </div>
-                        </div>
-
-                        <div className="card-box" style={{ margin: 0, padding: '16px', background: customFieldsData.isExpenseSet ? 'var(--input-bg)' : 'transparent', borderStyle: customFieldsData.isExpenseSet ? 'solid' : 'dashed' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                            <input type="checkbox" checked={customFieldsData.isExpenseSet || false} onChange={e => handleCustomFieldChange('isExpenseSet', e.target.checked)} />
-                            <CreditCard size={16} style={{ color: 'var(--theme)' }} /> 支出を記録する
-                          </label>
-                          {customFieldsData.isExpenseSet && (
-                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <select className="pop-input" style={{ flex: 1, fontSize: '0.85rem', padding: '0 8px', height: '40px' }} value={customFieldsData.expenseCategory || categoryName || ''} onChange={e => handleCustomFieldChange('expenseCategory', e.target.value)}>
-                                <option value="">ジャンル未設定</option>
-                                {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
-                              </select>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-                                <input type="number" className="pop-input" style={{ flex: 1, textAlign: 'right', fontSize: '1.2rem', fontWeight: 'bold', color: '#ef4444', padding: '0 8px', height: '40px' }} placeholder="金額" value={customFieldsData.standardExpenseAmount || ''} onChange={e => handleCustomFieldChange('standardExpenseAmount', e.target.value)} />
-                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
+                          {customFieldsData.isExpenseSet && expandedBlocks.includes('expense') && (
+                            <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <select className="pop-input" style={{ flex: 1, fontSize: '0.85rem', padding: '0 8px', height: '40px' }} value={customFieldsData.expenseCategory || categoryName || ''} onChange={e => handleCustomFieldChange('expenseCategory', e.target.value)}>
+                                  <option value="">ジャンル未設定</option>
+                                  {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                                </select>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                                  <input type="number" className="pop-input" style={{ flex: 1, textAlign: 'right', fontSize: '1.2rem', fontWeight: 'bold', color: '#ef4444', padding: '0 8px', height: '40px' }} placeholder="金額" value={customFieldsData.standardExpenseAmount || ''} onChange={e => handleCustomFieldChange('standardExpenseAmount', e.target.value)} />
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
+                                </div>
                               </div>
+                              <PaymentMethodSelector value={customFieldsData.paymentMethod || 'cash'} onChange={(val: string) => handleCustomFieldChange('paymentMethod', val)} isIncome={false} />
                             </div>
                           )}
                         </div>
 
-                        <div className="card-box" style={{ margin: 0, padding: '16px', background: isGathering ? 'var(--input-bg)' : 'transparent', borderStyle: isGathering ? 'solid' : 'dashed' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                            <input type="checkbox" checked={isGathering} onChange={e => setIsGathering(e.target.checked)} />
-                            <Flag size={16} style={{ color: 'var(--theme)' }} /> 集合・出発時間を設定
-                          </label>
-
-                          {isGathering && (
-                            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {/* 🚩 集合・出発時間を設定（開閉式） */}
+                        <div className="card-box" style={{ margin: 0, padding: 0, background: isGathering ? 'var(--input-bg)' : 'transparent', borderStyle: isGathering ? 'solid' : 'dashed', overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: 1 }}>
+                              <input type="checkbox" checked={isGathering} onChange={e => { setIsGathering(e.target.checked); if (e.target.checked) { if (!gatheringTime) setGatheringTime(`${startH}:${startM}`); if (!departureTime) setDepartureTime(`${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`); if (!expandedBlocks.includes('gathering')) toggleBlock('gathering'); } }} />
+                              <Flag size={16} style={{ color: 'var(--theme)' }} /> 集合・出発時間を設定
+                            </label>
+                            {isGathering && (
+                              <button type="button" onClick={() => toggleBlock('gathering')} style={{ background: 'transparent', border: 'none', color: 'var(--text-sub)', cursor: 'pointer', display: 'flex' }}>
+                                {expandedBlocks.includes('gathering') ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                              </button>
+                            )}
+                          </div>
+                          {isGathering && expandedBlocks.includes('gathering') && (
+                            <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', width: '80px', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={14} /> 目的地に</span>
-                                <div style={{ flex: 1 }}>
-                                  <FuturisticTimeInput h={gatheringTime.split(':')[0] || '12'} m={gatheringTime.split(':')[1] || '00'} setH={(val:any) => setGatheringTime(`${val}:${gatheringTime.split(':')[1]||'00'}`)} setM={(val:any) => setGatheringTime(`${gatheringTime.split(':')[0]||'12'}:${val}`)} />
-                                </div>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>集合</span>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', width: '80px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-sub)' }}><MapPin size={14} /> 出発地</span>
+                                <input type="text" className="pop-input" value={customFieldsData.customStartLocation || ''} onChange={e => handleCustomFieldChange('customStartLocation', e.target.value)} placeholder={startPointType === 'address' ? (homeLocation || '自宅') : (nearestStation || '最寄り駅')} style={{ flex: 1, height: '36px', fontSize: '0.85rem' }} />
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', width: '80px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  {startPointType === 'address' ? <><Home size={14} /> 自宅</> : <><Train size={14} /> 駅</>} を
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', width: '80px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-sub)' }}><Clock size={14} /> 目的地に</span>
+                                <div style={{ flex: 1 }}><FuturisticTimeInput h={gatheringTime.split(':')[0] || '12'} m={gatheringTime.split(':')[1] || '00'} setH={(val:any) => setGatheringTime(`${val}:${gatheringTime.split(':')[1]||'00'}`)} setM={(val:any) => setGatheringTime(`${gatheringTime.split(':')[0]||'12'}:${val}`)} /></div>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>集合</span>
+                                <button onClick={(e) => { e.preventDefault(); const origin = customFieldsData.customStartLocation || (startPointType === 'address' ? homeLocation : nearestStation) || ''; if (!origin) return alert('出発地を設定してください。'); if (!location) return alert('場所（目的地）を入力してください。'); const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(location)}&dirflg=r&ttype=arr&time=${gatheringTime || '12:00'}`; window.open(url, '_blank'); }} style={{ width: '36px', height: '36px', flexShrink: 0, border: 'none', borderRadius: '10px', background: 'var(--theme)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px var(--theme-shadow)' }}><Search size={18} /></button>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', width: '80px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-sub)' }}>
+                                  {customFieldsData.customStartLocation ? <MapPin size={14}/> : (startPointType === 'address' ? <Home size={14} /> : <Train size={14} />)} 
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '45px' }}>{customFieldsData.customStartLocation ? '出発地' : (startPointType === 'address' ? '自宅' : '駅')}</span>を
                                 </span>
-                                <div style={{ flex: 1 }}>
-                                  <FuturisticTimeInput h={departureTime.split(':')[0] || '11'} m={departureTime.split(':')[1] || '30'} setH={(val:any) => setDepartureTime(`${val}:${departureTime.split(':')[1]||'00'}`)} setM={(val:any) => setDepartureTime(`${departureTime.split(':')[0]||'11'}:${val}`)} />
-                                </div>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>出発</span>
+                                <div style={{ flex: 1 }}><FuturisticTimeInput h={departureTime.split(':')[0] || '11'} m={departureTime.split(':')[1] || '30'} setH={(val:any) => setDepartureTime(`${val}:${departureTime.split(':')[1]||'00'}`)} setM={(val:any) => setDepartureTime(`${departureTime.split(':')[0]||'11'}:${val}`)} /></div>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>出発</span><div style={{ width: '36px', flexShrink: 0 }} />
                               </div>
                             </div>
                           )}
                         </div>
 
-                        <div className="card-box" style={{ margin: 0, padding: '16px', background: customFieldsData.isTransit ? 'var(--input-bg)' : 'transparent', borderStyle: customFieldsData.isTransit ? 'solid' : 'dashed' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                            <input type="checkbox" checked={customFieldsData.isTransit || false} onChange={e => handleCustomFieldChange('isTransit', e.target.checked)} />
-                            <Train size={16} style={{ color: 'var(--theme)' }} /> 交通機関（時間を記録）
-                          </label>
-
-                          {customFieldsData.isTransit && (
-                            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {/* 🚆 交通機関ブロック（開閉式） */}
+                        <div className="card-box" style={{ margin: 0, padding: 0, background: customFieldsData.isTransit ? 'var(--input-bg)' : 'transparent', borderStyle: customFieldsData.isTransit ? 'solid' : 'dashed', overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: 1 }}>
+                              <input type="checkbox" checked={customFieldsData.isTransit || false} onChange={e => { handleCustomFieldChange('isTransit', e.target.checked); if (e.target.checked && !expandedBlocks.includes('transit')) toggleBlock('transit'); }} />
+                              <Train size={16} style={{ color: 'var(--theme)' }} /> 交通機関（時間を記録）
+                            </label>
+                            {customFieldsData.isTransit && (
+                              <button type="button" onClick={() => toggleBlock('transit')} style={{ background: 'transparent', border: 'none', color: 'var(--text-sub)', cursor: 'pointer', display: 'flex' }}>
+                                {expandedBlocks.includes('transit') ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                              </button>
+                            )}
+                          </div>
+                          {customFieldsData.isTransit && expandedBlocks.includes('transit') && (
+                            <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                               <select className="pop-input" value={customFieldsData.transitType || 'train'} onChange={e => handleCustomFieldChange('transitType', e.target.value)} style={{ height: '36px', fontSize: '0.75rem' }}>
                                 <option value="train"> 新幹線・電車</option>
                                 <option value="plane"> 飛行機</option>
                                 <option value="bus"> 高速バス・夜行バス</option>
                               </select>
-
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-                                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>乗車:</span>
-                                  <input type="time" className="pop-input" value={customFieldsData.transitDepTime || '10:00'} onChange={e => handleCustomFieldChange('transitDepTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} />
-                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>乗車:</span><input type="time" className="pop-input" value={customFieldsData.transitDepTime || '10:00'} onChange={e => handleCustomFieldChange('transitDepTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
                                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>〜</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-                                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>降車:</span>
-                                  <input type="time" className="pop-input" value={customFieldsData.transitArrTime || '12:00'} onChange={e => handleCustomFieldChange('transitArrTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} />
-                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>降車:</span><input type="time" className="pop-input" value={customFieldsData.transitArrTime || '12:00'} onChange={e => handleCustomFieldChange('transitArrTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
                               </div>
                             </div>
                           )}
@@ -2263,7 +3144,7 @@ export default function SmartLifeOS() {
                     const BlockConfig = (
                       <div key="config" className="card-box" style={{ padding: '16px' }}>
                         <label className="form-label">ジャンル・カラー</label>
-                        <select value={categoryName} onChange={e => setCategoryName(e.target.value)} className="pop-input" style={{ marginBottom: '16px' }}>
+                        <select value={categoryName || ''} onChange={e => setCategoryName(e.target.value)} className="pop-input" style={{ marginBottom: '16px' }}>
                           <option value="">設定なし</option>
                           {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
                         </select>
@@ -2365,7 +3246,7 @@ export default function SmartLifeOS() {
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', padding: '12px', borderRadius: '8px', border: '1px solid var(--theme)' }}>
                                     <span style={{ fontSize: '0.8rem', color: 'var(--theme)', fontWeight: 'bold' }}>実働給与 (自動計算)</span>
                                     <span style={{ fontSize: '1.4rem', fontWeight: '900', color: 'var(--theme)' }}>
-                                      ¥{(() => {
+                                      {(() => {
                                         let workStart = parseInt(startH) * 60 + parseInt(startM);
                                         let workEnd = parseInt(endH) * 60 + parseInt(endM);
                                         if (workEnd <= workStart) workEnd += 1440;
@@ -2395,14 +3276,31 @@ export default function SmartLifeOS() {
                                         }
 
                                         let breakStartIdx = Math.floor((stayMinutes - breakTime) / 2);
-                                        for (let i = 0; i < breakTime; i++) {
-                                          minuteWages[breakStartIdx + i] = 0;
-                                        }
+        for (let i = 0; i < breakTime; i++) {
+          minuteWages[breakStartIdx + i] = 0;
+        }
 
-                                        let totalWage = 0;
-                                        let actualWorkCount = 0;
-                                        const applyOvertime = customFieldsData[f.id]?.overtimePremium !== false;
-                                        const applyNight = customFieldsData[f.id]?.nightPremium !== false;
+        // 👇 ここから追加：同じ日の「前の予定」の労働時間を引っ張ってくる
+        let pastWorkMinutes = 0;
+        events.forEach((ev: any) => {
+          if (ev.id === selectedId) return; // 自分自身は除外
+          const evDate = toLocalYYYYMMDD(new Date(ev.start));
+          if (evDate === startDate && ev.extendedProps?.category === categoryName) {
+            const evStartObj = new Date(ev.start);
+            const evStartMin = evStartObj.getHours() * 60 + evStartObj.getMinutes();
+            // 今から保存する予定よりも「開始時間が早い」ものを合算
+            if (evStartMin < workStart) {
+              const prevHours = ev.extendedProps?.metadata?.customFields?.[f.id]?.hours || 0;
+              pastWorkMinutes += Math.round(Number(prevHours) * 60);
+            }
+          }
+        });
+
+        let totalWage = 0;
+        // 👇 0ではなく、前の予定で働いた時間を「下駄」として履かせる
+        let actualWorkCount = pastWorkMinutes;
+        const applyOvertime = customFieldsData[f.id]?.overtimePremium !== false;
+        const applyNight = customFieldsData[f.id]?.nightPremium !== false;
 
                                         for (let i = 0; i < stayMinutes; i++) {
                                           let currentMin = (workStart + i) % 1440;
@@ -2459,7 +3357,7 @@ export default function SmartLifeOS() {
                     return items.filter(Boolean);
                   })()}
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
                     {title && (mode === 'create' || mode === 'detail') && (
                       <button
                         onClick={(e) => {
@@ -2471,15 +3369,14 @@ export default function SmartLifeOS() {
                           alert('「よくある予定」として新しく登録しました！');
                         }}
                         className="btn-secondary"
-                        style={{ width: '100%', padding: '12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: '2px dashed var(--theme)', color: 'var(--theme)' }}
+                        style={{ width: '50px', flexShrink: 0, padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed var(--theme)', color: 'var(--theme)' }}
+                        title="よくある予定に登録"
                       >
-                        <Star size={16} /> この内容を「よくある予定」に登録
+                        <Star size={20} />
                       </button>
                     )}
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                      <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1 }}>キャンセル</button>
-                      <button onClick={handleSave} className="btn-pop" style={{ flex: 1.5 }}>保存する</button>
-                    </div>
+                    <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1 }}>キャンセル</button>
+                    <button onClick={handleSave} className="btn-pop" style={{ flex: 1.5 }}>保存する</button>
                   </div>
                 </>
               )}
@@ -2539,9 +3436,12 @@ export default function SmartLifeOS() {
                               if (f.type === 'money' && fields[f.id]?.type === 'income') catInc += Number(fields[f.id].amount || 0);
                               if (f.type === 'money_income') catInc += Number(fields[f.id] || 0);
                               if (f.type === 'wage' && !f.excludeFromTotal) {
-                                if (fields[f.id]?.calculatedWage !== undefined) catInc += Number(fields[f.id].calculatedWage);
-                                else catInc += Number(fields[f.id]?.hours || 0) * Number(fields[f.id]?.wage || f.wage || 0);
+                              if (fields[f.id]?.calculatedWage !== undefined) catInc += Number(fields[f.id].calculatedWage);
+                              else {
+                                const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
+                                catInc += Number(fields[f.id]?.hours || 0) * Number(fallbackWage);
                               }
+                            }
                             });
                           }
                         }
@@ -2651,7 +3551,8 @@ export default function SmartLifeOS() {
                                   const d = e.extendedProps.metadata?.customFields?.[f.id];
                                   if (!d) return sum;
                                   if (d.calculatedWage !== undefined) return sum + Number(d.calculatedWage);
-                                  return sum + ((Number(d.hours) || 0) * Number(d.wage || f.wage || 0));
+                                  const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
+                                  return sum + ((Number(d.hours) || 0) * Number(fallbackWage));
                                 }, 0);
 
                                 const currentCatExpense = currentCatEvents.reduce((sum: number, e: any) => {
@@ -2772,4 +3673,4 @@ export default function SmartLifeOS() {
       </div>
     </div>
   );
-}// re-deploy trigger
+}　// re-deploy trigger

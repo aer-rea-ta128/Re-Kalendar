@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Clock, Trash2, Share2, Sparkles, Download } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Clock, Trash2, Sparkles, Download, GripVertical } from 'lucide-react';
 import { FIELD_TYPES, HOURS, MINUTES } from '@/app/lib/constants';
 
-// --- propsの型定義（親から何を受け取るか） ---
 interface CategoryStudioProps {
   isOpen: boolean;
   onClose: () => void;
@@ -27,7 +26,6 @@ export default function CategoryStudio({
   setUserColors
 }: CategoryStudioProps) {
   
-  // --- この画面だけで使う専用のState（page.tsxからお引っ越し） ---
   const [editingCategoryNameOrigin, setEditingCategoryNameOrigin] = useState<string | null>(null);
   const [editCatNameInput, setEditCatNameInput] = useState('');
   const [editCatColorInput, setEditCatColorInput] = useState('');
@@ -49,10 +47,12 @@ export default function CategoryStudio({
   const [aiTemplatePrompt, setAiTemplatePrompt] = useState('');
   const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
 
-  // モーダルが閉じていたら何も表示しない
+  // 👇 開閉状態の管理と、ドラッグ中のアイテムを保持するRef
+  const [expandedCats, setExpandedCats] = useState<string[]>([]);
+  const dragItem = useRef<number | null>(null);
+
   if (!isOpen) return null;
 
-  // --- 共通部品（このファイル内で使う用） ---
   const ModalHeader = ({ title, onCloseBtn }: { title: string, onCloseBtn: () => void }) => (
     <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
       <h2 className="modal-title" style={{ margin: 0, color: themeColor, fontSize: '1.4rem', fontWeight: 900, letterSpacing: '0.02em' }}>{title}</h2>
@@ -88,7 +88,6 @@ export default function CategoryStudio({
     );
   };
 
-  // --- 処理関数（page.tsxからお引っ越し） ---
   const handleAddCategory = () => {
     if (!newCategoryName.trim() || categories.find((c: any) => c.name === newCategoryName.trim())) return;
     setCategories([...categories, { name: newCategoryName.trim(), color: newCategoryColor, fields: [] }]);
@@ -118,6 +117,30 @@ export default function CategoryStudio({
     setEditingFieldId(null);
   };
 
+  const deleteField = (catName: string, fieldId: string) => {
+    if (confirm('この記録パーツを削除しますか？')) {
+      setCategories((cats: any[]) => cats.map((c: any) => {
+        if (c.name === catName) return { ...c, fields: (c.fields || []).filter((f: any) => f.id !== fieldId) };
+        return c;
+      }));
+    }
+  };
+
+  const moveField = (catName: string, index: number, direction: number) => {
+    setCategories((cats: any[]) => cats.map((c: any) => {
+      if (c.name === catName) {
+        const newFields = [...(c.fields || [])];
+        if (index + direction >= 0 && index + direction < newFields.length) {
+          const temp = newFields[index];
+          newFields[index] = newFields[index + direction];
+          newFields[index + direction] = temp;
+        }
+        return { ...c, fields: newFields };
+      }
+      return c;
+    }));
+  };
+
   const handleGenerateTemplate = async () => {
     if (!aiTemplatePrompt.trim()) return alert('作りたい記録・目標を入力してください');
     setIsGeneratingTemplate(true);
@@ -132,16 +155,6 @@ export default function CategoryStudio({
       alert('AIによる生成に失敗しました。');
     } finally {
       setIsGeneratingTemplate(false);
-    }
-  };
-
-  const handleExportCategory = (categoryObj: any) => {
-    try {
-      const shareCode = btoa(encodeURIComponent(JSON.stringify(categoryObj)));
-      navigator.clipboard.writeText(shareCode);
-      alert(`「${categoryObj.name}」の共有コードをコピーしました！\n\n【コードの例】\n${shareCode.substring(0, 20)}...`);
-    } catch (e) {
-      alert('コードの生成に失敗しました。');
     }
   };
 
@@ -161,7 +174,7 @@ export default function CategoryStudio({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+    <div className="modal-overlay" onClick={onClose} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
       <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '480px', borderRadius: '28px', border: '1px solid var(--glass-border)', overflowY: 'auto', maxHeight: '90vh', background: 'var(--bg-main)', color: 'var(--text-main)', padding: '24px' }}>
         <ModalHeader title="テンプレート・スタジオ" onCloseBtn={onClose} />
         
@@ -187,9 +200,28 @@ export default function CategoryStudio({
         </div>
 
         {/* ジャンル一覧 */}
-        <div style={{ marginBottom: '24px', maxHeight: '45vh', overflowY: 'auto', paddingRight: '4px' }}>
-          {categories.map((c: any) => (
-            <div key={c.name} style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+        <div style={{ marginBottom: '24px', maxHeight: '45vh', overflowY: 'auto', paddingRight: '4px' }} className="hide-scrollbar">
+          {categories.map((c: any, catIndex: number) => {
+            const isExpanded = expandedCats.includes(c.name);
+            
+            return (
+            <div 
+              key={c.name} 
+              draggable
+              onDragStart={() => dragItem.current = catIndex}
+              onDragEnter={() => {
+                if (dragItem.current !== null && dragItem.current !== catIndex) {
+                  const newCats = [...categories];
+                  const dragged = newCats.splice(dragItem.current, 1)[0];
+                  newCats.splice(catIndex, 0, dragged);
+                  dragItem.current = catIndex;
+                  setCategories(newCats);
+                }
+              }}
+              onDragEnd={() => dragItem.current = null}
+              onDragOver={(e) => e.preventDefault()}
+              style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}
+            >
               
               {/* ジャンル名と色の編集 */}
               {editingCategoryNameOrigin === c.name ? (
@@ -208,76 +240,106 @@ export default function CategoryStudio({
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: c.color, flexShrink: 0 }} />
-                    <span style={{ fontWeight: '900', fontSize: '1rem', color: 'var(--text-main)', wordBreak: 'break-word', lineHeight: 1.2 }}>{c.name}</span>
+                    <div style={{ color: 'var(--text-sub)', display: 'flex', alignItems: 'center', cursor: 'grab' }}>
+                      <GripVertical size={18} />
+                    </div>
+                    
+                    <div 
+                      onClick={() => setExpandedCats(prev => isExpanded ? prev.filter(n => n !== c.name) : [...prev, c.name])}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', padding: '4px 0' }}
+                    >
+                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: c.color, flexShrink: 0 }} />
+                      <span style={{ fontWeight: '900', fontSize: '1.05rem', color: 'var(--text-main)', wordBreak: 'break-word', lineHeight: 1.2 }}>{c.name}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginLeft: '4px', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                    </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', marginLeft: '8px' }}>
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
-                      <button onClick={() => setCategories(categories.filter((cat: any) => cat.name !== c.name))} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
+                      <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
                     </div>
-                    <button onClick={() => handleExportCategory(c)} style={{ border: 'none', background: themeColor, color: '#fff', fontSize: '0.65rem', fontWeight: 'bold', padding: '6px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                      <Share2 size={12} /> 共有コードを発行
-                    </button>
                   </div>
                 </div>
               )}
               
-              {/* フィールド一覧 */}
-              <div style={{ marginTop: '12px', background: 'var(--input-bg)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-sub)', display: 'block', marginBottom: '8px' }}>記録パーツ</span>
-                
-                {(c.fields || []).map((f:any) => (
-                  <div key={f.id} style={{ marginBottom: '6px' }}>
-                    {editingFieldId === f.id ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginTop: '4px', background: 'var(--card-bg)', padding: '12px', borderRadius: '8px', border: `1px solid ${themeColor}` }}>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <input value={editFieldName} onChange={e => setEditFieldName(e.target.value)} style={{ padding: '6px 8px', fontSize: '0.75rem', flex: 1, height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
-                          {f.type === 'number' && (
-                             <input value={editFieldUnit} onChange={e => setEditFieldUnit(e.target.value)} placeholder="単位" style={{ padding: '6px 8px', fontSize: '0.75rem', width: '45px', height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
+              {/* フィールド一覧 (開いている時のみ) */}
+              {isExpanded && (
+                <div style={{ marginTop: '12px', background: 'var(--input-bg)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-sub)', display: 'block', marginBottom: '8px' }}>記録パーツ</span>
+                  
+                  {(c.fields || []).map((f:any, idx: number) => (
+                    <div key={f.id} style={{ marginBottom: '6px' }}>
+                      {editingFieldId === f.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginTop: '4px', background: 'var(--card-bg)', padding: '12px', borderRadius: '8px', border: `1px solid ${themeColor}` }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <input value={editFieldName} onChange={e => setEditFieldName(e.target.value)} style={{ padding: '6px 8px', fontSize: '0.75rem', flex: 1, height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
+                              {f.type === 'number' && (
+                                 <input value={editFieldUnit} onChange={e => setEditFieldUnit(e.target.value)} placeholder="単位" style={{ padding: '6px 8px', fontSize: '0.75rem', width: '45px', height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
+                              )}
+                            </div>
+                          </div>
+                          {f.type === 'wage' && (
+                            <WageRuleEditor rules={editWageRules} setRules={setEditWageRules} themeColor={themeColor} />
+                          )}
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                            <button onClick={() => setEditingFieldId(null)} style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>キャンセル</button>
+                            <button onClick={() => saveEditField(c.name, f.id, f.type)} style={{ padding: '6px 16px', fontSize: '0.75rem', borderRadius: '8px', background: themeColor, color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>保存</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--card-bg)', padding: '6px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontSize: '0.75rem', color: 'var(--text-main)' }}>
+                          <span style={{ flex: 1, fontWeight: 'bold' }}>・{f.name} <span style={{fontSize:'0.65rem', color:'var(--text-sub)'}}>({f.type})</span></span>
+                          
+                          <div style={{ display: 'flex', gap: '2px', alignItems: 'center', marginRight: '4px' }}>
+                            <button onClick={() => moveField(c.name, idx, -1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.2 : 1, padding: '2px 4px', color: 'var(--text-sub)' }}>▲</button>
+                            <button onClick={() => moveField(c.name, idx, 1)} disabled={idx === (c.fields?.length || 0) - 1} style={{ border: 'none', background: 'transparent', cursor: idx === (c.fields?.length || 0) - 1 ? 'default' : 'pointer', opacity: idx === (c.fields?.length || 0) - 1 ? 0.2 : 1, padding: '2px 4px', color: 'var(--text-sub)' }}>▼</button>
+                            <button onClick={() => deleteField(c.name, f.id)} style={{ border: 'none', background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer', padding: '4px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '4px' }}><Trash2 size={14}/></button>
+                          </div>
+
+                          <button onClick={() => { 
+                            setEditingFieldId(f.id); 
+                            setEditFieldName(f.name); 
+                            setEditFieldUnit(f.unit || ''); 
+                            setEditWageRules(f.wageRules || [{ start: '00:00', end: '23:59', wage: '1000' }]); 
+                          }} style={{ padding: '4px 8px', fontSize: '0.65rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer' }}>編集</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {/* 新規フィールド追加UI */}
+                  {editingCatField === c.name ? (
+                    <div style={{ marginTop: '12px', padding: '16px', border: `1px solid ${themeColor}`, borderRadius: '12px', background: 'var(--card-bg)' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: '900', color: 'var(--text-main)', marginBottom: '12px', display: 'block' }}>記録パーツを追加</span>
+                      <select value={newFieldType} onChange={e => setNewFieldType(e.target.value)} style={{ width: '100%', height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', color: 'var(--text-main)' }}>
+                        {FIELD_TYPES.map((ft: any) => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
+                      </select>
+                      {newFieldType !== 'wage' ? (
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                          <input placeholder="例: 読んだページ数" value={newFieldName} onChange={e => setNewFieldName(e.target.value)} style={{ flex: 2, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                          {newFieldType === 'number' && (
+                            <input placeholder="単位" value={newFieldUnit} onChange={e => setNewFieldUnit(e.target.value)} style={{ flex: 1, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
                           )}
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
-                          <button onClick={() => setEditingFieldId(null)} style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '8px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>キャンセル</button>
-                          <button onClick={() => saveEditField(c.name, f.id, f.type)} style={{ padding: '6px 16px', fontSize: '0.75rem', borderRadius: '8px', background: themeColor, color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>保存</button>
+                      ) : (
+                        <div style={{ marginBottom: '16px' }}>
+                          <WageRuleEditor rules={newWageRules} setRules={setNewWageRules} themeColor={themeColor} />
                         </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => setEditingCatField(null)} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '8px', cursor: 'pointer' }}>キャンセル</button>
+                        <button onClick={() => addFieldToCategory(c.name)} style={{ flex: 1.5, padding: '10px', fontSize: '0.85rem', background: themeColor, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>追加</button>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--card-bg)', padding: '6px 10px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', fontSize: '0.75rem', color: 'var(--text-main)' }}>
-                        <span style={{ flex: 1, fontWeight: 'bold' }}>・{f.name} <span style={{fontSize:'0.65rem', color:'var(--text-sub)'}}>({f.type})</span></span>
-                        <button onClick={() => { setEditingFieldId(f.id); setEditFieldName(f.name); setEditFieldUnit(f.unit || ''); }} style={{ padding: '4px 8px', fontSize: '0.65rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '6px', cursor: 'pointer' }}>編集</button>
-                        <button onClick={() => setCategories((cats: any[]) => cats.map((cat: any) => cat.name === c.name ? {...cat, fields: cat.fields.filter((cf:any) => cf.id !== f.id)} : cat))} style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 'bold', padding: '4px 8px', cursor: 'pointer' }}>削除</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                
-                {/* 新規フィールド追加UI */}
-                {editingCatField === c.name ? (
-                  <div style={{ marginTop: '12px', padding: '16px', border: `1px solid ${themeColor}`, borderRadius: '12px', background: 'var(--card-bg)' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: '900', color: 'var(--text-main)', marginBottom: '12px', display: 'block' }}>記録パーツを追加</span>
-                    <select value={newFieldType} onChange={e => setNewFieldType(e.target.value)} style={{ width: '100%', height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', color: 'var(--text-main)' }}>
-                      {FIELD_TYPES.map((ft: any) => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
-                    </select>
-                    {newFieldType !== 'wage' && (
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                        <input placeholder="例: 読んだページ数" value={newFieldName} onChange={e => setNewFieldName(e.target.value)} style={{ flex: 2, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
-                        {newFieldType === 'number' && (
-                          <input placeholder="単位" value={newFieldUnit} onChange={e => setNewFieldUnit(e.target.value)} style={{ flex: 1, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
-                        )}
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setEditingCatField(null)} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '8px', cursor: 'pointer' }}>キャンセル</button>
-                      <button onClick={() => addFieldToCategory(c.name)} style={{ flex: 1.5, padding: '10px', fontSize: '0.85rem', background: themeColor, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>追加</button>
                     </div>
-                  </div>
-                ) : (
-                  <button onClick={() => { setEditingCatField(c.name); setNewFieldName(''); setNewFieldUnit(''); setNewFieldType('number'); }} style={{ border: 'none', background: 'var(--card-bg)', color: themeColor, fontSize: '0.8rem', fontWeight: '900', padding: '10px 16px', borderRadius: '8px', marginTop: '8px', cursor: 'pointer', width: '100%', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>＋ 記録パーツを手動で追加</button>
-                )}
-              </div>
+                  ) : (
+                    <button onClick={() => { setEditingCatField(c.name); setNewFieldName(''); setNewFieldUnit(''); setNewFieldType('number'); setNewWageRules([{ start: '00:00', end: '23:59', wage: '1000' }]); }} style={{ border: 'none', background: 'var(--card-bg)', color: themeColor, fontSize: '0.8rem', fontWeight: '900', padding: '10px 16px', borderRadius: '8px', marginTop: '8px', cursor: 'pointer', width: '100%', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>＋ 記録パーツを手動で追加</button>
+                  )}
+                </div>
+              )}
             </div>
-          ))}
+          );
+          })}
         </div>
 
         {/* 新規ジャンル作成 */}
@@ -294,3 +356,68 @@ export default function CategoryStudio({
     </div>
   );
 }
+
+const WageRuleEditor = ({ rules, setRules, themeColor }: { rules: any[], setRules: React.Dispatch<React.SetStateAction<any[]>>, themeColor: string }) => {
+  const hours = Array.from({length: 24}, (_,i) => String(i).padStart(2, '0'));
+  const mins = ['00', '10', '20', '30', '40', '50'];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', background: 'var(--bg-main)', padding: '10px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+      <style>{`
+        .no-spin::-webkit-outer-spin-button, .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .no-spin { -moz-appearance: textfield; }
+      `}</style>
+      
+      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: themeColor, marginBottom: '4px' }}>時間帯と時給の設定</span>
+      
+      {rules.map((rule, idx) => (
+        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'nowrap', paddingBottom: '6px', borderBottom: idx !== rules.length - 1 ? '1px dashed var(--border-color)' : 'none', overflowX: 'auto' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0 2px', flexShrink: 0 }}>
+            <select style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.85rem', fontWeight: 'bold', padding: '2px', appearance: 'none', textAlign: 'center' }} value={rule.start.split(':')[0]} onChange={e => {
+              const newRules = [...rules]; newRules[idx].start = `${e.target.value}:${rule.start.split(':')[1]}`; setRules(newRules);
+            }}>
+              {hours.map(h => <option key={`s-h-${h}`} value={h}>{h}</option>)}
+            </select>
+            <span>:</span>
+            <select style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.85rem', fontWeight: 'bold', padding: '2px', appearance: 'none', textAlign: 'center' }} value={rule.start.split(':')[1]} onChange={e => {
+              const newRules = [...rules]; newRules[idx].start = `${rule.start.split(':')[0]}:${e.target.value}`; setRules(newRules);
+            }}>
+              {mins.map(m => <option key={`s-m-${m}`} value={m}>{m}</option>)}
+            </select>
+          </div>
+          
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', flexShrink: 0 }}>〜</span>
+          
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0 2px', flexShrink: 0 }}>
+            <select style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.85rem', fontWeight: 'bold', padding: '2px', appearance: 'none', textAlign: 'center' }} value={rule.end.split(':')[0]} onChange={e => {
+              const newRules = [...rules]; newRules[idx].end = `${e.target.value}:${rule.end.split(':')[1]}`; setRules(newRules);
+            }}>
+              {hours.map(h => <option key={`e-h-${h}`} value={h}>{h}</option>)}
+            </select>
+            <span>:</span>
+            <select style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.85rem', fontWeight: 'bold', padding: '2px', appearance: 'none', textAlign: 'center' }} value={rule.end.split(':')[1]} onChange={e => {
+              const newRules = [...rules]; newRules[idx].end = `${rule.end.split(':')[0]}:${e.target.value}`; setRules(newRules);
+            }}>
+              {[...mins, '59'].map(m => <option key={`e-m-${m}`} value={m}>{m}</option>)}
+            </select>
+          </div>
+          
+          <input type="number" className="no-spin" style={{ width: '70px', height: '28px', padding: '0 6px', fontSize: '0.9rem', textAlign: 'right', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', flexShrink: 0 }} placeholder="時給" value={rule.wage} onChange={e => {
+            const newRules = [...rules]; newRules[idx].wage = e.target.value; setRules(newRules);
+          }} />
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold', flexShrink: 0 }}>円</span>
+          
+          {rules.length > 1 && (
+            <button onClick={() => setRules(rules.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '0 4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      ))}
+      <button onClick={() => setRules([...rules, { start: '00:00', end: '23:59', wage: '1000' }])} style={{ background: 'transparent', border: `1px dashed ${themeColor}`, color: themeColor, borderRadius: '6px', padding: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', marginTop: '2px' }}>
+        ＋ 時間帯を追加
+      </button>
+    </div>
+  );
+};
