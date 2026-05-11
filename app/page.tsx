@@ -266,9 +266,26 @@ export default function SmartLifeOS() {
   }, [currentSearchIndex]);
 
   const fetchEvents = async () => {
+    if (!activeUserId) return; // ログイン前は取得しない
+
     const { data } = await supabase.from('events').select('*');
     if (data) {
-      setEvents(data.map((e: any) => {
+      // 🌟 魔法の処理：まだ「誰の予定か」が設定されていない古い予定を、あなたのアカウントに引き継ぐ！
+      const unownedEvents = data.filter((e: any) => !e.metadata?.user_id);
+      if (unownedEvents.length > 0) {
+        for (const ev of unownedEvents) {
+          const newMetadata = { ...(ev.metadata || {}), user_id: activeUserId };
+          await supabase.from('events').update({ metadata: newMetadata }).eq('id', ev.id);
+        }
+      }
+
+      // 🌟 自分の予定（user_id が一致するもの）だけを抽出して画面に表示する！
+      const myEvents = data.filter((e: any) => {
+        const ownerId = e.metadata?.user_id;
+        return ownerId === activeUserId || !ownerId; // 今引き継いだ分も含む
+      });
+
+      setEvents(myEvents.map((e: any) => {
         const catObj = categories.find((c: any) => c.name === e.category);
         const catColor = catObj?.color || '#999999';
         let cColor = e.metadata?.customColor || catColor;
@@ -897,7 +914,6 @@ export default function SmartLifeOS() {
       }
     });
 
-    // 🚩 集合・出発時間の初期値補完
     const finalGatheringTime = gatheringTime || `${startH}:${startM}`;
     const finalDepartureTime = departureTime || `${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`;
 
@@ -908,7 +924,8 @@ export default function SmartLifeOS() {
       departureType, walkTime,
       customColor: eventColor || undefined, isOutline, customFields: newCustomFields,
       photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
-      startDateStr: startDate, endDateStr: endDate
+      startDateStr: startDate, endDateStr: endDate,
+      user_id: activeUserId // 👈 これを追加！誰が作った予定かを記録する
     };
 
     // 💾 保存処理（一括登録ロジックも維持）
