@@ -43,6 +43,9 @@ export default function CategoryStudio({
 
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState(themeColor);
+  const [newCategoryAllowPhoto, setNewCategoryAllowPhoto] = useState(false); // 👈 追加
+
+  const [editCatAllowPhoto, setEditCatAllowPhoto] = useState(false); // 👈 追加
 
   const [aiTemplatePrompt, setAiTemplatePrompt] = useState('');
   const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
@@ -90,8 +93,10 @@ export default function CategoryStudio({
 
   const handleAddCategory = () => {
     if (!newCategoryName.trim() || categories.find((c: any) => c.name === newCategoryName.trim())) return;
-    setCategories([...categories, { name: newCategoryName.trim(), color: newCategoryColor, fields: [] }]);
+    // 👇 修正：allowPhoto（チェック状態）も一緒に保存する
+    setCategories([...categories, { name: newCategoryName.trim(), color: newCategoryColor, allowPhoto: newCategoryAllowPhoto, fields: [] }]);
     setNewCategoryName('');
+    setNewCategoryAllowPhoto(false); // 👈 追加：追加後はチェックを外す
   };
 
   const addFieldToCategory = (catName: string) => {
@@ -228,10 +233,18 @@ export default function CategoryStudio({
                 <div style={{ padding: '8px', background: 'var(--input-bg)', borderRadius: '8px', marginBottom: '8px' }}>
                   <input value={editCatNameInput} onChange={e => setEditCatNameInput(e.target.value)} style={{ height: '32px', marginBottom: '8px', width: '100%', padding: '0 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)' }} />
                   <ColorSelector value={editCatColorInput} onChange={setEditCatColorInput} />
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                  
+                  {/* 👇 追加：写真・画像を許可するチェックボックス */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                    <input type="checkbox" checked={editCatAllowPhoto} onChange={e => setEditCatAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
+                    写真・画像を記録する
+                  </label>
+
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '12px' }}>
                     <button onClick={() => {
                       if (!editCatNameInput.trim()) return;
-                      setCategories((cats: any[]) => cats.map((cat: any) => cat.name === c.name ? { ...cat, name: editCatNameInput, color: editCatColorInput } : cat));
+                      // 👇 修正：allowPhoto も一緒に更新する
+                      setCategories((cats: any[]) => cats.map((cat: any) => cat.name === c.name ? { ...cat, name: editCatNameInput, color: editCatColorInput, allowPhoto: editCatAllowPhoto } : cat));
                       setEditingCategoryNameOrigin(null);
                     }} style={{ flex: 1, padding: '6px', background: themeColor, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>保存</button>
                     <button onClick={() => setEditingCategoryNameOrigin(null)} style={{ flex: 1, padding: '6px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer' }}>取消</button>
@@ -255,7 +268,8 @@ export default function CategoryStudio({
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', marginLeft: '8px' }}>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
+                      {/* 👇 修正：編集ボタンを押した時に、現在の写真許可状態（allowPhoto）を読み込む */}
+                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setEditCatAllowPhoto(c.allowPhoto || false); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
                       <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
                     </div>
                   </div>
@@ -314,6 +328,8 @@ export default function CategoryStudio({
                       <span style={{ fontSize: '0.9rem', fontWeight: '900', color: 'var(--text-main)', marginBottom: '12px', display: 'block' }}>記録パーツを追加</span>
                       <select value={newFieldType} onChange={e => setNewFieldType(e.target.value)} style={{ width: '100%', height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', color: 'var(--text-main)' }}>
                         {FIELD_TYPES.map((ft: any) => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
+                        {/* 👇 追加：写真・画像を記録パーツとして追加できるようにする */}
+                        <option value="photo">写真・画像</option>
                       </select>
                       {newFieldType !== 'wage' ? (
                         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -350,6 +366,12 @@ export default function CategoryStudio({
             <button onClick={handleAddCategory} style={{ padding: '0 16px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontWeight: '900', cursor: 'pointer' }}>作成</button>
           </div>
           <ColorSelector value={newCategoryColor} onChange={setNewCategoryColor} />
+          
+          {/* 👇 追加：写真・画像を許可するチェックボックス */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+            <input type="checkbox" checked={newCategoryAllowPhoto} onChange={e => setNewCategoryAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
+            写真・画像を記録する
+          </label>
         </div>
 
       </div>

@@ -19,6 +19,7 @@ import { DAY_NAMES, HOURS, MINUTES, INITIAL_PRESETS, VIEW_OPTIONS, FIELD_TYPES }
 import { hexToRgba, toLocalYYYYMMDD } from '@/app/lib/utils';
 import CategoryStudio from '@/app/components/CategoryStudio';
 import Sidebar from '@/app/components/Sidebar';
+import AuthScreen from '@/app/components/AuthScreen'; // 👈 これを追加！
 
 // アイコンを取得するヘルパー関数
 const getSmartIcon = (type: string, color: string) => {
@@ -38,6 +39,19 @@ export default function SmartLifeOS() {
   const calendarRef = useRef<FullCalendar>(null);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
+
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  const [activeUserName, setActiveUserName] = useState<string>('');
+
+  useEffect(() => {
+    // ページを再読込した時に、ログイン状態が残っていれば自動で復帰する
+    const session = sessionStorage.getItem('os_active_session');
+    if (session) {
+      const { id, name } = JSON.parse(session);
+      setActiveUserId(id);
+      setActiveUserName(name);
+    }
+  }, []);
 
   // --- 状態管理 ---
   const loadData = (key: string, defaultData: any) => {
@@ -64,7 +78,8 @@ export default function SmartLifeOS() {
 
   const [isViewSelectorOpen, setIsViewSelectorOpen] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
-  const [isViewSelectorExpanded, setIsViewSelectorExpanded] = useState(false); // 👈 追加
+  const [isViewSelectorExpanded, setIsViewSelectorExpanded] = useState(false);
+  const [calendarCategoryFilter, setCalendarCategoryFilter] = useState('すべて'); // 👈 追加
 
   const [openSections, setOpenSections] = useState<string[]>(['settings', 'countdown']);
   const [nickname, setNickname] = useState('');
@@ -993,9 +1008,36 @@ export default function SmartLifeOS() {
     const viewType = view.type;
 
     const cColor = extendedProps.cColor || extendedProps.customColor || metadata.customColor || event.backgroundColor || 'var(--theme)';
+    const displayTitle = (event.title || '').replace('📌 ', '').replace(' 📷', '');
+    const charCount = displayTitle.length || 1;
+    const hasPhoto = metadata.photoUrls && metadata.photoUrls.length > 0;
+    const isHighlighted = searchResults.length > 0 && event.id === String(searchResults[currentSearchIndex]?.id);
+    const isSelectedForDelete = isDeleteMode && selectedForDelete.includes(event.id);
+    const highlightClass = isHighlighted ? 'highlighted-event' : (isSelectedForDelete ? 'delete-selected-event' : '');
 
     if (extendedProps.category === '収支記録' || extendedProps.category === 'ルーティン達成') {
       return <div style={{ display: 'none' }}></div>;
+    }
+
+    // 👇 修正：月毎カレンダーの表示モード（ドット・写真）を【最優先】で処理する
+    if (viewType === 'dayGridMonth' && displayMode !== 'normal') {
+      if (displayMode === 'dot') {
+        return (
+          <div className={highlightClass} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '24px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cColor, boxShadow: `0 2px 4px ${cColor}60` }} />
+          </div>
+        );
+      }
+      if (displayMode === 'photo') {
+        if (hasPhoto) {
+          return (
+            <div className={highlightClass} style={{ width: '100%', height: '40px', padding: '2px', display: 'flex', justifyContent: 'center' }}>
+              <img src={metadata.photoUrls[0]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }} alt="event" />
+            </div>
+          );
+        }
+        return <div style={{ display: 'none' }}></div>; // 写真がない予定は完全に非表示
+      }
     }
 
     if (extendedProps.isTransitEvent) {
@@ -1004,7 +1046,6 @@ export default function SmartLifeOS() {
       const eT = end ? `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}` : '';
       
       return (
-        // 👇 ここに data-travel-target を追加！
         <div data-travel-target={event.id.replace('-travel', '')} style={{
           width: '100%', height: '100%', padding: '2px',
           background: 'transparent', border: `1.5px dashed ${cColor}`,
@@ -1017,9 +1058,6 @@ export default function SmartLifeOS() {
       );
     }
 
-    const displayTitle = (event.title || '').replace('📌 ', '').replace(' 📷', '');
-    const charCount = displayTitle.length || 1;
-    const hasPhoto = metadata.photoUrls && metadata.photoUrls.length > 0;
     const actualStart = extendedProps.originalStart ? new Date(extendedProps.originalStart) : start;
     const durationMin = (end && actualStart) ? (end.getTime() - actualStart.getTime()) / 60000 : 60;
 
@@ -1030,16 +1068,13 @@ export default function SmartLifeOS() {
       if (end) endTimeOnly = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
     }
 
-    const isHighlighted = searchResults.length > 0 && event.id === String(searchResults[currentSearchIndex]?.id);
-    const isSelectedForDelete = isDeleteMode && selectedForDelete.includes(event.id);
-    const highlightClass = isHighlighted ? 'highlighted-event' : (isSelectedForDelete ? 'delete-selected-event' : '');
     const depTime = metadata.departureTime;
     const isGatheringSet = metadata.isGathering && depTime;
     const dType = metadata.departureType || (startPointType === 'station' ? 'train' : 'home');
     const customStart = metadata.customFields?.customStartLocation;
 
     let houseLeaveTimeStr = '';
-    if (isGatheringSet && depTime.includes(':')) { // 安全チェック追加
+    if (isGatheringSet && depTime.includes(':')) {
       if (startPointType === 'station' || dType === 'train') {
         const wTime = parseInt(metadata.walkTime || walkTime || '0', 10);
         if (wTime > 0) {
@@ -1050,13 +1085,6 @@ export default function SmartLifeOS() {
       }
     }
 
-    // 移動イベント自体の場合は、追加の出発バッジを出さない（タイトルに含まれているため）
-    if (extendedProps.isTransitEvent) {
-        // すでに修正済みであればそのままでOKですが、
-        // 以下の DepartureBadge の定義を isGatheringSet && !extendedProps.isTransitEvent にするとより綺麗です
-    }
-
-    // 💡 予定本体に表示されていた出発バッジを削除（移動ブロックで表示するため）
     const DepartureBadge = null;
 
     const transitBadge = metadata.customFields?.isTransit && (viewType === 'timeGridWeek' || viewType === 'timeGridDay') ? (
@@ -1126,23 +1154,6 @@ export default function SmartLifeOS() {
       const isSub = String(event.id).startsWith('sub-');
       const isPayment = (isRoutine && metadata.routineType === 'expense') || isSub;
 
-      if (displayMode === 'dot') {
-        return (
-          <div className={highlightClass} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '24px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cColor, boxShadow: `0 2px 4px ${cColor}60` }} />
-          </div>
-        );
-      }
-
-      // 👇 追加：写真表示モード
-      if (displayMode === 'photo' && hasPhoto) {
-        return (
-          <div className={highlightClass} style={{ width: '100%', height: '40px', padding: '2px', display: 'flex', justifyContent: 'center' }}>
-            <img src={metadata.photoUrls[0]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }} alt="event" />
-          </div>
-        );
-      }
-
       if (isAnniversary) {
         return (
           <div className={highlightClass} style={{
@@ -1156,7 +1167,6 @@ export default function SmartLifeOS() {
         );
       }
 
-      // 👇 追加：支払いやサブスクは「背景白＋枠線のみ」の控えめなデザインにする
       if (isPayment) {
         return (
           <div className={highlightClass} style={{
@@ -1323,7 +1333,6 @@ export default function SmartLifeOS() {
         : displayTitle;
 
       return (
-        // 👇 ここに data-main-id を追加しました！
         <div data-main-id={event.id} className={`${highlightClass} smart-event-container ${!isNarrow ? 'force-full-width' : ''}`} style={{
           height: '100%', width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column',
           backgroundColor: hexToRgba(cColor, 0.15),
@@ -1516,12 +1525,17 @@ export default function SmartLifeOS() {
     // 👇 単発の収支記録（金額だけの独立データ）をカレンダーのマス目から非表示にする
     if (e.extendedProps?.metadata?.isPureFinance) return false;
     
-    // 👇 追加：月毎カレンダーでは、サブスクや支払いをブロックとして表示しない！
+    // 👇 月毎カレンダーでは、サブスクや支払いをブロックとして表示しない！
     if (viewType === 'dayGridMonth') {
       const isSub = String(e.id).startsWith('sub-');
       const isRoutineExpense = e.extendedProps?.isRoutine && e.extendedProps?.metadata?.routineType === 'expense';
       const isManualPayment = e.extendedProps?.metadata?.customFields?.isExpenseSet && (e.title?.includes('支払') || e.title?.includes('引落'));
       if (isSub || isRoutineExpense || isManualPayment) return false;
+      
+      // 👇 追加：月毎カレンダーでジャンルが選択されている場合、それ以外の予定を隠す
+      if (calendarCategoryFilter !== 'すべて' && e.extendedProps?.category !== calendarCategoryFilter) {
+        return false;
+      }
     }
     
     return true;
@@ -1569,6 +1583,19 @@ useEffect(() => {
 
   function openAnalyticsModal() {
     throw new Error('Function not implemented.');
+  }
+  if (!activeUserId) {
+    return (
+      <AuthScreen 
+        themeColor={themeColor} 
+        onLoginSuccess={(id, name) => {
+          setActiveUserId(id);
+          setActiveUserName(name);
+          // タブを閉じるまでログイン状態を維持
+          sessionStorage.setItem('os_active_session', JSON.stringify({ id, name }));
+        }} 
+      />
+    );
   }
 
   return (
@@ -2506,9 +2533,10 @@ useEffect(() => {
           nearestStation={nearestStation} setNearestStation={setNearestStation}
           walkTime={walkTime} setWalkTime={setWalkTime}
           startPointType={startPointType} setStartPointType={setStartPointType}
-          // 👇 追加：表示モードと現在のビュー状態をサイドバーに渡す
           displayMode={displayMode} setDisplayMode={setDisplayMode}
           viewType={viewType}
+          calendarCategoryFilter={calendarCategoryFilter} // 👈 追加
+          setCalendarCategoryFilter={setCalendarCategoryFilter} // 👈 追加
         />
 
         {/* ギャラリー */}
@@ -2528,18 +2556,15 @@ useEffect(() => {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px', maxHeight: '55vh', overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
-                {/* 👇 修正：選択されたジャンルでフィルターをかける */}
+               {/* 👇 修正：写真のみを敷き詰めるUIに変更 */}
                 {events
                   .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
                   .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
                   .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
                   .flatMap((e: any) =>
                   e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
-                    <div key={`${e.id}-${index}`} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                        <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
-                      </div>
-                      {index === 0 && <span style={{ fontSize: '0.7rem', fontWeight: '900', color: 'var(--text-sub)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' }}>{e.start.split('T')[0]}</span>}
+                    <div key={`${e.id}-${index}`} style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+                      <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
                     </div>
                   ))
                 )}
@@ -3135,6 +3160,7 @@ useEffect(() => {
                       </div>
                     );
 
+                    const showPhotoUI = currentCategoryObj?.allowPhoto || photoUrls.length > 0;
                     const BlockRecords = showRecords && (
                       <div key="records" className="card-box" style={{ background: isDarkMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.7)', border: '1px solid rgba(253, 230, 138, 0.5)', marginBottom: '16px' }}>
                         <label style={{ fontSize: '0.85rem', fontWeight: '900', color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
@@ -3300,23 +3326,34 @@ useEffect(() => {
                           );
                         })}
 
-                        <details style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer' }} open={Boolean(memo || photoUrls.length > 0)}>
-                          <summary style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', outline: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            ＋ 思い出メモ・写真を追加
-                          </summary>
-                          <div style={{ marginTop: '12px', cursor: 'default' }}>
-                            <textarea className="pop-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="思い出メモ..." rows={2} style={{ background: 'var(--input-bg)' }} />
-                            <div style={{ marginTop: '12px' }}>
-                              <label className="form-label" style={{ color: 'var(--theme)' }}>思い出の写真</label>
-                              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
-                                {photoUrls.map((url, i) => <img key={i} src={url} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />)}
-                                <label style={{ width: '60px', height: '60px', borderRadius: '8px', border: '2px dashed var(--theme)', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem' }}>
-                                  +<input type="file" multiple onChange={handlePhotoUpload} style={{ display: 'none' }} />
-                                </label>
+                        {(() => {
+                          // 👇 修正：ジャンル設定の「写真許可チェックボックス」に連動させる！
+                          const showPhotoUI = currentCategoryObj?.allowPhoto || photoUrls.length > 0;
+
+                          return (
+                            <details style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer' }} open={Boolean(memo || photoUrls.length > 0)}>
+                              <summary style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', outline: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                ＋ 思い出メモ{showPhotoUI ? '・写真' : ''}を追加
+                              </summary>
+                              <div style={{ marginTop: '12px', cursor: 'default' }}>
+                                <textarea className="pop-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="思い出メモ..." rows={2} style={{ background: 'var(--input-bg)' }} />
+                                
+                                {/* 👇 修正：許可されている場合のみ写真UIを表示する */}
+                                {showPhotoUI && (
+                                  <div style={{ marginTop: '12px' }}>
+                                    <label className="form-label" style={{ color: 'var(--theme)' }}>思い出の写真</label>
+                                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
+                                      {photoUrls.map((url, i) => <img key={i} src={url} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />)}
+                                      <label style={{ width: '60px', height: '60px', borderRadius: '8px', border: '2px dashed var(--theme)', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                        +<input type="file" multiple onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                                      </label>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                          </div>
-                        </details>
+                            </details>
+                          );
+                        })()}
                       </div>
                     );
 
@@ -3334,7 +3371,8 @@ useEffect(() => {
                     return items.filter(Boolean);
                   })()}
 
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                  {/* 👇 修正：ボタン間のgapを8pxに縮め、文字を1行に収める */}
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
                     {title && (mode === 'create' || mode === 'detail') && (
                       <button
                         onClick={(e) => {
@@ -3346,14 +3384,14 @@ useEffect(() => {
                           alert('「よくある予定」として新しく登録しました！');
                         }}
                         className="btn-secondary"
-                        style={{ width: '50px', flexShrink: 0, padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed var(--theme)', color: 'var(--theme)' }}
+                        style={{ width: '48px', flexShrink: 0, padding: '0', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed var(--theme)', color: 'var(--theme)' }}
                         title="よくある予定に登録"
                       >
                         <Star size={20} />
                       </button>
                     )}
-                    <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1 }}>キャンセル</button>
-                    <button onClick={handleSave} className="btn-pop" style={{ flex: 1.5 }}>保存する</button>
+                    <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px 4px', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>キャンセル</button>
+                    <button onClick={handleSave} className="btn-pop" style={{ flex: 1.5, padding: '12px 4px', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>保存する</button>
                   </div>
                 </>
               )}
