@@ -44,8 +44,8 @@ export default function SmartLifeOS() {
   const [activeUserName, setActiveUserName] = useState<string>('');
 
   useEffect(() => {
-    // ページを再読込した時に、ログイン状態が残っていれば自動で復帰する
-    const session = sessionStorage.getItem('os_active_session');
+    // 👇 変更：localStorage にすることで、アプリを閉じてもログイン状態が永久に保持されます
+    const session = localStorage.getItem('os_active_session');
     if (session) {
       const { id, name } = JSON.parse(session);
       setActiveUserId(id);
