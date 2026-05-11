@@ -57,10 +57,10 @@ interface SidebarProps {
   nearestStation: string; setNearestStation: React.Dispatch<React.SetStateAction<string>>;
   walkTime: string; setWalkTime: React.Dispatch<React.SetStateAction<string>>;
   startPointType: string; setStartPointType: React.Dispatch<React.SetStateAction<string>>;
-  // 👇 追加
   displayMode: string; setDisplayMode: React.Dispatch<React.SetStateAction<string>>;
   viewType: string;
 }
+
 export default function Sidebar({
   isSidebarOpen, setIsSidebarOpen, setOpenSections, themeColor,
   searchQuery, setSearchQuery, handleSearchExecute, setIsSearchMode,
@@ -74,8 +74,9 @@ export default function Sidebar({
   setIsRoutineModalOpen, setIsAnniversaryModalOpen, syncWithCloud, handleEventClick,
   setCustomFieldsData, homeLocation, setHomeLocation, nearestStation, setNearestStation,
   walkTime, setWalkTime, startPointType, setStartPointType,
-  displayMode, setDisplayMode, viewType // 👈 追加
+  displayMode, setDisplayMode, viewType
 }: SidebarProps) {
+
   const [expanded, setExpanded] = useState<string[]>(['finance']);
   const toggleSection = (sec: string) => setExpanded(prev => prev.includes(sec) ? prev.filter(s => s !== sec) : [...prev, sec]);
 
@@ -97,7 +98,6 @@ export default function Sidebar({
     return localStorage.getItem('os_incomeCalcBasis') as 'wage' | 'payday' || 'wage';
   });
 
-  // 👇 ドラッグ用のRef
   const dragRoutine = useRef<number | null>(null);
   const dragSub = useRef<number | null>(null);
 
@@ -144,7 +144,6 @@ export default function Sidebar({
             </button>
           </div>
           
-          {/* 👇 追加：月毎カレンダーの時のみ表示される「表示モード切替」 */}
           {viewType === 'dayGridMonth' && (
             <div style={{ display: 'flex', background: 'var(--input-bg)', borderRadius: '12px', padding: '4px', border: `1px solid var(--border-color)` }}>
               <button onClick={() => setDisplayMode('normal')} style={{ flex: 1, padding: '6px', borderRadius: '8px', background: displayMode === 'normal' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'normal' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'normal' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.2s' }}>通常</button>
@@ -155,7 +154,7 @@ export default function Sidebar({
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px', paddingLeft: '1px', display: 'flex', flexDirection: 'column', gap: '8px' }} className="hide-scrollbar">
-          
+
           {/* 収支履歴・管理セクション */}
           <div>
             <AccordionHeader id="finance" title="収支履歴・管理" icon={Banknote} />
@@ -173,7 +172,7 @@ export default function Sidebar({
                 
                 if (cf.isIncomeSet) {
                   if (incomeCalcBasis === 'wage' && cf.isSalary) {
-                    // 時給換算モードで、かつこれは給料日イベントなので除外して二重計上を防ぐ
+                    // 時給モードかつ給料日イベントなので除外
                   } else {
                     inc += Number(cf.standardIncomeAmount || 0);
                   }
@@ -191,7 +190,7 @@ export default function Sidebar({
                     else if (f.type === 'money_expense') exp += Number(cf[f.id] || 0);
                     else if (f.type === 'wage' && !f.excludeFromTotal) {
                       if (incomeCalcBasis === 'payday') {
-                        // 給料日ベースモードなので、日々の時給は合計に加算しない
+                        // 給料日ベースモードなので日々の時給は加算しない
                       } else {
                         const d = cf[f.id];
                         if (d?.calculatedWage !== undefined) inc += Number(d.calculatedWage);
@@ -234,12 +233,14 @@ export default function Sidebar({
                       <span style={{ color: '#10b981' }}>収入: ¥{inc.toLocaleString()}</span>
                       <span style={{ color: '#ef4444' }}>支出: ¥{exp.toLocaleString()}</span>
                     </div>
-                    {inc + exp > 0 && (
-                      <div style={{ width: '100%', height: '10px', background: 'var(--border-color)', borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
-                        {inc > 0 && <div style={{ width: `${(inc / (inc + exp)) * 100}%`, background: '#10b981' }} />}
-                        {exp > 0 && <div style={{ width: `${(exp / (inc + exp)) * 100}%`, background: '#ef4444' }} />}
-                      </div>
-                    )}
+                    <div style={{ width: '100%', height: '10px', background: 'var(--border-color)', borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
+                      {inc + exp > 0 ? (
+                        <>
+                          {inc > 0 && <div style={{ width: `${(inc / (inc + exp)) * 100}%`, background: '#10b981', transition: 'width 0.4s' }} />}
+                          {exp > 0 && <div style={{ width: `${(exp / (inc + exp)) * 100}%`, background: '#ef4444', transition: 'width 0.4s' }} />}
+                        </>
+                      ) : null}
+                    </div>
                     <div style={{ textAlign: 'center', fontSize: '1rem', marginTop: '12px', fontWeight: '900', color: inc >= exp ? '#10b981' : '#ef4444' }}>
                       残高: {inc >= exp ? '+' : '-'}¥{Math.abs(inc - exp).toLocaleString()}
                     </div>
@@ -311,12 +312,9 @@ export default function Sidebar({
                 <button onClick={() => { setIsModalOpen(false); setIsCategoryModalOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Palette size={16} color="var(--text-sub)" /> <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>ジャンル・記録項目</span>
                 </button>
-                
-                {/* 👇 復活：毎月の予定・支払い管理 */}
                 <button onClick={() => { setIsModalOpen(false); setIsRoutineModalOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Repeat size={16} color="var(--text-sub)" /> <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>毎月の予定 (給料・支払い等)</span>
                 </button>
-                
                 <button onClick={() => { setMode('subscription'); setIsModalOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Banknote size={16} color="var(--text-sub)" /> <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>サブスク管理 (毎月/毎年)</span>
                 </button>
@@ -384,7 +382,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* トラベルマップ（日本地図）モーダル */}
+      {/* トラベルマップ */}
       {isTravelMapOpen && (() => {
         const PREF_DATA = [
           { id: 'HK', name: '北海道', x: 14, y: 1 }, { id: 'AO', name: '青森', x: 14, y: 3 },
@@ -521,14 +519,13 @@ export default function Sidebar({
                 <button onClick={() => setHistorySpan('all')} className={historySpan === 'all' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>全期間</button>
               </div>
 
-              {/* 収入・支出の切り替えタブ */}
               <div style={{ display: 'flex', background: 'var(--input-bg)', borderRadius: '12px', padding: '4px', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
                 <button onClick={() => setFinanceTypeFilter('all')} style={{ flex: 1, padding: '8px', borderRadius: '8px', background: financeTypeFilter === 'all' ? 'var(--card-bg)' : 'transparent', color: financeTypeFilter === 'all' ? 'var(--text-main)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: financeTypeFilter === 'all' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.2s' }}>すべて</button>
                 <button onClick={() => setFinanceTypeFilter('income')} style={{ flex: 1, padding: '8px', borderRadius: '8px', background: financeTypeFilter === 'income' ? 'rgba(16,185,129,0.1)' : 'transparent', color: financeTypeFilter === 'income' ? '#10b981' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.2s' }}>収入のみ</button>
                 <button onClick={() => setFinanceTypeFilter('expense')} style={{ flex: 1, padding: '8px', borderRadius: '8px', background: financeTypeFilter === 'expense' ? 'rgba(239,68,68,0.1)' : 'transparent', color: financeTypeFilter === 'expense' ? '#ef4444' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.2s' }}>支出のみ</button>
               </div>
 
-              <div className="hide-scrollbar" style={{ maxHeight: '55vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
+              <div className="hide-scrollbar" style={{ height: '55vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
                 {filteredHistory.length === 0 ? (
                   <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-sub)', padding: '24px' }}>記録がありません</div>
                 ) : (
@@ -539,7 +536,6 @@ export default function Sidebar({
                       : e.extendedProps?.metadata?.customFields?.standardExpenseAmount;
                     const dateStr = e.start.split('T')[0].replace(/-/g, '/');
                     
-                    // 👇 追加：支払方法のバッジ表示
                     const method = e.extendedProps?.metadata?.customFields?.paymentMethod || 'cash';
                     const methodLabel = !isIncome ? (
                       method === 'credit' ? '💳 クレカ' :

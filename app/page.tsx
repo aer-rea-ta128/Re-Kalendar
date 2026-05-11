@@ -1921,13 +1921,11 @@ useEffect(() => {
       `}</style>
 
       <div className="fixed-mobile-frame">
-        {/* 👇 修正：iPhoneで横幅がはみ出ないようにサイズと余白を微調整（ここから） */}
-        {/* 🛠️ 微調整ポイント：ヘッダー全体の上下左右の余白は padding: '上 右 下 左' で調整します */}
-        <header style={{ padding: '8px 12px 4px 12px', background: 'linear-gradient(180deg, var(--bg-main) 40%, transparent 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100, pointerEvents: 'auto', gap: '8px' }}>
+        {/* 👇 修正：中央の年月を完全固定し、ボタン開閉時のカクつきを排除 */}
+        <header style={{ padding: '8px 12px 4px 12px', position: 'relative', background: 'linear-gradient(180deg, var(--bg-main) 40%, transparent 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100, pointerEvents: 'auto' }}>
           
           {/* 左側：メニュー・追加 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-start' }}>
-            {/* 🛠️ 微調整ポイント：ボタンの大きさは width と height の '44px' で調整します */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 20 }}>
             <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} style={{ width: '44px', height: '44px', fontSize: '1.4rem', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '14px', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 10px var(--theme-shadow)`, transition: 'all 0.2s', paddingBottom: '2px', flexShrink: 0 }}>☰</button>
             <button
               onClick={() => {
@@ -1942,62 +1940,41 @@ useEffect(() => {
             </button>
           </div>
 
-          {/* 中央：年月表示（HUDスキャナー風ピル形状） */}
-          <div onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '6px 16px', gap: '12px', flexShrink: 1, background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '32px', cursor: 'pointer', boxShadow: `0 0 15px var(--theme-shadow), inset 0 0 8px var(--theme-shadow)` }}>
-            
-            <button onClick={(e) => { 
-              e.stopPropagation(); 
-              const api = calendarRef.current?.getApi();
-              if (viewType === 'timeGridDay' && api) {
-                const d = api.getDate(); d.setMonth(d.getMonth() - 1); api.gotoDate(d);
-              } else { api?.prev(); }
-            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>◀</button>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 2px', whiteSpace: 'nowrap' }}>
-              <span style={{ fontSize: '0.65rem', color: 'var(--theme)', fontWeight: '900', letterSpacing: '1px', marginBottom: '-2px', textShadow: `0 0 5px var(--theme-shadow)` }}>{currentYear}</span>
-              <div style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '900', letterSpacing: '-0.5px', lineHeight: 1, textShadow: `0 0 10px var(--theme-shadow)` }}>{currentMonthNum}月</div>
-            </div>
+          {/* 中央：年月表示（絶対位置でど真ん中に固定！） */}
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', justifyContent: 'center' }}>
+            <div onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '6px 16px', gap: '12px', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '32px', cursor: 'pointer', boxShadow: `0 0 15px var(--theme-shadow), inset 0 0 8px var(--theme-shadow)` }}>
+              <button onClick={(e) => { 
+                e.stopPropagation(); 
+                const api = calendarRef.current?.getApi();
+                if (viewType === 'timeGridDay' && api) {
+                  const d = api.getDate(); d.setMonth(d.getMonth() - 1); api.gotoDate(d);
+                } else { api?.prev(); }
+              }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>◀</button>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 2px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '0.65rem', color: 'var(--theme)', fontWeight: '900', letterSpacing: '1px', marginBottom: '-2px', textShadow: `0 0 5px var(--theme-shadow)` }}>{currentYear}</span>
+                <div style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '900', letterSpacing: '-0.5px', lineHeight: 1, textShadow: `0 0 10px var(--theme-shadow)` }}>{currentMonthNum}月</div>
+              </div>
 
-            <button onClick={(e) => { 
-              e.stopPropagation(); 
-              const api = calendarRef.current?.getApi();
-              if (viewType === 'timeGridDay' && api) {
-                const d = api.getDate(); d.setMonth(d.getMonth() + 1); api.gotoDate(d);
-              } else { api?.next(); }
-            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>▶</button>
-            
-            {/* 年月ポップアップ */}
-            {isDatePickerOpen && (
-              <>
-                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsDatePickerOpen(false); }} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', zIndex: 10000 }} />
-                <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 'calc(100% + 14px)', left: '50%', transform: 'translateX(-50%)', padding: '14px', borderRadius: '20px', display: 'flex', gap: '10px', zIndex: 10001, border: `1px solid var(--theme)`, background: 'var(--bg-main)', boxShadow: `0 10px 40px var(--theme-shadow)` }}>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', borderRadius: '12px', padding: '6px 10px' }}>
-                    <select value={currentYear} onChange={(e) => { const newDate = new Date(parseInt(e.target.value), parseInt(currentMonthNum) - 1, 1); calendarRef.current?.getApi().gotoDate(newDate); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
-                      {Array.from({length: 21}, (_, i) => new Date().getFullYear() - 10 + i).map(y => <option key={y} value={y}>{y}年</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', borderRadius: '12px', padding: '6px 10px' }}>
-                    <select value={currentMonthNum} onChange={(e) => { const newDate = new Date(parseInt(currentYear || String(new Date().getFullYear())), parseInt(e.target.value) - 1, 1); calendarRef.current?.getApi().gotoDate(newDate); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}>
-                      {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}月</option>)}
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
+              <button onClick={(e) => { 
+                e.stopPropagation(); 
+                const api = calendarRef.current?.getApi();
+                if (viewType === 'timeGridDay' && api) {
+                  const d = api.getDate(); d.setMonth(d.getMonth() + 1); api.gotoDate(d);
+                } else { api?.next(); }
+              }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>▶</button>
+            </div>
           </div>
 
           {/* 右側：今日・月週日切替 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-end', height: '44px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 20, height: '44px' }}>
             
-            {/* 展開中は「今日」ボタンを隠す */}
             {!isViewSelectorExpanded && (
               <button onClick={() => calendarRef.current?.getApi().today()} style={{ background: 'var(--card-bg)', border: `1px solid var(--theme)`, width: '44px', height: '44px', borderRadius: '14px', cursor: 'pointer', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px var(--theme-shadow)`, padding: 0, animation: 'fadeIn 0.2s', flexShrink: 0 }}>
                 <Calendar size={18} />
               </button>
             )}
             
-            {/* 🛠️ 微調整ポイント：展開時の幅は '100px'、閉じた時の幅は '44px' で調整します */}
             <div 
               style={{ 
                 background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '14px', 
