@@ -10,13 +10,17 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Smart LifeOS",
+  title: "Re-calendar",
   description: "カレンダー＆ライフログアプリ",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "LifeOS",
+    title: "Re-calendar", // ホーム画面での表示名
+  },
+  // 以下を追加
+  icons: {
+    apple: "/icon_Re-calendar.jpeg",
   },
 };
 
