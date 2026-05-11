@@ -1572,7 +1572,7 @@ useEffect(() => {
   }
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minHeight: '100vh', background: 'var(--bg-main)' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', height: '100dvh', width: '100vw', background: 'var(--bg-main)', overflow: 'hidden' }}>
       <style>{`
         :root {
           --theme: ${themeColor};
@@ -1604,13 +1604,17 @@ useEffect(() => {
           -moz-appearance: textfield;
         }
         * { box-sizing: border-box; }
+        
+        /* 👇 追加：画面全体のスクロールとバウンス（引っ張る動き）を完全に止める */
+        html, body { margin: 0; padding: 0; height: 100dvh; overflow: hidden; overscroll-behavior: none; }
+        
         body, .fixed-mobile-frame, .fc {
           color: var(--text-main);
           font-family: var(--app-font) !important;
         }
 
         .fixed-mobile-frame {
-          width: 100%; max-width: 460px; height: 100vh;
+          width: 100%; max-width: 460px; height: 100dvh; /* 👈 100vhを100dvhに変更 */
           background-color: transparent;
           display: flex; flex-direction: column; position: relative; overflow: hidden;
         }
@@ -1917,16 +1921,14 @@ useEffect(() => {
       `}</style>
 
       <div className="fixed-mobile-frame">
-        {/* 近未来感（SF・HUD風）なヘッダーUI */}
-        {/* 近未来感（SF・HUD風）なヘッダーUI */}
-        {/* 👇 修正: padding を '16px' から '12px 16px 4px 16px' に変更し、下の隙間を狭めました */}
-        <header style={{ padding: '12px 16px 4px 16px', background: 'linear-gradient(180deg, var(--bg-main) 40%, transparent 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100, pointerEvents: 'auto', gap: '12px' }}>
+        {/* 👇 修正：iPhoneで横幅がはみ出ないようにサイズと余白を微調整（ここから） */}
+        {/* 🛠️ 微調整ポイント：ヘッダー全体の上下左右の余白は padding: '上 右 下 左' で調整します */}
+        <header style={{ padding: '8px 12px 4px 12px', background: 'linear-gradient(180deg, var(--bg-main) 40%, transparent 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100, pointerEvents: 'auto', gap: '8px' }}>
           
           {/* 左側：メニュー・追加 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'flex-start' }}>
-            {/* 👇 修正: paddingBottom: '3px' を追加して ☰ を上下中央に補正 */}
-            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} style={{ width: '50px', height: '47px', fontSize: '1.6rem', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '16px', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow)`, transition: 'all 0.2s', paddingBottom: '3px' }}>☰</button>
-            {/* 👇 修正: fontSizeを少し大きくし、paddingBottom: '6px', lineHeight: 0 で ＋ を完璧な中央に補正 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-start' }}>
+            {/* 🛠️ 微調整ポイント：ボタンの大きさは width と height の '44px' で調整します */}
+            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} style={{ width: '44px', height: '44px', fontSize: '1.4rem', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '14px', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 10px var(--theme-shadow)`, transition: 'all 0.2s', paddingBottom: '2px', flexShrink: 0 }}>☰</button>
             <button
               onClick={() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
@@ -1934,38 +1936,36 @@ useEffect(() => {
                 setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
                 setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsModalOpen(true);
               }}
-              style={{ background: 'var(--theme)', color: '#fff', fontSize: '2.2rem', fontWeight: 'bold', width: '50px', height: '47px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 15px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '6px', lineHeight: 0 }}
+              style={{ background: 'var(--theme)', color: '#fff', fontSize: '2rem', fontWeight: 'bold', width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '4px', lineHeight: 0, flexShrink: 0 }}
             >
               +
             </button>
           </div>
 
           {/* 中央：年月表示（HUDスキャナー風ピル形状） */}
-          <div onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '9px 32px', gap: '20px', flexShrink: 0, background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '32px', cursor: 'pointer', boxShadow: `0 0 20px var(--theme-shadow), inset 0 0 10px var(--theme-shadow)` }}>
+          <div onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '6px 16px', gap: '12px', flexShrink: 1, background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '32px', cursor: 'pointer', boxShadow: `0 0 15px var(--theme-shadow), inset 0 0 8px var(--theme-shadow)` }}>
             
-            {/* 👇 日毎ビューの時は「1ヶ月前」にジャンプする */}
             <button onClick={(e) => { 
               e.stopPropagation(); 
               const api = calendarRef.current?.getApi();
               if (viewType === 'timeGridDay' && api) {
                 const d = api.getDate(); d.setMonth(d.getMonth() - 1); api.gotoDate(d);
               } else { api?.prev(); }
-            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.3rem', cursor: 'pointer', padding: 0 }}>◀</button>
+            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>◀</button>
             
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 4px' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--theme)', fontWeight: '900', letterSpacing: '2px', marginBottom: '-2px', textShadow: `0 0 5px var(--theme-shadow)` }}>{currentYear}</span>
-              <div style={{ fontSize: '1.5rem', color: 'var(--text-main)', fontWeight: '900', letterSpacing: '-0.5px', lineHeight: 1, textShadow: `0 0 10px var(--theme-shadow)` }}>{currentMonthNum}月</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 2px', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.65rem', color: 'var(--theme)', fontWeight: '900', letterSpacing: '1px', marginBottom: '-2px', textShadow: `0 0 5px var(--theme-shadow)` }}>{currentYear}</span>
+              <div style={{ fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: '900', letterSpacing: '-0.5px', lineHeight: 1, textShadow: `0 0 10px var(--theme-shadow)` }}>{currentMonthNum}月</div>
             </div>
 
-            {/* 👇 日毎ビューの時は「1ヶ月後」にジャンプする */}
             <button onClick={(e) => { 
               e.stopPropagation(); 
               const api = calendarRef.current?.getApi();
               if (viewType === 'timeGridDay' && api) {
                 const d = api.getDate(); d.setMonth(d.getMonth() + 1); api.gotoDate(d);
               } else { api?.next(); }
-            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.3rem', cursor: 'pointer', padding: 0 }}>▶</button>
-
+            }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>▶</button>
+            
             {/* 年月ポップアップ */}
             {isDatePickerOpen && (
               <>
@@ -1988,28 +1988,28 @@ useEffect(() => {
           </div>
 
           {/* 右側：今日・月週日切替 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-end', height: '47px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-end', height: '44px' }}>
             
             {/* 展開中は「今日」ボタンを隠す */}
             {!isViewSelectorExpanded && (
-              <button onClick={() => calendarRef.current?.getApi().today()} style={{ background: 'var(--card-bg)', border: `1px solid var(--theme)`, width: '47px', height: '47px', borderRadius: '16px', cursor: 'pointer', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px var(--theme-shadow)`, padding: 0, animation: 'fadeIn 0.2s' }}>
-                <Calendar size={20} />
+              <button onClick={() => calendarRef.current?.getApi().today()} style={{ background: 'var(--card-bg)', border: `1px solid var(--theme)`, width: '44px', height: '44px', borderRadius: '14px', cursor: 'pointer', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px var(--theme-shadow)`, padding: 0, animation: 'fadeIn 0.2s', flexShrink: 0 }}>
+                <Calendar size={18} />
               </button>
             )}
             
-            {/* 👇 修正：展開時の幅をピッタリ 102px (47+8+47) に変更 */}
+            {/* 🛠️ 微調整ポイント：展開時の幅は '100px'、閉じた時の幅は '44px' で調整します */}
             <div 
               style={{ 
-                background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '16px', 
+                background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '14px', 
                 display: 'flex', alignItems: 'center', boxShadow: `0 0 10px var(--theme-shadow)`,
                 overflow: 'hidden', transition: 'width 0.25s ease-out',
-                width: isViewSelectorExpanded ? '102px' : '47px',
-                height: '47px'
+                width: isViewSelectorExpanded ? '100px' : '44px',
+                height: '44px',
+                flexShrink: 0
               }}
             >
               {isViewSelectorExpanded ? (
                 <div style={{ display: 'flex', width: '100%', height: '100%', animation: 'fadeIn 0.3s' }}>
-                  {/* 👇 幅が狭くなるため、文字サイズを 0.8rem に調整 */}
                   <button onClick={() => { setViewType('dayGridMonth'); calendarRef.current?.getApi().changeView('dayGridMonth'); setIsViewSelectorExpanded(false); }} style={{ flex: 1, height: '100%', padding: 0, background: viewType === 'dayGridMonth' ? 'var(--theme)' : 'transparent', color: viewType === 'dayGridMonth' ? '#fff' : 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', transition: 'background 0.2s' }}>月</button>
                   <button onClick={() => { setViewType('timeGridWeek'); calendarRef.current?.getApi().changeView('timeGridWeek'); setIsViewSelectorExpanded(false); }} style={{ flex: 1, height: '100%', padding: 0, background: viewType === 'timeGridWeek' ? 'var(--theme)' : 'transparent', color: viewType === 'timeGridWeek' ? '#fff' : 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', transition: 'background 0.2s', borderLeft: '1px dashed var(--theme-shadow)', borderRight: '1px dashed var(--theme-shadow)' }}>週</button>
                   <button onClick={() => { setViewType('timeGridDay'); calendarRef.current?.getApi().changeView('timeGridDay'); setIsViewSelectorExpanded(false); }} style={{ flex: 1, height: '100%', padding: 0, background: viewType === 'timeGridDay' ? 'var(--theme)' : 'transparent', color: viewType === 'timeGridDay' ? '#fff' : 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', transition: 'background 0.2s' }}>日</button>
@@ -2017,7 +2017,7 @@ useEffect(() => {
               ) : (
                 <button 
                   onClick={() => setIsViewSelectorExpanded(true)} 
-                  style={{ width: '100%', height: '100%', padding: 0, background: 'transparent', color: 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '1.05rem', cursor: 'pointer' }}
+                  style={{ width: '100%', height: '100%', padding: 0, background: 'transparent', color: 'var(--theme)', border: 'none', fontWeight: '900', fontSize: '0.95rem', cursor: 'pointer' }}
                 >
                   {viewType === 'dayGridMonth' ? '月' : viewType === 'timeGridWeek' ? '週' : '日'}
                 </button>
