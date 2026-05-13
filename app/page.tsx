@@ -40,18 +40,45 @@ export default function SmartLifeOS() {
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
-  const [activeUserId, setActiveUserId] = useState<string | null>(null);
-  const [activeUserName, setActiveUserName] = useState<string>('');
-
-  useEffect(() => {
-    // 👇 変更：localStorage にすることで、アプリを閉じてもログイン状態が永久に保持されます
-    const session = localStorage.getItem('os_active_session');
-    if (session) {
-      const { id, name } = JSON.parse(session);
-      setActiveUserId(id);
-      setActiveUserName(name);
+  // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
+  const [activeUserId, setActiveUserId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return 'local_dev';
+      const session = localStorage.getItem('os_active_session');
+      return session ? JSON.parse(session).id : null;
     }
-  }, []);
+    return null;
+  });
+  
+  const [activeUserName, setActiveUserName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return '開発環境';
+      const session = localStorage.getItem('os_active_session');
+      return session ? JSON.parse(session).name : '';
+    }
+    return '';
+  });
+
+  // 👇 追加：収支グラフを開くための状態管理
+  const [isFinanceGraphOpen, setIsFinanceGraphOpen] = useState(false);
+  const [isScheduleAssistantOpen, setIsScheduleAssistantOpen] = useState(false);
+  const [isTentative, setIsTentative] = useState(false);
+  const [graphSpan, setGraphSpan] = useState<'month' | 'week'>('month');
+  const [assistMode, setAssistMode] = useState<'send' | 'receive'>('send');
+  
+  // 👇 修正：ドラッグして時間を指定できるように変更
+  const [assistTimeSlots, setAssistTimeSlots] = useState<string[]>([]);
+  const [generatedText, setGeneratedText] = useState('');
+  const [receiveText, setReceiveText] = useState('');
+
+  // 👇 追加：ログアウト機能（記憶を消してログイン画面に戻す）
+  const handleLogout = () => {
+    if (confirm('ログアウトしますか？')) {
+      localStorage.removeItem('os_active_session');
+      setActiveUserId(null);
+      setActiveUserName('');
+    }
+  };
 
   // --- 状態管理 ---
   const loadData = (key: string, defaultData: any) => {
@@ -95,15 +122,17 @@ export default function SmartLifeOS() {
     { 
       name: '仕事', 
       color: '#4D96FF', 
-      fields: [{ 
-        id: 'wage_1', 
-        name: '給与計算', 
-        type: 'wage', 
-        wageRules: [{ start: '00:00', end: '23:59', wage: '1000' }] // デフォルト時給1000円
-      }] 
+      fields: [{ id: 'wage_1', name: '給与計算', type: 'wage', wageRules: [{ start: '00:00', end: '23:59', wage: '1000' }] }] 
     },
     { name: '飲み', color: '#FF6B6B', fields: [{ id: 'f1', name: '飲んだ杯数', type: 'number', unit: '杯' }] },
-    { name: '趣味', color: '#1DD1A1', fields: [] }
+    { name: '趣味', color: '#1DD1A1', fields: [] },
+    // 👇 追加：スポーツ観戦ジャンルと、スコア入力フィールド
+    { 
+      name: 'スポーツ観戦', 
+      color: '#f59e0b', 
+      allowPhoto: true, // 写真も許可
+      fields: [{ id: 'score_1', name: '試合結果 (応援チーム - 相手)', type: 'score' }] 
+    }
   ];
 
   const [categories, setCategories] = useState<any[]>(() => loadData('os_categories', DEFAULT_CATEGORIES));
@@ -187,7 +216,20 @@ export default function SmartLifeOS() {
   const [isOutline, setIsOutline] = useState(false);
   const [quickTemplates, setQuickTemplates] = useState<any[]>([]);
 
-  useEffect(() => { const saved = localStorage.getItem('quickTemplates'); if (saved) setQuickTemplates(JSON.parse(saved)); }, []);
+  useEffect(() => { 
+    const saved = localStorage.getItem('quickTemplates'); 
+    if (saved) {
+      setQuickTemplates(JSON.parse(saved)); 
+    } else {
+      // 👇 追加：初めて使う人向けに、デフォルトの便利テンプレートを入れておく
+      const defaultTemplates = [
+        { title: 'プロ野球観戦', startH: '18', startM: '00', endH: '21', endM: '00', categoryName: 'スポーツ観戦', eventColor: '#f59e0b', isAllDayBackground: false },
+        { title: '飲み会', startH: '19', startM: '00', endH: '21', endM: '00', categoryName: '飲み', eventColor: '#FF6B6B', isAllDayBackground: false }
+      ];
+      setQuickTemplates(defaultTemplates);
+      localStorage.setItem('quickTemplates', JSON.stringify(defaultTemplates));
+    }
+  }, []);
 
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [memo, setMemo] = useState('');
@@ -327,7 +369,8 @@ export default function SmartLifeOS() {
           borderColor: milestone ? 'transparent' : cColor,
           classNames: [
             milestone ? 'milestone-invisible-wrapper' : '',
-            isBackground ? 'solid-allday-event' : ''
+            isBackground ? 'solid-allday-event' : '',
+            e.metadata?.isTentative ? 'tentative-event' : ''
           ],
           extendedProps: { ...e, outline, cColor, catObj, isMilestone: milestone, originalStart: e.start_at }
         };
@@ -763,6 +806,7 @@ export default function SmartLifeOS() {
     setRating(props.metadata?.rating || 0);
     setIsPinned(props.metadata?.isPinned || false);
     setIsStocked(props.metadata?.isStocked || false);
+    setIsTentative(props.metadata?.isTentative || false);
 
     const startDateStr = props.metadata?.startDateStr || (props.start_at ? props.start_at.split('T')[0] : toLocalYYYYMMDD(event.start));
     const endDateStr = props.metadata?.endDateStr || (props.end_at ? props.end_at.split('T')[0] : toLocalYYYYMMDD(event.end || event.start));
@@ -925,7 +969,8 @@ export default function SmartLifeOS() {
       customColor: eventColor || undefined, isOutline, customFields: newCustomFields,
       photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
       startDateStr: startDate, endDateStr: endDate,
-      user_id: activeUserId // 👈 これを追加！誰が作った予定かを記録する
+      user_id: activeUserId, // 👈 これを追加！誰が作った予定かを記録する
+      isTentative
     };
 
     // 💾 保存処理（一括登録ロジックも維持）
@@ -1594,6 +1639,22 @@ useEffect(() => {
     return () => observer.disconnect();
   }, [events, viewType, currentWeekStartStr]);
 
+  // 🚨 エラー修正＆機能強化：文章生成のロジック
+  useEffect(() => {
+    if (assistMode === 'send') {
+      if (assistTimeSlots.length === 0) {
+        setGeneratedText('カレンダーから空き時間を追加するか、下から日付を選択してください。');
+        return;
+      }
+      let text = "以下の日程でご都合はいかがでしょうか？\n\n";
+      assistTimeSlots.forEach(slot => {
+        text += `・${slot}\n`;
+      });
+      text += "\n上記以外でも調整可能ですので、お知らせください！\n※都合の悪い時間帯があれば追記して送ってください。";
+      setGeneratedText(text);
+    }
+  }, [assistTimeSlots, assistMode]);
+
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
   if (!isMounted || !isDataLoaded) return <div style={{ minHeight: '100vh', background: 'var(--bg-main)' }} />;
@@ -1962,6 +2023,13 @@ useEffect(() => {
         .rule-input[type="number"] {
           -moz-appearance: textfield;
         }
+          
+        /* 👇 追加：仮予定のデザイン（斜め線＆半透明） */
+        .tentative-event {
+          background-image: repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.3) 8px, rgba(255,255,255,0.3) 16px) !important;
+          opacity: 0.85 !important;
+          border: 1.5px dashed var(--theme) !important;
+        }
       `}</style>
 
       <div className="fixed-mobile-frame">
@@ -1976,7 +2044,7 @@ useEffect(() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
                 setMode('create'); setStartDate(today); setEndDate(today);
                 setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsModalOpen(true);
+                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsModalOpen(true);setIsTentative(false);
               }}
               style={{ background: 'var(--theme)', color: '#fff', fontSize: '2rem', fontWeight: 'bold', width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '4px', lineHeight: 0, flexShrink: 0 }}
             >
@@ -2392,6 +2460,56 @@ useEffect(() => {
               selectable={true} 
               select={handleSelect} 
               eventClick={handleEventClick}
+              
+              // 👇 追加：予定をドラッグ＆ドロップで移動・時間変更できるようにする
+              editable={true}
+              eventStartEditable={true}
+              eventDurationEditable={true}
+              eventDrop={async (info) => {
+                // 移動させた予定の新しい日時をSupabaseに保存する処理
+                const { event, oldEvent } = info;
+                const dbId = event.id.replace('-travel', ''); // 移動枠を動かした時対策
+                const getISO = (d: Date) => d.toISOString();
+                
+                // 本体の予定なら更新
+                if (!event.extendedProps.isTransitEvent && !event.extendedProps.isRoutine && !event.extendedProps.isAnniversary) {
+                  try {
+                    await supabase.from('events').update({
+                      start_at: getISO(event.start!),
+                      end_at: event.end ? getISO(event.end) : getISO(event.start!)
+                    }).eq('id', dbId);
+                    fetchEvents(); // 再取得して画面を更新
+                  } catch (e) {
+                    alert('移動に失敗しました');
+                    info.revert(); // 失敗したら元に戻す
+                  }
+                } else {
+                  info.revert(); // 記念日や移動枠自体はドラッグ無効
+                }
+              }}
+              // 👇 追加：予定の端を引っ張って時間を伸ばす・縮める処理
+              eventResize={async (info) => {
+                const { event } = info;
+                const dbId = event.id.replace('-travel', '');
+                const getISO = (d: Date) => d.toISOString();
+                
+                if (!event.extendedProps.isTransitEvent && !event.extendedProps.isRoutine && !event.extendedProps.isAnniversary) {
+                  try {
+                    await supabase.from('events').update({
+                      start_at: getISO(event.start!),
+                      end_at: event.end ? getISO(event.end) : getISO(event.start!)
+                    }).eq('id', dbId);
+                    fetchEvents();
+                  } catch (e) {
+                    alert('時間の変更に失敗しました');
+                    info.revert();
+                  }
+                } else {
+                  info.revert();
+                }
+              }}
+              // 👆 ここまで
+
               locale="ja"
               longPressDelay={120}
               eventLongPressDelay={120}
@@ -2552,8 +2670,13 @@ useEffect(() => {
           startPointType={startPointType} setStartPointType={setStartPointType}
           displayMode={displayMode} setDisplayMode={setDisplayMode}
           viewType={viewType}
-          calendarCategoryFilter={calendarCategoryFilter} // 👈 追加
-          setCalendarCategoryFilter={setCalendarCategoryFilter} // 👈 追加
+          calendarCategoryFilter={calendarCategoryFilter}
+          setCalendarCategoryFilter={setCalendarCategoryFilter}
+          activeUserId={activeUserId}
+          activeUserName={activeUserName}
+          onLogout={handleLogout}
+          setIsFinanceGraphOpen={setIsFinanceGraphOpen} // 👈 追加
+          setIsScheduleAssistantOpen={setIsScheduleAssistantOpen}
         />
 
         {/* ギャラリー */}
@@ -3173,7 +3296,18 @@ useEffect(() => {
                             <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} />
                             <Pin size={14} /> ピン留め
                           </label>
+                          {/* 👇 追加：仮予定チェックボックス */}
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: '#f59e0b', fontWeight: 'bold' }}>
+                            <input type="checkbox" checked={isTentative} onChange={e => setIsTentative(e.target.checked)} />
+                            仮予定としてキープ
+                          </label>
                         </div>
+                        {/* 👇 追加：仮予定の確定ボタン */}
+                        {mode === 'detail' && isTentative && (
+                           <button onClick={(e) => { e.preventDefault(); setIsTentative(false); setTimeout(handleSave, 100); }} style={{ width: '100%', marginTop: '12px', padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                              <CheckCircle size={20} /> この予定で確定する
+                            </button>
+                        )}
                       </div>
                     );
 
@@ -3211,13 +3345,35 @@ useEffect(() => {
                                 </div>
                               )}
 
-                              {f.type === 'score' && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <input type="number" className="pop-input" style={{ flex: 1, textAlign: 'center' }} placeholder="自分" value={customFieldsData[f.id]?.my || ''} onChange={e => handleScoreChange(f.id, e.target.value, customFieldsData[f.id]?.opp || '')} />
-                                  <span style={{ fontWeight: 'bold', color: 'var(--text-sub)' }}>-</span>
-                                  <input type="number" className="pop-input" style={{ flex: 1, textAlign: 'center' }} placeholder="相手" value={customFieldsData[f.id]?.opp || ''} onChange={e => handleScoreChange(f.id, customFieldsData[f.id]?.my || '', e.target.value)} />
-                                </div>
-                              )}
+                              {f.type === 'score' && (() => {
+                                const myScore = customFieldsData[f.id]?.my || '';
+                                const oppScore = customFieldsData[f.id]?.opp || '';
+                                const result = customFieldsData[f.id]?.res || '';
+                                
+                                let resultBadge = null;
+                                if (result === 'win') resultBadge = <span style={{ background: '#10b981', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Sparkles size={20} /> WIN</span>;
+else if (result === 'lose') resultBadge = <span style={{ background: '#ef4444', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(239,68,68,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><ChevronDown size={20} /> LOSE</span>;
+else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Circle size={20} /> DRAW</span>;
+
+                                return (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', background: 'var(--bg-main)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)` }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '100%' }}>
+                                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)' }}>応援チーム</span>
+                                        <input type="number" className="pop-input no-spin" style={{ width: '100%', textAlign: 'center', fontSize: '2rem', fontWeight: '900', height: '60px', padding: 0 }} placeholder="0" value={myScore} onChange={e => handleScoreChange(f.id, e.target.value, oppScore)} />
+                                      </div>
+                                      <span style={{ fontWeight: '900', color: 'var(--text-sub)', fontSize: '1.5rem', marginTop: '24px' }}>VS</span>
+                                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>相手チーム</span>
+                                        <input type="number" className="pop-input no-spin" style={{ width: '100%', textAlign: 'center', fontSize: '2rem', fontWeight: '900', height: '60px', padding: 0 }} placeholder="0" value={oppScore} onChange={e => handleScoreChange(f.id, myScore, e.target.value)} />
+                                      </div>
+                                    </div>
+                                    <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                      {resultBadge}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {(f.type === 'money_expense' || f.type === 'money_income') && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -3408,6 +3564,26 @@ useEffect(() => {
                       </button>
                     )}
                     <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px 4px', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>キャンセル</button>
+                    
+                    {mode === 'create' && (
+                      <button onClick={(e) => {
+                        e.preventDefault();
+                        const sObj = new Date(startDate);
+                        const dateStr = `${sObj.getMonth() + 1}/${sObj.getDate()}(${DAY_NAMES[sObj.getDay()]})`;
+                        const timeStr = isAllDayBackground ? '終日' : `${startH}:${startM}〜${endH}:${endM}`;
+                        const slotStr = `${dateStr} ${timeStr}`;
+                        setAssistTimeSlots(prev => {
+                          if (!prev.includes(slotStr)) return [...prev, slotStr];
+                          return prev;
+                        });
+                        setIsModalOpen(false);
+                        setIsScheduleAssistantOpen(true);
+                        setAssistMode('send');
+                      }} className="btn-secondary" style={{ flex: 1, padding: '12px 4px', fontSize: '0.85rem', whiteSpace: 'nowrap', border: '1px solid #f59e0b', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        <Users size={16} /> 候補に追加
+                      </button>
+                    )}
+
                     <button onClick={handleSave} className="btn-pop" style={{ flex: 1.5, padding: '12px 4px', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>保存する</button>
                   </div>
                 </>
@@ -3625,7 +3801,27 @@ useEffect(() => {
                                   const r = e.extendedProps.metadata?.customFields?.[f.id]?.res;
                                   if(r==='win') w++; else if(r==='lose') l++; else if(r==='draw') d++;
                                 });
-                                content = <div style={{ fontSize: '1.4rem', color: cat.color, fontWeight: '900' }}>{w}勝 {l}敗 {d}分</div>;
+                                const totalGames = w + l + d;
+                                const winRate = totalGames > 0 ? Math.round((w / totalGames) * 100) : 0;
+                                
+                                content = (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                      <div style={{ fontSize: '1.8rem', color: cat.color, fontWeight: '900', letterSpacing: '1px' }}>
+                                        <span style={{ color: '#10b981' }}>{w}勝</span> <span style={{ color: '#ef4444' }}>{l}敗</span> <span style={{ color: '#94a3b8' }}>{d}分</span>
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                        <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>勝率</span>
+                                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>{winRate}%</span>
+                                      </div>
+                                    </div>
+                                    <div style={{ width: '100%', height: '12px', borderRadius: '6px', display: 'flex', overflow: 'hidden', background: 'var(--border-color)' }}>
+                                      {w > 0 && <div style={{ width: `${(w/totalGames)*100}%`, background: '#10b981' }} title="勝ち" />}
+                                      {d > 0 && <div style={{ width: `${(d/totalGames)*100}%`, background: '#94a3b8' }} title="引き分け" />}
+                                      {l > 0 && <div style={{ width: `${(l/totalGames)*100}%`, background: '#ef4444' }} title="負け" />}
+                                    </div>
+                                  </div>
+                                );
                               }
 
                               return (
@@ -3702,7 +3898,166 @@ useEffect(() => {
             </div>
           </div>
         )}
+      {/* 📊 収支グラフ（棒グラフ）モーダル */}
+      {isFinanceGraphOpen && (() => {
+        // 🚨 ここに useState があったら絶対に消してください！🚨
+        const currentY = parseInt(currentYear || String(new Date().getFullYear()));
+        const currentM = parseInt(currentMonthNum || String(new Date().getMonth() + 1));
+
+        let graphData = [];
+        if (graphSpan === 'month') {
+          graphData = Array.from({length: 12}, (_, i) => {
+            const mStr = `${currentY}-${String(i + 1).padStart(2, '0')}`;
+            const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(mStr));
+            let inc = 0; let exp = 0;
+            targetEvts.forEach((e: any) => {
+              const cf = e.extendedProps?.metadata?.customFields || {};
+              if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
+              if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
+            });
+            return { label: `${i + 1}月`, inc, exp };
+          });
+        } else {
+          graphData = Array.from({length: 5}, (_, i) => {
+            let inc = 0; let exp = 0;
+            const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(`${currentY}-${String(currentM).padStart(2, '0')}`));
+            targetEvts.forEach((e: any) => {
+              const dateDay = new Date(e.start).getDate();
+              const weekNum = Math.ceil(dateDay / 7);
+              if (weekNum === i + 1 || (i === 4 && weekNum > 5)) {
+                const cf = e.extendedProps?.metadata?.customFields || {};
+                if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
+                if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
+              }
+            });
+            return { label: `第${i + 1}週`, inc, exp };
+          });
+        }
+
+        const maxAmount = Math.max(...graphData.map(d => Math.max(d.inc, d.exp)), 1000);
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsFinanceGraphOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+              <ModalHeader title="収支推移グラフ" onClose={() => setIsFinanceGraphOpen(false)} />
+              
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                <button onClick={() => setGraphSpan('month')} className={graphSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>月間推移 ({currentY}年)</button>
+                <button onClick={() => setGraphSpan('week')} className={graphSpan === 'week' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>週間推移 ({currentM}月)</button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981' }} /> 収入</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }} /> 支出</span>
+              </div>
+
+              <div className="hide-scrollbar" style={{ height: '220px', display: 'flex', alignItems: 'flex-end', gap: '12px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '2px solid var(--border-color)' }}>
+                {graphData.map((d, idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end', minWidth: '40px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '100%' }}>
+                      <div style={{ position: 'relative', width: '14px', height: `${(d.inc / maxAmount) * 100}%`, background: '#10b981', borderRadius: '4px 4px 0 0', minHeight: d.inc > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
+                        {d.inc > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#10b981', fontWeight: 'bold' }}>{d.inc >= 10000 ? `${Math.floor(d.inc/1000)}k` : d.inc}</span>}
+                      </div>
+                      <div style={{ position: 'relative', width: '14px', height: `${(d.exp / maxAmount) * 100}%`, background: '#ef4444', borderRadius: '4px 4px 0 0', minHeight: d.exp > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
+                        {d.exp > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#ef4444', fontWeight: 'bold' }}>{d.exp >= 10000 ? `${Math.floor(d.exp/1000)}k` : d.exp}</span>}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{d.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 📅 日程調整アシスタント モーダル */}
+      {isScheduleAssistantOpen && (
+        <div className="modal-overlay" onClick={() => setIsScheduleAssistantOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <ModalHeader title="日程調整アシスタント" onClose={() => setIsScheduleAssistantOpen(false)} />
+            
+            <div style={{ display: 'flex', background: 'var(--input-bg)', borderRadius: '16px', padding: '6px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
+              <button onClick={() => setAssistMode('send')} style={{ flex: 1, padding: '10px', borderRadius: '12px', background: assistMode === 'send' ? 'var(--theme)' : 'transparent', color: assistMode === 'send' ? '#fff' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', transition: 'all 0.2s', boxShadow: assistMode === 'send' ? `0 4px 10px var(--theme-shadow)` : 'none' }}>空き時間を送る</button>
+              <button onClick={() => setAssistMode('receive')} style={{ flex: 1, padding: '10px', borderRadius: '12px', background: assistMode === 'receive' ? 'var(--theme)' : 'transparent', color: assistMode === 'receive' ? '#fff' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', transition: 'all 0.2s', boxShadow: assistMode === 'receive' ? `0 4px 10px var(--theme-shadow)` : 'none' }}>日程を受けて返事する</button>
+            </div>
+
+            {assistMode === 'send' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label className="form-label">1. 候補日時（カレンダーをドラッグして追加）</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                    {assistTimeSlots.map((slot, i) => (
+                      <span key={i} onClick={() => setAssistTimeSlots(assistTimeSlots.filter((_, idx) => idx !== i))} style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', padding: '6px 12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(245,158,11,0.3)' }}>
+                        {slot} <span style={{ opacity: 0.6 }}>×</span>
+                      </span>
+                    ))}
+                    {assistTimeSlots.length === 0 && (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>カレンダーの空いている枠をタップ・ドラッグして「💬 候補に追加」を押してください。</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input type="date" className="pop-input" style={{ flex: 1 }} id="manual-assist-date" />
+                    <button onClick={() => {
+                      const el = document.getElementById('manual-assist-date') as HTMLInputElement;
+                      if(el && el.value) {
+                         const d = new Date(el.value);
+                         const slotStr = `${d.getMonth()+1}/${d.getDate()}(${DAY_NAMES[d.getDay()]}) 終日`;
+                         if (!assistTimeSlots.includes(slotStr)) setAssistTimeSlots([...assistTimeSlots, slotStr]);
+                         el.value = '';
+                      }
+                    }} className="btn-secondary" style={{ padding: '10px 16px', borderRadius: '12px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>+ 日付のみ追加</button>
+                  </div>
+                </div>
+                
+                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '16px' }}>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    2. 自動生成テキストをコピー
+                    <button onClick={() => { navigator.clipboard.writeText(generatedText); alert('コピーしました！LINEなどに貼り付けてください。'); }} style={{ background: 'transparent', color: 'var(--theme)', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>📋 コピー</button>
+                  </label>
+                  <textarea className="pop-input" value={generatedText} onChange={e => setGeneratedText(e.target.value)} rows={8} style={{ fontSize: '0.8rem', lineHeight: '1.5', resize: 'vertical', height: '140px' }} />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: 'bold', lineHeight: '1.5', margin: '0 0 8px 0' }}>
+                    1. 提示された日程をカレンダーで確認する
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input type="date" className="pop-input" id="check-date-input" style={{ flex: 1 }} />
+                    <button onClick={() => {
+                        const el = document.getElementById('check-date-input') as HTMLInputElement;
+                        if(el && el.value) {
+                          setCurrentYear(el.value.split('-')[0]);
+                          setCurrentMonthNum(String(Number(el.value.split('-')[1])));
+                          setCurrentDayNum(String(Number(el.value.split('-')[2])));
+                          calendarRef.current?.getApi().gotoDate(el.value);
+                          calendarRef.current?.getApi().changeView('timeGridDay');
+                          setIsScheduleAssistantOpen(false); // 閉じてカレンダーへジャンプ
+                        }
+                    }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>確認する</button>
+                  </div>
+                </div>
+                
+                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '16px' }}>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    2. 返信テキストを作成してコピー
+                    <button onClick={() => { navigator.clipboard.writeText(receiveText); alert('コピーしました！'); }} style={{ background: 'transparent', color: 'var(--theme)', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>📋 コピー</button>
+                  </label>
+                  <textarea className="pop-input" value={receiveText} onChange={e => setReceiveText(e.target.value)} rows={5} placeholder="例：ご連絡ありがとうございます！では、〇月〇日の14:00〜でよろしくお願いいたします。" style={{ fontSize: '0.8rem', lineHeight: '1.5', resize: 'vertical', height: '100px' }} />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <button onClick={() => setReceiveText("ご連絡ありがとうございます！\nご提示いただいた日程のうち、以下の日時でお願いできますでしょうか。\n\n・〇/〇(曜) 〇:〇〜\n\nよろしくお願いいたします。")} className="btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px' }}>✅ OKの返事</button>
+                    <button onClick={() => setReceiveText("ご連絡ありがとうございます。\nせっかくご提示いただいたのですが、あいにくその日程は予定が入っておりました。\n\n別の日程（〇/〇など）で再調整していただくことは可能でしょうか？\nよろしくお願いいたします。")} className="btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px', color: '#ef4444', borderColor: '#fca5a5' }}>❌ NGの返事</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
-}　// re-deploy trigger
+}

@@ -43,9 +43,11 @@ export default function CategoryStudio({
 
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState(themeColor);
-  const [newCategoryAllowPhoto, setNewCategoryAllowPhoto] = useState(false); // 👈 追加
+  const [newCategoryAllowPhoto, setNewCategoryAllowPhoto] = useState(false);
+  const [newCategoryShowInDashboard, setNewCategoryShowInDashboard] = useState(true); // 👈 追加
 
-  const [editCatAllowPhoto, setEditCatAllowPhoto] = useState(false); // 👈 追加
+  const [editCatAllowPhoto, setEditCatAllowPhoto] = useState(false);
+  const [editCatShowInDashboard, setEditCatShowInDashboard] = useState(true); // 👈 追加
 
   const [aiTemplatePrompt, setAiTemplatePrompt] = useState('');
   const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
@@ -93,15 +95,16 @@ export default function CategoryStudio({
 
   const handleAddCategory = () => {
     if (!newCategoryName.trim() || categories.find((c: any) => c.name === newCategoryName.trim())) return;
-    // 👇 修正：allowPhoto（チェック状態）も一緒に保存する
-    setCategories([...categories, { name: newCategoryName.trim(), color: newCategoryColor, allowPhoto: newCategoryAllowPhoto, fields: [] }]);
+    setCategories([...categories, { name: newCategoryName.trim(), color: newCategoryColor, allowPhoto: newCategoryAllowPhoto, hideFromDashboard: !newCategoryShowInDashboard, fields: [] }]);
     setNewCategoryName('');
-    setNewCategoryAllowPhoto(false); // 👈 追加：追加後はチェックを外す
+    setNewCategoryAllowPhoto(false);
+    setNewCategoryShowInDashboard(true); // 👈 追加
   };
 
   const addFieldToCategory = (catName: string) => {
-    const finalName = newFieldType === 'wage' ? '給与(時給計算)' : newFieldName.trim();
-    if(!finalName && newFieldType !== 'wage') return;
+    // 👇 修正：スコアの場合も、固定の名前（'試合結果'など）を自動でセットする
+    const finalName = newFieldType === 'wage' ? '給与(時給計算)' : (newFieldType === 'score' ? '試合結果' : newFieldName.trim());
+    if(!finalName && newFieldType !== 'wage' && newFieldType !== 'score') return;
     setCategories((cats: any[]) => cats.map((c: any) => {
       if(c.name === catName) return { ...c, fields: [...(c.fields||[]), { id: Date.now().toString(), name: finalName, type: newFieldType, unit: newFieldUnit, wageRules: newFieldType === 'wage' ? newWageRules : undefined }] };
       return c;
@@ -239,13 +242,20 @@ export default function CategoryStudio({
                     <input type="checkbox" checked={editCatAllowPhoto} onChange={e => setEditCatAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
                     写真・画像を記録する
                   </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                    <input type="checkbox" checked={editCatAllowPhoto} onChange={e => setEditCatAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
+                    写真・画像を記録する
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                    <input type="checkbox" checked={editCatShowInDashboard} onChange={e => setEditCatShowInDashboard(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
+                    ダッシュボードに記録を表示する
+                  </label>
 
                   <div style={{ display: 'flex', gap: '4px', marginTop: '12px' }}>
                     <button onClick={() => {
                       if (!editCatNameInput.trim()) return;
                       // 👇 修正：allowPhoto も一緒に更新する
-                      setCategories((cats: any[]) => cats.map((cat: any) => cat.name === c.name ? { ...cat, name: editCatNameInput, color: editCatColorInput, allowPhoto: editCatAllowPhoto } : cat));
-                      setEditingCategoryNameOrigin(null);
+                      setCategories((cats: any[]) => cats.map((cat: any) => cat.name === c.name ? { ...cat, name: editCatNameInput, color: editCatColorInput, allowPhoto: editCatAllowPhoto, hideFromDashboard: !editCatShowInDashboard } : cat));                      setEditingCategoryNameOrigin(null);
                     }} style={{ flex: 1, padding: '6px', background: themeColor, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>保存</button>
                     <button onClick={() => setEditingCategoryNameOrigin(null)} style={{ flex: 1, padding: '6px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer' }}>取消</button>
                   </div>
@@ -269,8 +279,7 @@ export default function CategoryStudio({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', marginLeft: '8px' }}>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       {/* 👇 修正：編集ボタンを押した時に、現在の写真許可状態（allowPhoto）を読み込む */}
-                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setEditCatAllowPhoto(c.allowPhoto || false); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
-                      <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
+                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setEditCatAllowPhoto(c.allowPhoto || false); setEditCatShowInDashboard(c.hideFromDashboard !== true); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>                      <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
                     </div>
                   </div>
                 </div>
@@ -333,9 +342,17 @@ export default function CategoryStudio({
                       </select>
                       {newFieldType !== 'wage' ? (
                         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                          <input placeholder="例: 読んだページ数" value={newFieldName} onChange={e => setNewFieldName(e.target.value)} style={{ flex: 2, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
-                          {newFieldType === 'number' && (
-                            <input placeholder="単位" value={newFieldUnit} onChange={e => setNewFieldUnit(e.target.value)} style={{ flex: 1, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                          {newFieldType === 'score' ? (
+                            <div style={{ flex: 1, height: '40px', background: 'var(--input-bg)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              「応援チーム vs 相手チーム」のスコア入力
+                            </div>
+                          ) : (
+                            <>
+                              <input placeholder={newFieldType === 'score' ? "例: 応援チーム名（巨人など）" : "例: 読んだページ数"} value={newFieldName} onChange={e => setNewFieldName(e.target.value)} style={{ flex: 2, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                              {newFieldType === 'number' && (
+                                <input placeholder="単位" value={newFieldUnit} onChange={e => setNewFieldUnit(e.target.value)} style={{ flex: 1, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                              )}
+                            </>
                           )}
                         </div>
                       ) : (
@@ -371,6 +388,14 @@ export default function CategoryStudio({
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
             <input type="checkbox" checked={newCategoryAllowPhoto} onChange={e => setNewCategoryAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
             写真・画像を記録する
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+            <input type="checkbox" checked={newCategoryAllowPhoto} onChange={e => setNewCategoryAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
+            写真・画像を記録する
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+            <input type="checkbox" checked={newCategoryShowInDashboard} onChange={e => setNewCategoryShowInDashboard(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
+            ダッシュボードに記録を表示する
           </label>
         </div>
 

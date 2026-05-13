@@ -26,8 +26,13 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
     if (!userId.trim() || !nickname.trim() || !password.trim()) {
       setErrorMsg('すべての項目を入力してください'); return;
     }
+    // 👇 修正：ユーザーIDの制限を徹底
     if (!/^[a-zA-Z0-9_]+$/.test(userId)) {
-      setErrorMsg('ユーザーIDは半角英数字（記号はアンダーバーのみ）で入力してください'); return;
+      setErrorMsg('ユーザーIDは半角英数字とアンダーバー(_)のみ使用できます'); return;
+    }
+    // 👇 修正：ニックネームの文字数制限を追加
+    if (nickname.trim().length > 10) {
+      setErrorMsg('ニックネームは10文字以内で入力してください'); return;
     }
     if (users.some(u => u.id === userId.trim())) {
       setErrorMsg('このユーザーIDはすでに使われています'); return;
@@ -75,14 +80,14 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
             <h2 style={{ margin: '0 0 24px 0', fontSize: '1.2rem', color: 'var(--text-main)', textAlign: 'center', fontWeight: '900' }}>新規アカウント作成</h2>
             
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><AtSign size={14} style={{display:'inline', verticalAlign:'middle'}}/> ユーザーID (半角英数字)</label>
-            <input type="text" value={userId} onChange={e => setUserId(e.target.value)} placeholder="例: taiyo_123" style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><AtSign size={14} style={{display:'inline', verticalAlign:'middle'}}/> ユーザーID</label>
+            <input type="text" value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
 
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><User size={14} style={{display:'inline', verticalAlign:'middle'}}/> 表示されるニックネーム</label>
-            <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} placeholder="例: たいよう" style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><User size={14} style={{display:'inline', verticalAlign:'middle'}}/> ニックネーム</label>
+            <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
 
             <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><Lock size={14} style={{display:'inline', verticalAlign:'middle'}}/> パスワード</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="安全なパスワード" style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
 
             {errorMsg && <div style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '16px', textAlign: 'center' }}>{errorMsg}</div>}
             
@@ -98,10 +103,10 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
             <h2 style={{ margin: '0 0 24px 0', fontSize: '1.2rem', color: 'var(--text-main)', textAlign: 'center', fontWeight: '900' }}>ログイン</h2>
             
             <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>ユーザーID</label>
-            <input type="text" value={userId} onChange={e => setUserId(e.target.value)} placeholder="例: taiyo_123" style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <input type="text" value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
 
             <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>パスワード</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="パスワード" style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
 
             {errorMsg && <div style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '16px', textAlign: 'center' }}>{errorMsg}</div>}
             

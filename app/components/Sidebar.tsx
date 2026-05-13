@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Moon, Sun, Clock, Target, Star, Edit3, 
   PieChart, Image as ImageIcon, Palette, Repeat, Gift, Database, Banknote, MapPin, Home, Train, Footprints,
-  ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical
+  ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical,
+  LogOut, User, TrendingUp, Users
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
 
@@ -60,6 +61,11 @@ interface SidebarProps {
   displayMode: string; setDisplayMode: React.Dispatch<React.SetStateAction<string>>;
   viewType: string;
   calendarCategoryFilter: string; setCalendarCategoryFilter: React.Dispatch<React.SetStateAction<string>>;
+  activeUserId: string | null;
+  activeUserName: string;
+  onLogout: () => void;
+  setIsFinanceGraphOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsScheduleAssistantOpen: React.Dispatch<React.SetStateAction<boolean>>; // 👈 追加
 }
 
 export default function Sidebar({
@@ -75,7 +81,8 @@ export default function Sidebar({
   setIsRoutineModalOpen, setIsAnniversaryModalOpen, syncWithCloud, handleEventClick,
   setCustomFieldsData, homeLocation, setHomeLocation, nearestStation, setNearestStation,
   walkTime, setWalkTime, startPointType, setStartPointType,
-  displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter
+  displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter,
+  activeUserId, activeUserName, onLogout, setIsFinanceGraphOpen, setIsScheduleAssistantOpen
 }: SidebarProps) {
 
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -131,6 +138,7 @@ export default function Sidebar({
   // すべての個別アクションを定義
   const MENU_ACTIONS = [
     { id: 'create_event', label: '新しく予定を作成', icon: Edit3, color: themeColor },
+    { id: 'schedule_assistant', label: '日程調整アシスタント', icon: Users, color: '#f59e0b' }, 
     { id: 'finance_single', label: '単発の収支を記録', icon: Banknote, color: themeColor },
     { id: 'finance_history', label: '収支履歴を見る', icon: HistoryIcon, color: themeColor },
     { id: 'finance_bar', label: '収支サマリーバー', icon: Target, color: themeColor }, // 👈 追加
@@ -148,6 +156,7 @@ export default function Sidebar({
     else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); setIsSidebarOpen(false); }
     else if (id === 'travel_map') { setIsModalOpen(false); setIsTravelMapOpen(true); setIsSidebarOpen(false); }
     else if (id === 'category_settings') { setIsModalOpen(false); setIsCategoryModalOpen(true); setIsSidebarOpen(false); }
+    else if (id === 'schedule_assistant') { setIsScheduleAssistantOpen(true); setIsSidebarOpen(false); } 
     else if (id === 'routine_settings') { setIsModalOpen(false); setIsRoutineModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'subscription_settings') { setMode('subscription'); setIsModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); setIsSidebarOpen(false); }
@@ -274,6 +283,9 @@ export default function Sidebar({
                   <button onClick={() => handleMenuAction('finance_history')} style={{ padding: '12px', background: 'var(--input-bg)', color: 'var(--text-main)', borderRadius: '12px', fontWeight: 'bold', border: `1px solid ${themeColor}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px' }}>
                     <HistoryIcon size={16} color={themeColor} /> 収支履歴をすべて見る
                   </button>
+                  <button onClick={() => { setIsFinanceGraphOpen(true); setIsSidebarOpen(false); }} style={{ padding: '12px', background: 'var(--input-bg)', color: 'var(--text-main)', borderRadius: '12px', fontWeight: 'bold', border: `1px solid ${themeColor}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px' }}>
+                    <TrendingUp size={16} color={themeColor} /> 収支推移グラフ（棒グラフ）を見る
+                  </button>
                 </div>
               );
             })()}
@@ -288,6 +300,9 @@ export default function Sidebar({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingBottom: '16px' }}>
                 <button onClick={() => handleMenuAction('create_event')} style={{ gridColumn: 'span 2', padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: themeColor, color: '#fff', border: 'none', boxShadow: `0 4px 15px ${themeColor}40`, cursor: 'pointer' }}>
                   <Edit3 size={18} /> <span style={{ fontWeight: 'bold' }}>新しく予定を作成</span>
+                </button>
+                <button onClick={() => handleMenuAction('schedule_assistant')} style={{ gridColumn: 'span 1', padding: '12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '16px', background: '#f59e0b', color: '#fff', border: 'none', boxShadow: `0 4px 15px rgba(245,158,11,0.4)`, cursor: 'pointer' }}>
+                  <Users size={16} /> <span style={{ fontWeight: 'bold' }}>日程調整アシスタント</span>
                 </button>
 
                 {quickTemplates.map((t, i) => (
@@ -523,6 +538,24 @@ export default function Sidebar({
 
           <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             
+            {/* 👇 追加：ログイン中のユーザープロフィールとログアウトボタン */}
+            {activeUserId && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: `1px solid var(--border-color)`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                    <User size={20} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{activeUserName}</span>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>@{activeUserId}</span>
+                  </div>
+                </div>
+                <button onClick={onLogout} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '12px', flexShrink: 0 }}>
+                  <LogOut size={16} />
+                </button>
+              </div>
+            )}
+
             {/* 👇 メニューのカスタマイズ（一番下に独立配置） */}
             <button onClick={() => { setIsMenuCustomizeOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px dashed var(--theme)', color: 'var(--theme)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold' }}>
               <Settings2 size={16} /> メニューのカスタマイズ
