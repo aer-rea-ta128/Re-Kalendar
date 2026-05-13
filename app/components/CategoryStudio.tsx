@@ -59,9 +59,9 @@ export default function CategoryStudio({
   if (!isOpen) return null;
 
   const ModalHeader = ({ title, onCloseBtn }: { title: string, onCloseBtn: () => void }) => (
-    <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-      <h2 className="modal-title" style={{ margin: 0, color: themeColor, fontSize: '1.4rem', fontWeight: 900, letterSpacing: '0.02em' }}>{title}</h2>
-      <button onClick={onCloseBtn} className="btn-close" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '36px', height: '36px', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-sub)', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}>×</button>
+    <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '8px' }}>
+      <h2 className="modal-title" style={{ margin: 0, color: themeColor, fontSize: '1.15rem', fontWeight: 900, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</h2>
+      <button onClick={onCloseBtn} className="btn-close" style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '36px', height: '36px', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--text-sub)', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', transition: 'all 0.2s', flexShrink: 0 }}>×</button>
     </div>
   );
 
@@ -188,9 +188,9 @@ export default function CategoryStudio({
         
         {/* AI生成とインポート */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-          <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.1) 100%)', border: '1px solid #8b5cf6', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 15px rgba(139,92,246,0.1)' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: '900', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <Sparkles size={16} fill="#8b5cf6" /> AIでオリジナルを生成
+          <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.1) 100%)', border: '1px solid #8b5cf6', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 15px rgba(139,92,246,0.1)', minWidth: 0 }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '900', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px', whiteSpace: 'nowrap' }}>
+              <Sparkles size={14} fill="#8b5cf6" /> AIでオリジナルを生成
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input type="text" className="pop-input" placeholder="例: 推しのライブ遠征" value={aiTemplatePrompt} onChange={e => setAiTemplatePrompt(e.target.value)} style={{ flex: 1, fontSize: '0.8rem', background: 'var(--card-bg)', height: '36px', width: '100%', borderRadius: '12px', border: '2px solid var(--border-color)', padding: '0 14px' }} />
@@ -375,8 +375,8 @@ export default function CategoryStudio({
         <div style={{ background: 'var(--card-bg)', padding: '18px', borderRadius: '20px', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
           <label style={{ fontSize: '0.8rem', fontWeight: '900', color: 'var(--text-sub)', display: 'block', marginBottom: '8px' }}>ゼロから新しいジャンルを作る</label>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-            <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="例：サウナ、映画鑑賞" style={{ flex: 1, height: '46px', padding: '0 14px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 'bold' }} />
-            <button onClick={handleAddCategory} style={{ padding: '0 16px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontWeight: '900', cursor: 'pointer' }}>作成</button>
+            <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="例：サウナ、映画鑑賞" style={{ flex: 1, minWidth: 0, height: '46px', padding: '0 12px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: 'bold' }} />
+            <button onClick={handleAddCategory} style={{ padding: '0 16px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontSize: '0.9rem', fontWeight: '900', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>作成</button>
           </div>
           <ColorSelector value={newCategoryColor} onChange={setNewCategoryColor} />
           
