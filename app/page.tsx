@@ -3305,14 +3305,13 @@ useEffect(() => {
                           {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
                         </select>
                         <ColorSelector value={eventColor || themeColor} onChange={setEventColor} />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} />
-                            <Pin size={14} /> ピン留め
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', gap: '4px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                            <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} style={{ margin: 0 }} />
+                            <Pin size={12} /> ピン留め
                           </label>
-                          {/* 👇 追加：仮予定チェックボックス */}
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', color: '#f59e0b', fontWeight: 'bold' }}>
-                            <input type="checkbox" checked={isTentative} onChange={e => setIsTentative(e.target.checked)} />
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', color: '#f59e0b', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            <input type="checkbox" checked={isTentative} onChange={e => setIsTentative(e.target.checked)} style={{ margin: 0 }} />
                             仮予定としてキープ
                           </label>
                         </div>
@@ -3558,47 +3557,59 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                     return items.filter(Boolean);
                   })()}
 
-                  {/* 👇 修正：ボタン間のgapを8pxに縮め、文字を1行に収める */}
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
-                    {title && (mode === 'create' || mode === 'detail') && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          const newT = { title, startH, startM, endH, endM, categoryName, isAllDayBackground, eventColor };
-                          const updated = [...quickTemplates, newT];
-                          setQuickTemplates(updated);
-                          localStorage.setItem('quickTemplates', JSON.stringify(updated));
-                          alert('「よくある予定」として新しく登録しました！');
-                        }}
-                        className="btn-secondary"
-                        style={{ width: '48px', flexShrink: 0, padding: '0', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px dashed var(--theme)', color: 'var(--theme)' }}
-                        title="よくある予定に登録"
-                      >
-                        <Star size={20} />
-                      </button>
-                    )}
-                    <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px 4px', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>キャンセル</button>
+                  {/* 👇 修正：ボタンエリアを上段（キャンセル・保存）と下段（星・候補追加）に分ける */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
                     
-                    {mode === 'create' && (
-                      <button onClick={(e) => {
-                        e.preventDefault();
-                        const sObj = new Date(startDate);
-                        const dateStr = `${sObj.getMonth() + 1}/${sObj.getDate()}(${DAY_NAMES[sObj.getDay()]})`;
-                        const timeStr = isAllDayBackground ? '終日' : `${startH}:${startM}〜${endH}:${endM}`;
-                        const slotStr = `${dateStr} ${timeStr}`;
-                        setAssistTimeSlots(prev => {
-                          if (!prev.includes(slotStr)) return [...prev, slotStr];
-                          return prev;
-                        });
-                        setIsModalOpen(false);
-                        setIsScheduleAssistantOpen(true);
-                        setAssistMode('send');
-                      }} className="btn-secondary" style={{ flex: 1, padding: '12px 4px', fontSize: '0.85rem', whiteSpace: 'nowrap', border: '1px solid #f59e0b', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                        <Users size={16} /> 候補に追加
-                      </button>
-                    )}
+                    {/* 上段：キャンセル と 保存 */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '14px', fontSize: '0.95rem', fontWeight: 'bold' }}>キャンセル</button>
+                      <button onClick={handleSave} className="btn-pop" style={{ flex: 1, padding: '14px', fontSize: '0.95rem', fontWeight: 'bold' }}>保存する</button>
+                    </div>
 
-                    <button onClick={handleSave} className="btn-pop" style={{ flex: 1.5, padding: '12px 4px', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>保存する</button>
+                    {/* 下段：星 と 候補に追加 (どちらかが存在する場合のみ表示) */}
+                    {((title && (mode === 'create' || mode === 'detail')) || mode === 'create') && (
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {title && (mode === 'create' || mode === 'detail') ? (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const newT = { title, startH, startM, endH, endM, categoryName, isAllDayBackground, eventColor };
+                              const updated = [...quickTemplates, newT];
+                              setQuickTemplates(updated);
+                              localStorage.setItem('quickTemplates', JSON.stringify(updated));
+                              alert('「よくある予定」として新しく登録しました！');
+                            }}
+                            className="btn-secondary"
+                            style={{ flex: 1, padding: '12px 8px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: '2px dashed var(--theme)', color: 'var(--theme)', fontWeight: 'bold', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                          >
+                            <Star size={16} /> テンプレート登録
+                          </button>
+                        ) : (
+                          <div style={{ flex: 1 }} />
+                        )}
+
+                        {mode === 'create' ? (
+                          <button onClick={(e) => {
+                            e.preventDefault();
+                            const sObj = new Date(startDate);
+                            const dateStr = `${sObj.getMonth() + 1}/${sObj.getDate()}(${DAY_NAMES[sObj.getDay()]})`;
+                            const timeStr = isAllDayBackground ? '終日' : `${startH}:${startM}〜${endH}:${endM}`;
+                            const slotStr = `${dateStr} ${timeStr}`;
+                            setAssistTimeSlots(prev => {
+                              if (!prev.includes(slotStr)) return [...prev, slotStr];
+                              return prev;
+                            });
+                            setIsModalOpen(false);
+                            setIsScheduleAssistantOpen(true);
+                            setAssistMode('send');
+                          }} className="btn-secondary" style={{ flex: 1, padding: '12px 8px', fontSize: '0.8rem', whiteSpace: 'nowrap', border: '1px solid #f59e0b', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                            <Users size={16} /> 候補に追加
+                          </button>
+                        ) : (
+                           <div style={{ flex: 1 }} />
+                        )}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
