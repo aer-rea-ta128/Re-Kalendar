@@ -80,20 +80,35 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
             <h2 style={{ margin: '0 0 24px 0', fontSize: '1.2rem', color: 'var(--text-main)', textAlign: 'center', fontWeight: '900' }}>新規アカウント作成</h2>
             
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><AtSign size={14} style={{display:'inline', verticalAlign:'middle'}}/> ユーザーID</label>
-            <input type="text" value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '20px' }}>
+              <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AtSign size={16} /> ユーザーID
+              </label>
+              <input type="text" value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: `2px solid ${themeColor}40`, background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '4px' }}>※半角英数とアンダーバーのみ（4〜15文字）</span>
+            </div>
 
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><User size={14} style={{display:'inline', verticalAlign:'middle'}}/> ニックネーム</label>
-            <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '20px' }}>
+              <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <User size={16} /> ニックネーム
+              </label>
+              <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: `2px solid ${themeColor}40`, background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '4px' }}>※アプリ内で表示される名前です（後から変更可能）</span>
+            </div>
 
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}><Lock size={14} style={{display:'inline', verticalAlign:'middle'}}/> パスワード</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '32px' }}>
+              <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Lock size={16} /> パスワード
+              </label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: `2px solid ${themeColor}40`, background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '4px' }}>※半角英数字8文字以上</span>
+            </div>
 
             {errorMsg && <div style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '16px', textAlign: 'center' }}>{errorMsg}</div>}
             
             <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-              <button onClick={() => setMode('welcome')} style={{ flex: 1, padding: '14px', background: 'var(--input-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer' }}>戻る</button>
-              <button onClick={handleCreateUser} style={{ flex: 2, padding: '14px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: `0 4px 15px ${themeColor}60` }}>登録してはじめる</button>
+              <button onClick={() => setMode('welcome')} style={{ flex: 1, padding: '14px', background: 'transparent', color: 'var(--text-main)', border: 'none', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer' }}>戻る</button>
+              <button onClick={handleCreateUser} style={{ flex: 1.5, padding: '14px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: `0 4px 15px ${themeColor}60` }}>登録</button>
             </div>
           </div>
         )}
