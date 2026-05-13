@@ -291,10 +291,10 @@ export default function CategoryStudio({
                       {editingFieldId === f.id ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', marginTop: '4px', background: 'var(--card-bg)', padding: '12px', borderRadius: '8px', border: `1px solid ${themeColor}` }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <input value={editFieldName} onChange={e => setEditFieldName(e.target.value)} style={{ padding: '6px 8px', fontSize: '0.75rem', flex: 1, height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              <input value={editFieldName} onChange={e => setEditFieldName(e.target.value)} style={{ padding: '6px 8px', fontSize: '0.75rem', flex: '1 1 120px', minWidth: 0, height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
                               {f.type === 'number' && (
-                                 <input value={editFieldUnit} onChange={e => setEditFieldUnit(e.target.value)} placeholder="単位" style={{ padding: '6px 8px', fontSize: '0.75rem', width: '45px', height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
+                                 <input value={editFieldUnit} onChange={e => setEditFieldUnit(e.target.value)} placeholder="単位" style={{ padding: '6px 8px', fontSize: '0.75rem', flex: '1 1 60px', minWidth: 0, height: '34px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)' }} />
                               )}
                             </div>
                           </div>
@@ -337,16 +337,16 @@ export default function CategoryStudio({
                         <option value="photo">写真・画像</option>
                       </select>
                       {newFieldType !== 'wage' ? (
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
                           {newFieldType === 'score' ? (
-                            <div style={{ flex: 1, height: '40px', background: 'var(--input-bg)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: '100%', height: '40px', background: 'var(--input-bg)', borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold', border: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               「応援チーム vs 相手チーム」のスコア入力
                             </div>
                           ) : (
                             <>
-                              <input placeholder={newFieldType === 'score' ? "例: 応援チーム名（巨人など）" : "例: 読んだページ数"} value={newFieldName} onChange={e => setNewFieldName(e.target.value)} style={{ flex: 2, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                              <input placeholder={newFieldType === 'score' ? "例: 応援チーム名（巨人など）" : "例: 読んだページ数"} value={newFieldName} onChange={e => setNewFieldName(e.target.value)} style={{ flex: '1 1 120px', minWidth: 0, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
                               {newFieldType === 'number' && (
-                                <input placeholder="単位" value={newFieldUnit} onChange={e => setNewFieldUnit(e.target.value)} style={{ flex: 1, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
+                                <input placeholder="単位" value={newFieldUnit} onChange={e => setNewFieldUnit(e.target.value)} style={{ flex: '1 1 60px', minWidth: 0, height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-main)' }} />
                               )}
                             </>
                           )}
@@ -357,8 +357,8 @@ export default function CategoryStudio({
                         </div>
                       )}
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => setEditingCatField(null)} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '8px', cursor: 'pointer' }}>キャンセル</button>
-                        <button onClick={() => addFieldToCategory(c.name)} style={{ flex: 1.5, padding: '10px', fontSize: '0.85rem', background: themeColor, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>追加</button>
+                        <button onClick={() => setEditingCatField(null)} style={{ flex: 1, padding: '10px 4px', fontSize: '0.85rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>キャンセル</button>
+                        <button onClick={() => addFieldToCategory(c.name)} style={{ flex: 1, padding: '10px 4px', fontSize: '0.85rem', background: themeColor, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}>追加</button>
                       </div>
                     </div>
                   ) : (
@@ -410,7 +410,7 @@ const WageRuleEditor = ({ rules, setRules, themeColor }: { rules: any[], setRule
       <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: themeColor, marginBottom: '4px' }}>時間帯と時給の設定</span>
       
       {rules.map((rule, idx) => (
-        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'nowrap', paddingBottom: '6px', borderBottom: idx !== rules.length - 1 ? '1px dashed var(--border-color)' : 'none', overflowX: 'auto' }}>
+        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', paddingBottom: '6px', borderBottom: idx !== rules.length - 1 ? '1px dashed var(--border-color)' : 'none' }}>
           
           <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0 2px', flexShrink: 0 }}>
             <select style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '0.85rem', fontWeight: 'bold', padding: '2px', appearance: 'none', textAlign: 'center' }} value={rule.start.split(':')[0]} onChange={e => {

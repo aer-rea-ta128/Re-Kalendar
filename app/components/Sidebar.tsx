@@ -31,6 +31,7 @@ interface SidebarProps {
   currentMonthEvents: any[];
   currentYearEvents: any[];
   quickTemplates: any[];
+  setQuickTemplates: React.Dispatch<React.SetStateAction<any[]>>;
   setMode: React.Dispatch<React.SetStateAction<any>>;
   setStartDate: React.Dispatch<React.SetStateAction<string>>;
   setEndDate: React.Dispatch<React.SetStateAction<string>>;
@@ -64,6 +65,9 @@ interface SidebarProps {
   calendarCategoryFilter: string; setCalendarCategoryFilter: React.Dispatch<React.SetStateAction<string>>;
   activeUserId: string | null;
   activeUserName: string;
+  activeUserAvatar: string;
+  setActiveUserAvatar: React.Dispatch<React.SetStateAction<string>>;
+  setActiveUserName: React.Dispatch<React.SetStateAction<string>>;
   onLogout: () => void;
   setIsFinanceGraphOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsScheduleAssistantOpen: React.Dispatch<React.SetStateAction<boolean>>; // 👈 追加
@@ -74,7 +78,7 @@ export default function Sidebar({
   searchQuery, setSearchQuery, handleSearchExecute, setIsSearchMode,
   setIsColorPickerOpen, isDarkMode, setIsDarkMode,
   events, categories, targetType, setTargetType, targetValue, setTargetValue,
-  currentMonthEvents, currentYearEvents, quickTemplates,
+  currentMonthEvents, currentYearEvents, quickTemplates, setQuickTemplates,
   setMode, setStartDate, setEndDate, setStartH, setStartM, setEndH, setEndM,
   setTitle, setLocation, setMemo, setPhotoUrls, setIsStocked, setIsModalOpen,
   setCategoryName, setIsAllDayBackground, setEventColor,
@@ -83,8 +87,11 @@ export default function Sidebar({
   setCustomFieldsData, homeLocation, setHomeLocation, nearestStation, setNearestStation,
   walkTime, setWalkTime, startPointType, setStartPointType,
   displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter,
-  activeUserId, activeUserName, onLogout, setIsFinanceGraphOpen, setIsScheduleAssistantOpen
+  activeUserId, activeUserName,activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, setIsFinanceGraphOpen, setIsScheduleAssistantOpen
 }: SidebarProps) {
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [editUserName, setEditUserName] = useState('');
 
   const [expanded, setExpanded] = useState<string[]>([]);
   const toggleSection = (sec: string) => setExpanded(prev => prev.includes(sec) ? prev.filter(s => s !== sec) : [...prev, sec]);
@@ -312,16 +319,32 @@ export default function Sidebar({
                 </button>
 
                 {quickTemplates.map((t, i) => (
-                  <button key={i} onClick={() => {
-                    const today = toLocalYYYYMMDD(new Date());
-                    setMode('create'); setStartDate(today); setEndDate(today);
-                    setTitle(t.title); setStartH(t.startH); setStartM(t.startM); setEndH(t.endH); setEndM(t.endM); setCategoryName(t.categoryName); setIsAllDayBackground(t.isAllDayBackground); setEventColor(t.eventColor || '');
-                    setCustomFieldsData({}); 
-                    setIsModalOpen(true); setIsSidebarOpen(false);
-                  }} style={{ padding: '12px 8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                    <Star size={20} color={t.eventColor || themeColor} />
-                    <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>{t.title}</span>
-                  </button>
+                  <div key={i} style={{ position: 'relative' }}>
+                    <button onClick={() => {
+                      const today = toLocalYYYYMMDD(new Date());
+                      setMode('create'); setStartDate(today); setEndDate(today);
+                      setTitle(t.title); setLocation(t.location || ''); setStartH(t.startH); setStartM(t.startM); setEndH(t.endH); setEndM(t.endM); setCategoryName(t.categoryName); setIsAllDayBackground(t.isAllDayBackground); setEventColor(t.eventColor || '');
+                      setCustomFieldsData({}); 
+                      setIsModalOpen(true); setIsSidebarOpen(false);
+                    }} style={{ width: '100%', padding: '12px 8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
+                      <Star size={20} color={t.eventColor || themeColor} />
+                      <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>{t.title}</span>
+                    </button>
+                    {/* 👇 追加：削除ボタン */}
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if(confirm(`テンプレート「${t.title}」を削除しますか？`)) {
+                          const updated = quickTemplates.filter((_, idx) => idx !== i);
+                          setQuickTemplates(updated);
+                          localStorage.setItem('quickTemplates', JSON.stringify(updated));
+                        }
+                      }} 
+                      style={{ position: 'absolute', top: '-6px', right: '-6px', width: '22px', height: '22px', borderRadius: '50%', background: '#ef4444', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -789,6 +812,69 @@ export default function Sidebar({
               >
                 {isSendingFeedback ? '送信中...' : <><Send size={16} /> 送信する</>}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isProfileModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsProfileModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '92%', maxWidth: '380px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+            <ModalHeader title="プロフィールの編集" onClose={() => setIsProfileModalOpen(false)} />
+            
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+              
+              {/* アイコン画像変更 */}
+              <div style={{ position: 'relative' }}>
+                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: activeUserAvatar ? `url(${activeUserAvatar}) center/cover` : themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: `2px solid var(--theme)`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+                  {!activeUserAvatar && <User size={40} />}
+                </div>
+                <label style={{ position: 'absolute', bottom: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', color: 'var(--theme)' }}>
+                  <Edit3 size={14} />
+                  <input type="file" accept="image/*" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => setActiveUserAvatar(ev.target?.result as string);
+                    reader.readAsDataURL(file);
+                  }} style={{ display: 'none' }} />
+                </label>
+              </div>
+
+              {/* 名前変更 */}
+              <div style={{ width: '100%' }}>
+                <label className="form-label" style={{ textAlign: 'center' }}>ニックネーム</label>
+                <input type="text" className="pop-input" value={editUserName} onChange={e => setEditUserName(e.target.value)} style={{ textAlign: 'center' }} />
+              </div>
+              <div style={{ width: '100%' }}>
+                <label className="form-label" style={{ textAlign: 'center' }}>ユーザーID</label>
+                <input type="text" className="pop-input" value={`@${activeUserId}`} disabled style={{ textAlign: 'center', opacity: 0.6, background: 'var(--bg-main)' }} />
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)', display: 'block', textAlign: 'center', marginTop: '4px' }}>※ユーザーIDは変更できません</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => setIsProfileModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '16px' }}>キャンセル</button>
+              <button onClick={() => {
+                if (!editUserName.trim()) return alert('ニックネームを入力してください');
+                setActiveUserName(editUserName.trim());
+                localStorage.setItem('os_user_avatar', activeUserAvatar);
+                
+                const session = localStorage.getItem('os_active_session');
+                if (session) {
+                  const sObj = JSON.parse(session);
+                  sObj.name = editUserName.trim();
+                  localStorage.setItem('os_active_session', JSON.stringify(sObj));
+                }
+                
+                const savedUsers = localStorage.getItem('os_local_users');
+                if (savedUsers) {
+                  const users = JSON.parse(savedUsers);
+                  const updated = users.map((u:any) => u.id === activeUserId ? { ...u, nickname: editUserName.trim() } : u);
+                  localStorage.setItem('os_local_users', JSON.stringify(updated));
+                }
+                
+                setIsProfileModalOpen(false);
+              }} className="btn-pop" style={{ flex: 1.5, padding: '12px', borderRadius: '16px' }}>保存する</button>
             </div>
           </div>
         </div>

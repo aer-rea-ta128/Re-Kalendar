@@ -58,6 +58,12 @@ export default function SmartLifeOS() {
     }
     return '';
   });
+  const [activeUserAvatar, setActiveUserAvatar] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('os_user_avatar') || '';
+    }
+    return '';
+  });
 
   // 👇 追加：収支グラフを開くための状態管理
   const [isFinanceGraphOpen, setIsFinanceGraphOpen] = useState(false);
@@ -217,7 +223,9 @@ export default function SmartLifeOS() {
   const [subDate, setSubDate] = useState('1');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [mode, setMode] = useState<'create' | 'detail' | 'dayOfWeekBulk' | 'routine_detail' | 'expense' | 'subscription'>('create');  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'create' | 'detail' | 'dayOfWeekBulk' | 'routine_detail' | 'expense' | 'subscription'>('create');
+  const [clipboardEvent, setClipboardEvent] = useState<any>(null);  
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [categoryName, setCategoryName] = useState('仕事');
@@ -477,10 +485,13 @@ export default function SmartLifeOS() {
   };
 
   const handleDuplicate = () => {
-    setMode('create');
-    setSelectedId(null);
-    setSelectedDays([]);
-    alert('内容をコピーしました。日付や時間を調整して保存してください。');
+    setClipboardEvent({
+      title, location, categoryName, startH, startM, endH, endM,
+      eventColor, isOutline, customFieldsData, photoUrls, memo, rating, isPinned,
+      isAllDayBackground, isMilestone, isGathering, gatheringTime, departureTime, departureType
+    });
+    setIsModalOpen(false);
+    alert('予定をコピーしました！\nカレンダーのペーストしたい日付（時間）をタップしてください。');
   };
 
   const handleQuickSave = async (t: any) => {
@@ -668,9 +679,9 @@ export default function SmartLifeOS() {
     const container = document.querySelector('.fixed-mobile-frame');
     if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
 
-    if (diff > 50) calendarRef.current?.getApi().next();
-    else if (diff < -50) {
-      if (startRelativeX < 50) setIsSidebarOpen(true);
+    if (diff > 30) calendarRef.current?.getApi().next();
+    else if (diff < -30) {
+      if (startRelativeX < 30) setIsSidebarOpen(true);
       else calendarRef.current?.getApi().prev();
     }
     touchStartX.current = null; touchEndX.current = null;
@@ -761,6 +772,36 @@ export default function SmartLifeOS() {
 
   const handleSelect = (info: any) => {
     if (isDeleteMode) return;
+
+    // 👇 追加：コピーしている予定があれば、それをペーストして開く！
+    if (clipboardEvent) {
+      setMode('create');
+      setStartDate(toLocalYYYYMMDD(info.start));
+      const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1);
+      setEndDate(toLocalYYYYMMDD(adjEnd));
+      
+      setTitle(clipboardEvent.title); setLocation(clipboardEvent.location);
+      setCategoryName(clipboardEvent.categoryName); setEventColor(clipboardEvent.eventColor);
+      setIsOutline(clipboardEvent.isOutline); setCustomFieldsData(clipboardEvent.customFieldsData);
+      setPhotoUrls(clipboardEvent.photoUrls); setMemo(clipboardEvent.memo); setRating(clipboardEvent.rating);
+      setIsPinned(clipboardEvent.isPinned); setIsMilestone(clipboardEvent.isMilestone);
+      setIsAllDayBackground(clipboardEvent.isAllDayBackground); setIsGathering(clipboardEvent.isGathering);
+      setGatheringTime(clipboardEvent.gatheringTime); setDepartureTime(clipboardEvent.departureTime);
+      setDepartureType(clipboardEvent.departureType);
+
+      if (info.allDay) {
+        setStartH(clipboardEvent.startH); setStartM(clipboardEvent.startM);
+        setEndH(clipboardEvent.endH); setEndM(clipboardEvent.endM);
+      } else {
+        const s = info.start as Date; const e = info.end || new Date(s.getTime() + 60 * 60 * 1000);
+        setStartH(String(s.getHours()).padStart(2, '0')); setStartM(String(s.getMinutes()).padStart(2, '0')); 
+        setEndH(String(e.getHours()).padStart(2, '0')); setEndM(String(e.getMinutes()).padStart(2, '0'));
+      }
+      setClipboardEvent(null); // ペースト完了したら空にする
+      setIsModalOpen(true);
+      return;
+    }
+
     setMode('create'); setStartDate(toLocalYYYYMMDD(info.start));
     const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1); setEndDate(toLocalYYYYMMDD(adjEnd));
     setTitle(''); setLocation(''); setIsGathering(false); setGatheringTime(''); setDepartureTime(''); setDepartureType(startPointType === 'station' ? 'train' : 'home'); setSelectedDays([]);
@@ -1429,7 +1470,8 @@ export default function SmartLifeOS() {
             alignItems: dynamicAlign,
             flexDirection: 'row', gap: '8px', position: 'relative',
             paddingTop: (useVertical && isOverflowing) ? '2px' : '0',
-            transform: hasLocationRight ? 'translateX(-2px)' : 'none',
+            transform: hasLocationRight ? 'translateX(-4px)' : 'none',
+            paddingRight: hasLocationRight ? '12px' : '0',
             marginBottom: showEndTime ? '12px' : '0'
           }}>
             <div style={{
@@ -2657,6 +2699,7 @@ useEffect(() => {
           currentMonthEvents={currentMonthEvents}
           currentYearEvents={currentYearEvents}
           quickTemplates={quickTemplates}
+          setQuickTemplates={setQuickTemplates}
           setMode={setMode}
           setStartDate={setStartDate}
           setEndDate={setEndDate}
@@ -2691,6 +2734,9 @@ useEffect(() => {
           setCalendarCategoryFilter={setCalendarCategoryFilter}
           activeUserId={activeUserId}
           activeUserName={activeUserName}
+          activeUserAvatar={activeUserAvatar}
+          setActiveUserAvatar={setActiveUserAvatar}
+          setActiveUserName={setActiveUserName}
           onLogout={handleLogout}
           setIsFinanceGraphOpen={setIsFinanceGraphOpen} // 👈 追加
           setIsScheduleAssistantOpen={setIsScheduleAssistantOpen}
@@ -3082,7 +3128,9 @@ useEffect(() => {
               ) : (
                 <>
                   {(() => {
-                    const showRecords = mode === 'detail' && currentCategoryObj?.fields && currentCategoryObj.fields.length > 0;
+                    // 👇 修正：「すでに登録済み」か「新規作成だけど今日以前の日付」なら、最初から事後記録を出せるようにする！
+                    const isPastOrToday = new Date(startDate) <= new Date();
+                    const showRecords = (mode === 'detail' || (mode === 'create' && isPastOrToday)) && currentCategoryObj?.fields && currentCategoryObj.fields.length > 0;
 
                     const PaymentMethodSelector = ({ value, onChange, isIncome }: any) => {
                       const methods = isIncome 
@@ -3134,8 +3182,7 @@ useEffect(() => {
                           {quickTemplates.map((t, i) => (
                             <div
                               key={i}
-                              onClick={() => { setTitle(t.title); setStartH(t.startH); setStartM(t.startM); setEndH(t.endH); setEndM(t.endM); setCategoryName(t.categoryName); setIsAllDayBackground(t.isAllDayBackground); setEventColor(t.eventColor || ''); }}
-                              style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '8px 14px', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                              onClick={() => { setTitle(t.title); setLocation(t.location || ''); setStartH(t.startH); setStartM(t.startM); setEndH(t.endH); setEndM(t.endM); setCategoryName(t.categoryName); setIsAllDayBackground(t.isAllDayBackground); setEventColor(t.eventColor || ''); }}                              style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '8px 14px', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
                             >
                               <span style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{t.title}</span>
                             </div>
@@ -3300,7 +3347,11 @@ useEffect(() => {
                     const BlockConfig = (
                       <div key="config" className="card-box" style={{ padding: '16px' }}>
                         <label className="form-label">ジャンル・カラー</label>
-                        <select value={categoryName || ''} onChange={e => setCategoryName(e.target.value)} className="pop-input" style={{ marginBottom: '16px' }}>
+                        <select value={categoryName || ''} onChange={e => {
+                        setCategoryName(e.target.value);
+                        const catObj = categories.find((c: any) => c.name === e.target.value);
+                        if (catObj) setEventColor(catObj.color);
+                      }} className="pop-input" style={{ marginBottom: '16px' }}>
                           <option value="">設定なし</option>
                           {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
                         </select>
@@ -3573,7 +3624,7 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                           <button
                             onClick={(e) => {
                               e.preventDefault();
-                              const newT = { title, startH, startM, endH, endM, categoryName, isAllDayBackground, eventColor };
+                              const newT = { title, location, startH, startM, endH, endM, categoryName, isAllDayBackground, eventColor };
                               const updated = [...quickTemplates, newT];
                               setQuickTemplates(updated);
                               localStorage.setItem('quickTemplates', JSON.stringify(updated));
