@@ -1669,8 +1669,8 @@ useEffect(() => {
         onLoginSuccess={(id, name) => {
           setActiveUserId(id);
           setActiveUserName(name);
-          // タブを閉じるまでログイン状態を維持
-          sessionStorage.setItem('os_active_session', JSON.stringify({ id, name }));
+          // 👇 修正：タブを閉じてもログイン状態をずっと維持する
+          localStorage.setItem('os_active_session', JSON.stringify({ id, name }));
         }} 
       />
     );

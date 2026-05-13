@@ -242,10 +242,6 @@ export default function CategoryStudio({
                     <input type="checkbox" checked={editCatAllowPhoto} onChange={e => setEditCatAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
                     写真・画像を記録する
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
-                    <input type="checkbox" checked={editCatAllowPhoto} onChange={e => setEditCatAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
-                    写真・画像を記録する
-                  </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
                     <input type="checkbox" checked={editCatShowInDashboard} onChange={e => setEditCatShowInDashboard(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
                     ダッシュボードに記録を表示する
@@ -385,10 +381,6 @@ export default function CategoryStudio({
           <ColorSelector value={newCategoryColor} onChange={setNewCategoryColor} />
           
           {/* 👇 追加：写真・画像を許可するチェックボックス */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
-            <input type="checkbox" checked={newCategoryAllowPhoto} onChange={e => setNewCategoryAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
-            写真・画像を記録する
-          </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
             <input type="checkbox" checked={newCategoryAllowPhoto} onChange={e => setNewCategoryAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
             写真・画像を記録する

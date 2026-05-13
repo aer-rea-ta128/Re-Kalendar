@@ -117,21 +117,28 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
             <h2 style={{ margin: '0 0 24px 0', fontSize: '1.2rem', color: 'var(--text-main)', textAlign: 'center', fontWeight: '900' }}>ログイン</h2>
             
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>ユーザーID</label>
-            <input type="text" value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '20px' }}>
+              <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AtSign size={16} /> ユーザーID
+              </label>
+              <input type="text" value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: `2px solid ${themeColor}40`, background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
+            </div>
 
-            <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>パスワード</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', marginBottom: '16px', fontWeight: 'bold' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '32px' }}>
+              <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Lock size={16} /> パスワード
+              </label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: `2px solid ${themeColor}40`, background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
+            </div>
 
             {errorMsg && <div style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '16px', textAlign: 'center' }}>{errorMsg}</div>}
             
             <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-              <button onClick={() => setMode('welcome')} style={{ flex: 1, padding: '14px', background: 'var(--input-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer' }}>戻る</button>
-              <button onClick={handleLogin} style={{ flex: 2, padding: '14px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: `0 4px 15px ${themeColor}60` }}>ログイン</button>
+              <button onClick={() => setMode('welcome')} style={{ flex: 1, padding: '14px', background: 'transparent', color: 'var(--text-main)', border: 'none', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer' }}>戻る</button>
+              <button onClick={handleLogin} style={{ flex: 1.5, padding: '14px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: `0 4px 15px ${themeColor}60` }}>ログイン</button>
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
