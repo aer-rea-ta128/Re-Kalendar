@@ -5,9 +5,10 @@ import {
   Search, Moon, Sun, Clock, Target, Star, Edit3, 
   PieChart, Image as ImageIcon, Palette, Repeat, Gift, Database, Banknote, MapPin, Home, Train, Footprints,
   ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical,
-  LogOut, User, TrendingUp, Users
+  LogOut, User, TrendingUp, Users, Send, MessageSquare
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -127,6 +128,11 @@ export default function Sidebar({
   });
   
   const dragSection = useRef<number | null>(null);
+
+  // 👇 追加：要望モーダル用のState
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('os_visitedPrefs', JSON.stringify(visitedPrefs));
@@ -555,6 +561,10 @@ export default function Sidebar({
                 </button>
               </div>
             )}
+            {/* 👇 ここに追加！：ご要望・不具合の報告ボタン */}
+            <button onClick={() => { setIsFeedbackModalOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', background: 'var(--input-bg)', border: 'none', color: 'var(--theme)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold' }}>
+              <MessageSquare size={16} /> ご要望・不具合の報告
+            </button>
 
             {/* 👇 メニューのカスタマイズ（一番下に独立配置） */}
             <button onClick={() => { setIsMenuCustomizeOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px dashed var(--theme)', color: 'var(--theme)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold' }}>
@@ -728,6 +738,61 @@ export default function Sidebar({
           </div>
         );
       })()}
+      {/* 👇 ここに追加！：要望・フィードバックモーダル */}
+      {isFeedbackModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsFeedbackModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '92%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, color: 'var(--theme)', fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MessageSquare size={20} /> ご要望・不具合の報告
+              </h2>
+              <button onClick={() => setIsFeedbackModalOpen(false)} style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', color: 'var(--text-sub)', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            </div>
+            
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-sub)', marginBottom: '16px', lineHeight: 1.5, fontWeight: 'bold' }}>
+              アプリをより良くしていくため、「こんな機能がほしい」「ここが使いにくい」といったご意見をぜひお聞かせください！<br/>
+              <span style={{ fontSize: '0.75rem', color: '#f59e0b' }}>※送信内容は開発者にのみ共有されます。</span>
+            </p>
+
+            <textarea
+              value={feedbackText}
+              onChange={e => setFeedbackText(e.target.value)}
+              placeholder="例：〇〇の機能を追加してほしい、〇〇の画面でエラーになる..."
+              rows={6}
+              style={{ padding: '12px', fontSize: '0.9rem', resize: 'vertical', minHeight: '120px', marginBottom: '20px', width: '100%', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none' }}
+              autoFocus
+            />
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => setIsFeedbackModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '16px', fontWeight: 'bold', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>キャンセル</button>
+              <button 
+                disabled={isSendingFeedback || !feedbackText.trim()}
+                onClick={async () => {
+                  setIsSendingFeedback(true);
+                  try {
+                    // Supabaseの feedbacks テーブルに保存する処理
+                    await supabase.from('feedbacks').insert([{ 
+                      user_id: activeUserId, 
+                      user_name: activeUserName, 
+                      content: feedbackText.trim()
+                    }]);
+                    alert('ご要望を送信しました！貴重なご意見ありがとうございます。');
+                    setFeedbackText('');
+                    setIsFeedbackModalOpen(false);
+                  } catch (e) {
+                    alert('送信に失敗しました。時間をおいて再度お試しください。');
+                  } finally {
+                    setIsSendingFeedback(false);
+                  }
+                }} 
+                style={{ flex: 1.5, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '16px', background: themeColor, color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', boxShadow: `0 4px 15px ${themeColor}60`, opacity: (isSendingFeedback || !feedbackText.trim()) ? 0.6 : 1 }}
+              >
+                {isSendingFeedback ? '送信中...' : <><Send size={16} /> 送信する</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

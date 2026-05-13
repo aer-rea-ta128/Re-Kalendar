@@ -17,39 +17,53 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const [deviceId, setDeviceId] = useState('');
+
   useEffect(() => {
     const savedUsers = localStorage.getItem('os_local_users');
     if (savedUsers) setUsers(JSON.parse(savedUsers));
+
+    // 👇 追加：この端末（ブラウザ）固有の「デバイスID」を発行・取得する
+    let did = localStorage.getItem('os_device_id');
+    if (!did) {
+      did = 'device_' + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('os_device_id', did);
+    }
+    setDeviceId(did);
   }, []);
 
   const handleCreateUser = () => {
-    if (!userId.trim() || !nickname.trim() || !password.trim()) {
-      setErrorMsg('すべての項目を入力してください'); return;
-    }
-    // 👇 修正：ユーザーIDの制限を徹底
-    if (!/^[a-zA-Z0-9_]+$/.test(userId)) {
-      setErrorMsg('ユーザーIDは半角英数字とアンダーバー(_)のみ使用できます'); return;
-    }
-    // 👇 修正：ニックネームの文字数制限を追加
-    if (nickname.trim().length > 10) {
-      setErrorMsg('ニックネームは10文字以内で入力してください'); return;
-    }
-    if (users.some(u => u.id === userId.trim())) {
-      setErrorMsg('このユーザーIDはすでに使われています'); return;
-    }
+    if (!userId.trim() || !nickname.trim() || !password.trim()) { setErrorMsg('すべての項目を入力してください'); return; }
+    if (!/^[a-zA-Z0-9_]+$/.test(userId)) { setErrorMsg('ユーザーIDは半角英数字とアンダーバー(_)のみ使用できます'); return; }
+    if (nickname.trim().length > 10) { setErrorMsg('ニックネームは10文字以内で入力してください'); return; }
+    if (users.some(u => u.id === userId.trim())) { setErrorMsg('このユーザーIDはすでに使われています'); return; }
 
-    const newUser = { id: userId.trim(), nickname: nickname.trim(), password: password.trim() };
+    // 👇 修正：アカウント作成時に、最初の1台目として現在のデバイスIDを登録する
+    const newUser = { id: userId.trim(), nickname: nickname.trim(), password: password.trim(), devices: [deviceId] };
     const updatedUsers = [...users, newUser];
     localStorage.setItem('os_local_users', JSON.stringify(updatedUsers));
     onLoginSuccess(newUser.id, newUser.nickname);
   };
 
   const handleLogin = () => {
-    if (!userId.trim() || !password.trim()) {
-      setErrorMsg('IDとパスワードを入力してください'); return;
-    }
+    if (!userId.trim() || !password.trim()) { setErrorMsg('IDとパスワードを入力してください'); return; }
     const user = users.find(u => u.id === userId.trim());
+    
     if (user && user.password === password.trim()) {
+      // 👇 追加：デバイス2台制限のチェック
+      const currentDevices = user.devices || [];
+      if (!currentDevices.includes(deviceId)) {
+        if (currentDevices.length >= 2) {
+          setErrorMsg('ログイン可能な端末数（2台）の上限に達しています。他の端末からログアウトしてください。');
+          return;
+        }
+        // まだ2台未満なら、新しいデバイスIDを登録リストに追加する
+        const updatedUsers = users.map(u => 
+          u.id === user.id ? { ...u, devices: [...currentDevices, deviceId] } : u
+        );
+        setUsers(updatedUsers);
+        localStorage.setItem('os_local_users', JSON.stringify(updatedUsers));
+      }
       onLoginSuccess(user.id, user.nickname);
     } else {
       setErrorMsg('IDまたはパスワードが間違っています');

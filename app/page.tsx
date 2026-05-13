@@ -73,7 +73,22 @@ export default function SmartLifeOS() {
 
   // 👇 追加：ログアウト機能（記憶を消してログイン画面に戻す）
   const handleLogout = () => {
-    if (confirm('ログアウトしますか？')) {
+    if (confirm('ログアウトしますか？（ログアウトすると端末枠が1つ空きます）')) {
+      
+      // 👇 追加：ログアウト時にデバイス情報を解除し、他の端末でログインできるようにする
+      const savedUsers = localStorage.getItem('os_local_users');
+      const deviceId = localStorage.getItem('os_device_id');
+      if (savedUsers && deviceId && activeUserId) {
+        const users = JSON.parse(savedUsers);
+        const updatedUsers = users.map((u: any) => {
+          if (u.id === activeUserId) {
+            return { ...u, devices: (u.devices || []).filter((d: string) => d !== deviceId) };
+          }
+          return u;
+        });
+        localStorage.setItem('os_local_users', JSON.stringify(updatedUsers));
+      }
+
       localStorage.removeItem('os_active_session');
       setActiveUserId(null);
       setActiveUserName('');
@@ -760,7 +775,8 @@ export default function SmartLifeOS() {
       setStartH(String(s.getHours()).padStart(2, '0')); setStartM(String(s.getMinutes()).padStart(2, '0')); setEndH(String(e.getHours()).padStart(2, '0')); setEndM(String(e.getMinutes()).padStart(2, '0'));
     }
     setIsStocked(false);
-    setIsAllDayBackground(info.allDay || viewType === 'dayGridMonth');
+    // 👇 変更：カレンダーをタップした時も、常に時間指定をデフォルトにする
+    setIsAllDayBackground(false);
     setRepeatUntil(toLocalYYYYMMDD(new Date(adjEnd.getFullYear(), adjEnd.getMonth() + 1, 0))); setIsModalOpen(true);
   };
 
@@ -1834,8 +1850,8 @@ useEffect(() => {
         textarea.pop-input { height: auto; padding: 12px 14px; }
         .custom-select { appearance: none; background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--border-color); outline: none; cursor: pointer; color: var(--theme); font-weight: 900; text-align: center; padding: 6px 12px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); transition: all 0.2s; }
 
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 1000; display: flex; justify-content: center; align-items: center; padding: 15px; animation: fadeIn 0.3s ease-out; }
-        .modal-content { width: 100%; max-width: 420px; border-radius: 28px; border: 1px solid var(--glass-border); overflow-y: auto; max-height: 90vh; animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); background: var(--bg-main); color: var(--text-main); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 1000; display: flex; justify-content: center; align-items: center; padding: 24px; animation: fadeIn 0.3s ease-out; }
+        .modal-content { width: 92%; max-width: 420px; border-radius: 28px; border: 1px solid var(--glass-border); overflow-y: auto; max-height: 80dvh; animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); background: var(--bg-main); color: var(--text-main); }
 
         @keyframes popIn { 0% { transform: scale(0.95) translateY(10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
@@ -2044,7 +2060,8 @@ useEffect(() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
                 setMode('create'); setStartDate(today); setEndDate(today);
                 setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsModalOpen(true);setIsTentative(false);
+                // 👇 追加：setIsAllDayBackground(false) で時間入力をデフォルトに！
+                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsAllDayBackground(false); setIsModalOpen(true);setIsTentative(false);
               }}
               style={{ background: 'var(--theme)', color: '#fff', fontSize: '2rem', fontWeight: 'bold', width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '4px', lineHeight: 0, flexShrink: 0 }}
             >
@@ -2820,13 +2837,10 @@ useEffect(() => {
           setUserColors={setUserColors}
         />
 
-        {/* 👇 ここから2行復活させます！ 👇 */}
         {isModalOpen && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }} onClick={() => setIsModalOpen(false)}>
 
-        {/* 👇 修正：サブスクモードの時だけ画面を大きく広げる（maxWidth を動的に変更） */}
-          <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: mode === 'subscription' ? '760px' : '400px', maxHeight: '85dvh', background: 'var(--bg-main)', padding: '24px', borderRadius: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', transition: 'max-width 0.3s ease' }}>
-              <ModalHeader
+          <div className="glass-panel" onClick={(e) => e.stopPropagation()} style={{ width: '92%', maxWidth: mode === 'subscription' ? '760px' : '380px', maxHeight: '80dvh', background: 'var(--bg-main)', padding: '24px', borderRadius: '24px', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', transition: 'max-width 0.3s ease', boxSizing: 'border-box' }}>             <ModalHeader
                 title={
                   mode === 'expense' ? <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Banknote size={24} /> 支出を記録</div> : 
                   mode === 'subscription' ? <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Repeat size={24} /> サブスクリプション管理</div> : 
@@ -3098,11 +3112,11 @@ useEffect(() => {
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
                         {label && <span style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold', letterSpacing: '1px' }}>{label}</span>}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <select value={h} onChange={e => setH(e.target.value)} style={{ flex: 1, appearance: 'none', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 4px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textAlign: 'center', outline: 'none' }}>
+                          <select value={h} onChange={e => setH(e.target.value)} style={{ flex: 1, appearance: 'none', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 4px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textAlign: 'center', textAlignLast: 'center', outline: 'none' }}>
                             {HOURS.map((x:string) => <option key={x} value={x}>{x}</option>)}
                           </select>
                           <span style={{ fontWeight: 'bold', color: 'var(--text-sub)' }}>:</span>
-                          <select value={m} onChange={e => setM(e.target.value)} style={{ flex: 1, appearance: 'none', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 4px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textAlign: 'center', outline: 'none' }}>
+                          <select value={m} onChange={e => setM(e.target.value)} style={{ flex: 1, appearance: 'none', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 4px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textAlign: 'center', textAlignLast: 'center', outline: 'none' }}>
                             {MINUTES.map((x:string) => <option key={x} value={x}>{x}</option>)}
                           </select>
                         </div>
