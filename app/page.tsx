@@ -39,6 +39,11 @@ export default function SmartLifeOS() {
   const calendarRef = useRef<FullCalendar>(null);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
+  
+  // 👇 追加：スワイプの滑らかな動きと誤爆防止用
+  const [swipeX, setSwipeX] = useState(0);
+  const isSwipingRef = useRef(false);
+  const isTouchActiveRef = useRef(false);
 
   // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
@@ -223,6 +228,7 @@ export default function SmartLifeOS() {
   const [subDate, setSubDate] = useState('1');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [mode, setMode] = useState<'create' | 'detail' | 'dayOfWeekBulk' | 'routine_detail' | 'expense' | 'subscription'>('create');
   const [clipboardEvent, setClipboardEvent] = useState<any>(null);  
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -670,21 +676,52 @@ export default function SmartLifeOS() {
     setCurrentSearchIndex(prevIdx); jumpToEvent(searchResults[prevIdx]);
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.targetTouches[0].clientX; };
-  const handleTouchMove = (e: React.TouchEvent) => { touchEndX.current = e.targetTouches[0].clientX; };
-  const handleTouchEnd = () => {
-    if (touchStartX.current === null || touchEndX.current === null) return;
-    const diff = touchStartX.current - touchEndX.current;
-    let startRelativeX = touchStartX.current;
-    const container = document.querySelector('.fixed-mobile-frame');
-    if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
+  const handleTouchStart = (e: React.TouchEvent) => { 
+    touchStartX.current = e.targetTouches[0].clientX; 
+    isSwipingRef.current = false;
+    isTouchActiveRef.current = true;
+  };
 
-    if (diff > 30) calendarRef.current?.getApi().next();
-    else if (diff < -30) {
-      if (startRelativeX < 30) setIsSidebarOpen(true);
-      else calendarRef.current?.getApi().prev();
+  const handleTouchMove = (e: React.TouchEvent) => { 
+    if (touchStartX.current === null) return;
+    const diff = e.targetTouches[0].clientX - touchStartX.current;
+    
+    // 15px以上動いたら「スワイプ中」と判定し、予定入力の誤爆を防ぐ
+    if (Math.abs(diff) > 15) {
+      isSwipingRef.current = true; 
     }
-    touchStartX.current = null; touchEndX.current = null;
+    // 指の動きに合わせてカレンダーを動かす
+    if (isSwipingRef.current) {
+      setSwipeX(diff);
+    }
+  };
+
+  const handleTouchEnd = () => { 
+    if (touchStartX.current === null) return;
+    
+    if (isSwipingRef.current) {
+      // 60px以上スワイプしたら月/週を切り替える
+      if (swipeX > 60) {
+        let startRelativeX = touchStartX.current;
+        const container = document.querySelector('.fixed-mobile-frame');
+        if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
+        
+        if (startRelativeX < 40) setIsSidebarOpen(true);
+        else calendarRef.current?.getApi().prev();
+      } else if (swipeX < -60) {
+        calendarRef.current?.getApi().next();
+      }
+    }
+    
+    // 指を離したら元の位置に戻す
+    setSwipeX(0);
+    isTouchActiveRef.current = false;
+    
+    // 少し遅らせてからスワイプ状態を解除（誤爆を完全に防ぐ魔法）
+    setTimeout(() => {
+      isSwipingRef.current = false;
+    }, 100);
+    touchStartX.current = null; 
   };
 
   const handleToday = () => {
@@ -772,6 +809,7 @@ export default function SmartLifeOS() {
 
   const handleSelect = (info: any) => {
     if (isDeleteMode) return;
+    if (isSwipingRef.current) return;
 
     // 👇 追加：コピーしている予定があれば、それをペーストして開く！
     if (clipboardEvent) {
@@ -822,6 +860,7 @@ export default function SmartLifeOS() {
   };
 
   const handleEventClick = (info: any) => {
+    if (isSwipingRef.current) return;
     const { event } = info;
 
     if (isDeleteMode) {
@@ -945,129 +984,155 @@ export default function SmartLifeOS() {
   };
 
   const handleSave = async () => {
-    if (!startDate || !title) return; // タイトルがない場合は保存しない
+    if (!startDate || !title) return; 
+    if (isSaving) return; // 👈 連打防止：すでに保存中なら何もしない
+    setIsSaving(true);    // 👈 保存スタート
+    
+    // 👇 ラグ解消：データベースに送る前に、まずは画面(モーダル)をサッと閉じる！
+    setIsModalOpen(false);
+
     const getISO = (d: string, h: string, m: string) => new Date(`${d}T${h}:${m}:00`).toISOString();
 
-    const actualStartH = isAllDayBackground ? '00' : startH;
-    const actualStartM = isAllDayBackground ? '00' : startM;
-    const actualEndH = isAllDayBackground ? '23' : (isMilestone ? startH : endH);
-    const actualEndM = isAllDayBackground ? '59' : (isMilestone ? startM : endM);
-    const actualEndDate = isAllDayBackground ? endDate : (isMilestone ? startDate : endDate);
+    try {
+      const actualStartH = isAllDayBackground ? '00' : startH;
+      const actualStartM = isAllDayBackground ? '00' : startM;
+      const actualEndH = isAllDayBackground ? '23' : (isMilestone ? startH : endH);
+      const actualEndM = isAllDayBackground ? '59' : (isMilestone ? startM : endM);
+      const actualEndDate = isAllDayBackground ? endDate : (isMilestone ? startDate : endDate);
 
-    const newCustomFields = { ...customFieldsData };
-    const catObj = categories.find((c: any) => c.name === categoryName);
+      const newCustomFields = { ...customFieldsData };
+      const catObj = categories.find((c: any) => c.name === categoryName);
 
-    // 💰 給与計算ロジック（ここを維持するのが重要！）
-    catObj?.fields?.forEach((f: any) => {
-      if (f.type === 'wage' && f.wageRules) {
-        let workStart = parseInt(actualStartH) * 60 + parseInt(actualStartM);
-        let workEnd = parseInt(actualEndH) * 60 + parseInt(actualEndM);
-        if (workEnd <= workStart) workEnd += 1440;
+      // 💰 給与計算ロジック
+      catObj?.fields?.forEach((f: any) => {
+        if (f.type === 'wage' && f.wageRules) {
+          let workStart = parseInt(actualStartH) * 60 + parseInt(actualStartM);
+          let workEnd = parseInt(actualEndH) * 60 + parseInt(actualEndM);
+          if (workEnd <= workStart) workEnd += 1440;
 
-        let breakTime = parseInt(newCustomFields[f.id]?.breakTime || '0', 10);
-        let stayMinutes = workEnd - workStart;
-        if (breakTime > stayMinutes) breakTime = stayMinutes;
+          let breakTime = parseInt(newCustomFields[f.id]?.breakTime || '0', 10);
+          let stayMinutes = workEnd - workStart;
+          if (breakTime > stayMinutes) breakTime = stayMinutes;
 
-        let minuteWages: number[] = [];
-        for (let m = workStart; m < workEnd; m++) {
-          let dayM = m % 1440;
-          let matchedWage = 0;
-          f.wageRules.forEach((rule: any) => {
-            if(!rule.start || !rule.end || !rule.wage) return;
-            let rs = parseInt(rule.start.split(':')[0]) * 60 + parseInt(rule.start.split(':')[1].replace('59', '00'));
-            let re = parseInt(rule.end.split(':')[0]) * 60 + parseInt(rule.end.split(':')[1].replace('59', '00'));
-            if (re <= rs) re += 1440;
-            let inRule = false;
-            if (re > 1440) {
-              if ((dayM >= rs && dayM < 1440) || (dayM >= 0 && dayM < re - 1440)) inRule = true;
-            } else {
-              if (dayM >= rs && dayM < re) inRule = true;
+          let minuteWages: number[] = [];
+          for (let m = workStart; m < workEnd; m++) {
+            let dayM = m % 1440;
+            let matchedWage = 0;
+            f.wageRules.forEach((rule: any) => {
+              if(!rule.start || !rule.end || !rule.wage) return;
+              let rs = parseInt(rule.start.split(':')[0]) * 60 + parseInt(rule.start.split(':')[1].replace('59', '00'));
+              let re = parseInt(rule.end.split(':')[0]) * 60 + parseInt(rule.end.split(':')[1].replace('59', '00'));
+              if (re <= rs) re += 1440;
+              let inRule = false;
+              if (re > 1440) {
+                if ((dayM >= rs && dayM < 1440) || (dayM >= 0 && dayM < re - 1440)) inRule = true;
+              } else {
+                if (dayM >= rs && dayM < re) inRule = true;
+              }
+              if (inRule) matchedWage = Math.max(matchedWage, parseInt(rule.wage));
+            });
+            minuteWages.push(matchedWage);
+          }
+
+          let breakStartIdx = Math.floor((stayMinutes - breakTime) / 2);
+          for (let i = 0; i < breakTime; i++) {
+            minuteWages[breakStartIdx + i] = 0;
+          }
+
+          let pastWorkMinutes = 0;
+          events.forEach((ev: any) => {
+            if (ev.id === selectedId) return; 
+            const evDate = toLocalYYYYMMDD(new Date(ev.start));
+            if (evDate === startDate && ev.extendedProps?.category === categoryName) {
+              const evStartObj = new Date(ev.start);
+              const evStartMin = evStartObj.getHours() * 60 + evStartObj.getMinutes();
+              if (evStartMin < workStart) {
+                const prevHours = ev.extendedProps?.metadata?.customFields?.[f.id]?.hours || 0;
+                pastWorkMinutes += Math.round(Number(prevHours) * 60);
+              }
             }
-            if (inRule) matchedWage = Math.max(matchedWage, parseInt(rule.wage));
           });
-          minuteWages.push(matchedWage);
+
+          let totalWage = 0;
+          let actualWorkCount = pastWorkMinutes;
+          const applyOvertime = newCustomFields[f.id]?.overtimePremium !== false;
+          const applyNight = newCustomFields[f.id]?.nightPremium !== false;
+
+          for (let i = 0; i < stayMinutes; i++) {
+            let currentMin = (workStart + i) % 1440;
+            let w = minuteWages[i];
+            if (w > 0) {
+              actualWorkCount++;
+              let multiplier = 1.0;
+              if (applyOvertime && actualWorkCount > 480) multiplier += 0.25;
+              if (applyNight && (currentMin >= 1320 || currentMin < 300)) multiplier += 0.25;
+              totalWage += (w * multiplier) / 60;
+            }
+          }
+
+          let actualHours = Math.round((actualWorkCount / 60) * 100) / 100;
+          newCustomFields[f.id] = { ...newCustomFields[f.id], calculatedWage: Math.round(totalWage), hours: actualHours };
         }
+      });
 
-        let breakStartIdx = Math.floor((stayMinutes - breakTime) / 2);
-        for (let i = 0; i < breakTime; i++) {
-          minuteWages[breakStartIdx + i] = 0;
-        }
+      const finalGatheringTime = gatheringTime || `${startH}:${startM}`;
+      const finalDepartureTime = departureTime || `${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`;
 
-        let totalWage = 0;
-        let actualWorkCount = 0;
-        const applyOvertime = newCustomFields[f.id]?.overtimePremium !== false;
-        const applyNight = newCustomFields[f.id]?.nightPremium !== false;
+      const metadata = {
+        location, isGathering, 
+        gatheringTime: isGathering ? finalGatheringTime : '', 
+        departureTime: isGathering ? finalDepartureTime : '', 
+        departureType, walkTime,
+        customColor: eventColor || undefined, isOutline, customFields: newCustomFields,
+        photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
+        startDateStr: startDate, endDateStr: endDate,
+        user_id: activeUserId,
+        isTentative
+      };
 
-        for (let i = 0; i < stayMinutes; i++) {
-          let currentMin = (workStart + i) % 1440;
-          let w = minuteWages[i];
-          if (w > 0) {
-            actualWorkCount++;
-            let multiplier = 1.0;
-            if (applyOvertime && actualWorkCount > 480) multiplier += 0.25;
-            if (applyNight && (currentMin >= 1320 || currentMin < 300)) multiplier += 0.25;
-            totalWage += (w * multiplier) / 60;
+      // 💾 保存処理
+      if (mode === 'dayOfWeekBulk' && bulkStartMonth && bulkEndMonth && selectedDays.length > 0) {
+        const bulkEvents = [];
+        const [sYear, sMonth] = bulkStartMonth.split('-');
+        const startDateObj = new Date(Number(sYear), Number(sMonth) - 1, 1);
+        const [eYear, eMonth] = bulkEndMonth.split('-');
+        const endDateObj = new Date(Number(eYear), Number(eMonth), 0, 23, 59, 59);
+
+        for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+          if (d.getDay() === selectedDays[0]) {
+            const ds = toLocalYYYYMMDD(d);
+            bulkEvents.push({ title, category: categoryName, start_at: getISO(ds, actualStartH, actualStartM), end_at: getISO(ds, actualEndH, actualEndM), metadata });
           }
         }
-
-        let actualHours = Math.round((actualWorkCount / 60) * 100) / 100;
-        newCustomFields[f.id] = { ...newCustomFields[f.id], calculatedWage: Math.round(totalWage), hours: actualHours };
+        if (bulkEvents.length > 0) await supabase.from('events').insert(bulkEvents);
       }
-    });
-
-    const finalGatheringTime = gatheringTime || `${startH}:${startM}`;
-    const finalDepartureTime = departureTime || `${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`;
-
-    const metadata = {
-      location, isGathering, 
-      gatheringTime: isGathering ? finalGatheringTime : '', 
-      departureTime: isGathering ? finalDepartureTime : '', 
-      departureType, walkTime,
-      customColor: eventColor || undefined, isOutline, customFields: newCustomFields,
-      photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
-      startDateStr: startDate, endDateStr: endDate,
-      user_id: activeUserId, // 👈 これを追加！誰が作った予定かを記録する
-      isTentative
-    };
-
-    // 💾 保存処理（一括登録ロジックも維持）
-    if (mode === 'dayOfWeekBulk' && bulkStartMonth && bulkEndMonth && selectedDays.length > 0) {
-      const bulkEvents = [];
-      const [sYear, sMonth] = bulkStartMonth.split('-');
-      const startDateObj = new Date(Number(sYear), Number(sMonth) - 1, 1);
-      const [eYear, eMonth] = bulkEndMonth.split('-');
-      const endDateObj = new Date(Number(eYear), Number(eMonth), 0, 23, 59, 59);
-
-      for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
-        if (d.getDay() === selectedDays[0]) {
-          const ds = toLocalYYYYMMDD(d);
-          bulkEvents.push({ title, category: categoryName, start_at: getISO(ds, actualStartH, actualStartM), end_at: getISO(ds, actualEndH, actualEndM), metadata });
+      else if (mode === 'create' && selectedDays.length > 0 && repeatUntil) {
+        const endLimit = new Date(repeatUntil);
+        const bulkEvents = [];
+        for (let d = new Date(startDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
+          if (selectedDays.includes(d.getDay())) {
+            bulkEvents.push({ title, category: categoryName, start_at: getISO(toLocalYYYYMMDD(d), actualStartH, actualStartM), end_at: getISO(toLocalYYYYMMDD(d), actualEndH, actualEndM), metadata });
+          }
+        }
+        await supabase.from('events').insert(bulkEvents);
+      }
+      else {
+        const payload = { title, category: categoryName, start_at: getISO(startDate, actualStartH, actualStartM), end_at: getISO(actualEndDate || startDate, actualEndH, actualEndM), metadata };
+        if (mode === 'create') {
+          await supabase.from('events').insert([payload]);
+        } else {
+          await supabase.from('events').update(payload).eq('id', selectedId);
         }
       }
-      if (bulkEvents.length > 0) await supabase.from('events').insert(bulkEvents);
-    }
-    else if (mode === 'create' && selectedDays.length > 0 && repeatUntil) {
-      const endLimit = new Date(repeatUntil);
-      const bulkEvents = [];
-      for (let d = new Date(startDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
-        if (selectedDays.includes(d.getDay())) {
-          bulkEvents.push({ title, category: categoryName, start_at: getISO(toLocalYYYYMMDD(d), actualStartH, actualStartM), end_at: getISO(toLocalYYYYMMDD(d), actualEndH, actualEndM), metadata });
-        }
-      }
-      await supabase.from('events').insert(bulkEvents);
-    }
-    else {
-      const payload = { title, category: categoryName, start_at: getISO(startDate, actualStartH, actualStartM), end_at: getISO(actualEndDate || startDate, actualEndH, actualEndM), metadata };
-      if (mode === 'create') {
-        await supabase.from('events').insert([payload]);
-      } else {
-        await supabase.from('events').update(payload).eq('id', selectedId);
-      }
-    }
 
-    setIsModalOpen(false);
-    fetchEvents();
-  };
+      await fetchEvents(); // 保存が終わったらカレンダー表示を更新
+    } catch (error) {
+      alert("保存に失敗しました。");
+      setIsModalOpen(true); // 失敗したらモーダルを再度開く
+    } finally {
+      setIsSaving(false); // 保存完了フラグを戻す
+    }
+  };   
 
   
 
@@ -1357,7 +1422,6 @@ export default function SmartLifeOS() {
               overflow: 'hidden', wordBreak: 'break-word', lineHeight: 1.3, flex: 1
             }}>
               {metadata.isPinned && <Pin size={10} style={{ transform: 'rotate(45deg)', marginRight: '2px', display: 'inline-block' }} />}
-              {hasPhoto && <ImageIcon size={10} style={{ marginRight: '2px', display: 'inline-block' }} />}
               {displayTitle}
             </div>
             <div className="priority-meta-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0, gap: '4px', textAlign: 'right' }}>
@@ -1488,13 +1552,11 @@ export default function SmartLifeOS() {
               {useVertical ? (
                 <span style={{ display: 'inline-block', width: '100%' }}>
                   {metadata.isPinned && <Pin size={10} style={{ transform: 'rotate(45deg)', marginBottom: '2px' }} />}
-                  {hasPhoto && <img src={metadata.photoUrls[0]} style={{ width: '12px', height: '12px', borderRadius: '3px', objectFit: 'cover', display: 'block', marginBottom: '2px' }} />}
                   {finalDisplayTitle}
                 </span>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', flexDirection: 'row', gap: '2px', justifyContent: 'center' }}>
                   {metadata.isPinned && <Pin size={10} style={{ flexShrink: 0, transform: 'rotate(45deg)' }} />}
-                  {hasPhoto && <img src={metadata.photoUrls[0]} style={{ width: '12px', height: '12px', borderRadius: '3px', objectFit: 'cover' }} />}
                   <span>{displayTitle}</span>
                 </div>
               )}
@@ -1531,14 +1593,25 @@ export default function SmartLifeOS() {
   const routineEvents = monthlyRoutines.flatMap((r: any) => {
     return Array.from({ length: 12 }, (_, i) => {
       const m = i + 1;
-      let dateObj = new Date(currentY, m - 1, r.day);
+      
+      // 👇 修正：その月の最終日を取得し、設定された日付(r.day)がはみ出さないように丸める
+      const lastDayOfMonth = new Date(currentY, m, 0).getDate();
+      const targetDay = r.day > lastDayOfMonth ? lastDayOfMonth : r.day;
+      
+      let dateObj = new Date(currentY, m - 1, targetDay);
+      
+      // 👇 修正：無限ループを防ぎつつ、土日祝を避けて前倒し・後倒しする
       if (r.adjust === 'prev') {
-        while (dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) {
+        let count = 0;
+        while ((dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) && count < 10) {
           dateObj.setDate(dateObj.getDate() - 1);
+          count++;
         }
       } else if (r.adjust === 'next') {
-        while (dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) {
+        let count = 0;
+        while ((dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) && count < 10) {
           dateObj.setDate(dateObj.getDate() + 1);
+          count++;
         }
       }
       return {
@@ -2215,8 +2288,11 @@ useEffect(() => {
         )}
 
         {/* 👇 カレンダー全体ブロック（日毎ビューの円形ダッシュボード化を含む） */}
-        <div style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-          <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '6px', right: '6px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+          {/* 👇 追加：指の動きに合わせて画面全体をスライドさせるアニメーション層 */}
+          <div style={{ width: '100%', height: '100%', transform: `translateX(${swipeX}px)`, transition: isTouchActiveRef.current ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
+            
+            <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '0px', right: '0px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             
             {/* 👇 新しい「日毎」のカスタム円形ダッシュボードUI 👇 */}
             {viewType === 'timeGridDay' && (() => {
@@ -2570,9 +2646,6 @@ useEffect(() => {
               // 👆 ここまで
 
               locale="ja"
-              longPressDelay={120}
-              eventLongPressDelay={120}
-              selectLongPressDelay={120}
               moreLinkContent={(args: any) => `+他${args.num}件`}
               eventClassNames={() => (displayMode === 'dot' && viewType === 'dayGridMonth') ? ['is-dot-mode-event'] : []}
               eventContent={renderEventContent}
@@ -2643,8 +2716,13 @@ useEffect(() => {
                 if (arg.date.getDay() === 0 || holidays[toLocalYYYYMMDD(arg.date)]) return ['holiday-cell'];
                 if (arg.date.getDay() === 6) return ['saturday-cell']; return [];
               }}
+              longPressDelay={250}
+              eventLongPressDelay={250}
+              selectLongPressDelay={250}
+              // ...
             />
           </div>
+        </div>
 
         {isColorPickerOpen && (
           <div className="modal-overlay" onClick={() => setIsColorPickerOpen(false)}>
