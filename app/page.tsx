@@ -41,6 +41,9 @@ export default function SmartLifeOS() {
   const touchEndX = useRef<number | null>(null);
 
   const isSwipingRef = useRef(false);
+  // 👇 追加：スワイプの滑らかな動きとアニメーション用
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
@@ -2195,6 +2198,29 @@ useEffect(() => {
           background-image: repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.3) 8px, rgba(255,255,255,0.3) 16px) !important;
           opacity: 0.85 !important;
           border: 1.5px dashed var(--theme) !important;
+        }
+
+        /* 👇 追加：仮予定のデザイン（斜め線＆半透明） */
+        .tentative-event {
+          background-image: repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.3) 8px, rgba(255,255,255,0.3) 16px) !important;
+          opacity: 0.85 !important;
+          border: 1.5px dashed var(--theme) !important;
+        }
+
+        /* 👇 これを追加！：スライド時に時間軸を固定し、カレンダー本体だけを横に流す魔法 */
+        .fc-view {
+          transform: translateX(var(--swipe-x, 0px));
+          transition: var(--swipe-transition, none);
+        }
+        .fc-timegrid-axis, .fc-timegrid-slot-label {
+          transform: translateX(calc(var(--swipe-x, 0px) * -1));
+          transition: var(--swipe-transition, none);
+          background: var(--bg-main) !important; 
+          position: relative;
+          z-index: 100 !important;
+        }
+        .fc-scrollgrid-sync-table {
+          overflow: hidden;
         }
           
       `}</style>
