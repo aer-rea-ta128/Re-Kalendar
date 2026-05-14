@@ -676,47 +676,6 @@ export default function SmartLifeOS() {
     setCurrentSearchIndex(prevIdx); jumpToEvent(searchResults[prevIdx]);
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => { 
-    touchStartX.current = e.targetTouches[0].clientX; 
-    isSwipingRef.current = false;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => { 
-    if (touchStartX.current === null) return;
-    touchEndX.current = e.targetTouches[0].clientX;
-    const diff = touchEndX.current - touchStartX.current;
-    
-    // 15px以上動いたら「スワイプ中」と判定し、予定入力の誤爆を防ぐ
-    if (Math.abs(diff) > 15) isSwipingRef.current = true; 
-  };
-
-  const handleTouchEnd = () => { 
-    if (touchStartX.current === null || touchEndX.current === null) {
-      touchStartX.current = null;
-      touchEndX.current = null;
-      setTimeout(() => { isSwipingRef.current = false; }, 100);
-      return;
-    }
-    
-    if (isSwipingRef.current) {
-      const diff = touchEndX.current - touchStartX.current;
-      if (diff > 50) {
-        let startRelativeX = touchStartX.current;
-        const container = document.querySelector('.fixed-mobile-frame');
-        if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
-        
-        if (startRelativeX < 40) setIsSidebarOpen(true);
-        else calendarRef.current?.getApi().prev();
-      } else if (diff < -50) {
-        calendarRef.current?.getApi().next();
-      }
-    }
-    
-    touchStartX.current = null; 
-    touchEndX.current = null;
-    setTimeout(() => { isSwipingRef.current = false; }, 100);
-  };
-
   const handleToday = () => {
     const api = calendarRef.current?.getApi(); if (!api) return;
     api.today(); const d = api.getDate();
@@ -2350,10 +2309,7 @@ useEffect(() => {
         )}
 
         {/* 👇 カレンダー全体ブロック */}
-        <div 
-          style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }} 
-          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
-        >
+        <div style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }}>
           <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '0px', right: '0px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             
             {/* 👇 新しい「日毎」のカスタム円形ダッシュボードUI 👇 */}
@@ -2644,6 +2600,14 @@ useEffect(() => {
               key={displayMode + overlapMode}
               ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              
+              views={{
+                timeGridWeek: {
+                  type: 'timeGrid',
+                  duration: { days: 14 } 
+                }
+              }}
+
               initialView="dayGridMonth"
               slotEventOverlap={overlapMode === 'cascade'}
               droppable={true}
