@@ -41,9 +41,9 @@ export default function SmartLifeOS() {
   const touchEndX = useRef<number | null>(null);
   
   // 👇 追加：スワイプの滑らかな動きと誤爆防止用
-  const [swipeX, setSwipeX] = useState(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const isSwipingRef = useRef(false);
-  const isTouchActiveRef = useRef(false);
 
   // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
@@ -679,58 +679,69 @@ export default function SmartLifeOS() {
   const handleTouchStart = (e: React.TouchEvent) => { 
     touchStartX.current = e.targetTouches[0].clientX; 
     isSwipingRef.current = false;
-    isTouchActiveRef.current = true;
+    setIsTransitioning(false); // 👈 触っている間はアニメーションを切る（指に吸い付かせる）
   };
 
   const handleTouchMove = (e: React.TouchEvent) => { 
     if (touchStartX.current === null) return;
     const diff = e.targetTouches[0].clientX - touchStartX.current;
     
-    // 15px以上動いたら「スワイプ中」と判定し、予定入力の誤爆を防ぐ
-    if (Math.abs(diff) > 15) {
-      isSwipingRef.current = true; 
-    }
-    // 指の動きに合わせてカレンダーを動かす
-    if (isSwipingRef.current) {
-      setSwipeX(diff);
-    }
+    if (Math.abs(diff) > 10) isSwipingRef.current = true; 
+    if (isSwipingRef.current) setSwipeOffset(diff); // 👈 画面を動かす
   };
 
   const handleTouchEnd = () => { 
     if (touchStartX.current === null) return;
     
     if (isSwipingRef.current) {
-      // 60px以上スワイプしたら月/週を切り替える
-      if (swipeX > 60) {
-        let startRelativeX = touchStartX.current;
-        const container = document.querySelector('.fixed-mobile-frame');
-        if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
-        
-        if (startRelativeX < 40) setIsSidebarOpen(true);
-        else calendarRef.current?.getApi().prev();
-      } else if (swipeX < -60) {
-        calendarRef.current?.getApi().next();
+      setIsTransitioning(true); // 👈 指を離したらアニメーションをオンにする
+      
+      if (swipeOffset > 80) {
+        // 右にスワイプ（前の週へ）
+        setSwipeOffset(window.innerWidth);
+        setTimeout(() => {
+          setIsTransitioning(false);
+          calendarRef.current?.getApi().prev();
+          setSwipeOffset(-window.innerWidth);
+          setTimeout(() => {
+            setIsTransitioning(true);
+            setSwipeOffset(0);
+          }, 30);
+        }, 250);
+      } else if (swipeOffset < -80) {
+        // 左にスワイプ（次の週へ）
+        setSwipeOffset(-window.innerWidth);
+        setTimeout(() => {
+          setIsTransitioning(false);
+          calendarRef.current?.getApi().next();
+          setSwipeOffset(window.innerWidth);
+          setTimeout(() => {
+            setIsTransitioning(true);
+            setSwipeOffset(0);
+          }, 30);
+        }, 250);
+      } else {
+        // スワイプが足りない場合は元に戻す
+        setSwipeOffset(0);
       }
     }
     
-    // 指を離したら元の位置に戻す
-    setSwipeX(0);
-    isTouchActiveRef.current = false;
-    
-    // 少し遅らせてからスワイプ状態を解除（誤爆を完全に防ぐ魔法）
-    setTimeout(() => {
-      isSwipingRef.current = false;
-    }, 100);
+    setTimeout(() => { isSwipingRef.current = false; }, 100);
     touchStartX.current = null; 
   };
 
   const handleToday = () => {
     const api = calendarRef.current?.getApi(); if (!api) return;
-    api.today(); const d = api.getDate();
+    const d = new Date();
     setCurrentYear(String(d.getFullYear())); setCurrentMonthNum(String(d.getMonth() + 1)); setCurrentDayNum(String(d.getDate()));
+    
     if (viewType === 'timeGridWeek') {
-      const start = new Date(d); start.setDate(start.getDate() - ((start.getDay() - firstDayOfWeek + 7) % 7));
-      calendarRef.current?.getApi().gotoDate(start);
+      const start = new Date(d); 
+      // 👇 「今日」ボタンを押した時は、基準の曜日（日曜/月曜）始まりに強制リセットする！
+      start.setDate(start.getDate() - ((start.getDay() - firstDayOfWeek + 7) % 7));
+      api.gotoDate(start);
+    } else {
+      api.today();
     }
   };
 
@@ -1000,6 +1011,14 @@ export default function SmartLifeOS() {
       const actualEndM = isAllDayBackground ? '59' : (isMilestone ? startM : endM);
       const actualEndDate = isAllDayBackground ? endDate : (isMilestone ? startDate : endDate);
 
+      const finalStartObj = new Date(`${startDate}T${actualStartH}:${actualStartM}:00`);
+      const finalEndObj = new Date(`${actualEndDate}T${actualEndH}:${actualEndM}:00`);
+      if (finalEndObj <= finalStartObj && !isAllDayBackground) {
+        finalEndObj.setDate(finalEndObj.getDate() + 1);
+      }
+      const finalStartISO = finalStartObj.toISOString();
+      const finalEndISO = finalEndObj.toISOString();
+
       const newCustomFields = { ...customFieldsData };
       const catObj = categories.find((c: any) => c.name === categoryName);
 
@@ -1101,7 +1120,7 @@ export default function SmartLifeOS() {
         for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
           if (d.getDay() === selectedDays[0]) {
             const ds = toLocalYYYYMMDD(d);
-            bulkEvents.push({ title, category: categoryName, start_at: getISO(ds, actualStartH, actualStartM), end_at: getISO(ds, actualEndH, actualEndM), metadata });
+            bulkEvents.push({ title, category: categoryName, start_at: new Date(`${ds}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${ds}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
           }
         }
         if (bulkEvents.length > 0) await supabase.from('events').insert(bulkEvents);
@@ -1111,13 +1130,14 @@ export default function SmartLifeOS() {
         const bulkEvents = [];
         for (let d = new Date(startDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
           if (selectedDays.includes(d.getDay())) {
-            bulkEvents.push({ title, category: categoryName, start_at: getISO(toLocalYYYYMMDD(d), actualStartH, actualStartM), end_at: getISO(toLocalYYYYMMDD(d), actualEndH, actualEndM), metadata });
+            bulkEvents.push({ title, category: categoryName, start_at: new Date(`${toLocalYYYYMMDD(d)}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${toLocalYYYYMMDD(d)}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
           }
         }
         await supabase.from('events').insert(bulkEvents);
       }
       else {
-        const payload = { title, category: categoryName, start_at: getISO(startDate, actualStartH, actualStartM), end_at: getISO(actualEndDate || startDate, actualEndH, actualEndM), metadata };
+        // 👇 ここが重要！
+        const payload = { title, category: categoryName, start_at: finalStartISO, end_at: finalEndISO, metadata };
         if (mode === 'create') {
           await supabase.from('events').insert([payload]);
         } else {
@@ -1341,12 +1361,12 @@ export default function SmartLifeOS() {
       if (isAnniversary) {
         return (
           <div className={highlightClass} style={{
-            display: 'flex', alignItems: 'center', padding: '2px 6px', overflow: 'hidden', width: '100%', height: '26px',
-            backgroundColor: hexToRgba(cColor, 0.1), border: `1px solid ${hexToRgba(cColor, 0.3)}`, borderRadius: '6px', boxSizing: 'border-box', marginBottom: '2px',
+            display: 'flex', alignItems: 'center', padding: '1px 4px', overflow: 'hidden', width: '100%', height: '20px', /* 👈 26pxを20pxに */
+            backgroundColor: hexToRgba(cColor, 0.1), border: `1px solid ${hexToRgba(cColor, 0.3)}`, borderRadius: '4px', boxSizing: 'border-box', marginBottom: '2px',
             boxShadow: `inset 0 0 8px ${hexToRgba(cColor, 0.05)}`
           }}>
-            <Gift size={12} style={{ color: cColor, marginRight: '4px', flexShrink: 0 }} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '900', fontSize: '0.75rem', color: cColor }}>{displayTitle}</span>
+            <Gift size={10} style={{ color: cColor, marginRight: '4px', flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '900', fontSize: '0.65rem', color: cColor }}>{displayTitle}</span>
           </div>
         );
       }
@@ -1377,15 +1397,15 @@ export default function SmartLifeOS() {
       const isMultiDay = event.allDay || (end && (new Date(end).getTime() - new Date(start).getTime() > 24 * 60 * 60 * 1000));
       return (
         <div className={highlightClass} style={{
-          display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', width: '100%', height: '28px',
+          display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', width: '100%', height: '20px', /* 👈 28pxを20pxに */
           backgroundColor: isMultiDay ? hexToRgba(cColor, 0.15) : 'transparent',
           backgroundImage: isMultiDay ? 'none' : `linear-gradient(to top, ${hexToRgba(cColor, 0.25)} 0%, transparent 6px)`,
           borderLeft: `3px solid ${cColor}`, borderRadius: '2px', boxSizing: 'border-box'
         }}>
-          {!isMultiDay && !event.allDay && <span style={{ fontSize: '0.55rem', fontWeight: '900', color: cColor, lineHeight: '1' }}>{startTimeOnly}</span>}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', width: '100%' }}>
-            {metadata.isPinned && <Pin size={10} style={{ flexShrink: 0, transform: 'rotate(45deg)', color: 'var(--text-main)' }} />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.7rem', color: 'var(--text-main)' }}>{displayTitle}</span>
+            {!isMultiDay && !event.allDay && <span style={{ fontSize: '0.6rem', fontWeight: '900', color: cColor, lineHeight: '1', flexShrink: 0 }}>{startTimeOnly}</span>}
+            {metadata.isPinned && <Pin size={8} style={{ flexShrink: 0, transform: 'rotate(45deg)', color: 'var(--text-main)' }} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.65rem', color: 'var(--text-main)' }}>{displayTitle}</span>
           </div>
         </div>
       );
@@ -2290,8 +2310,7 @@ useEffect(() => {
         {/* 👇 カレンダー全体ブロック（日毎ビューの円形ダッシュボード化を含む） */}
         <div style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
           {/* 👇 追加：指の動きに合わせて画面全体をスライドさせるアニメーション層 */}
-          <div style={{ width: '100%', height: '100%', transform: `translateX(${swipeX}px)`, transition: isTouchActiveRef.current ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
-            
+            <div style={{ width: '100%', height: '100%', transform: `translateX(${swipeOffset}px)`, transition: isTransitioning ? 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1)' : 'none' }}>            
             <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '0px', right: '0px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             
             {/* 👇 新しい「日毎」のカスタム円形ダッシュボードUI 👇 */}
@@ -2582,6 +2601,13 @@ useEffect(() => {
               key={displayMode + overlapMode}
               ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              views={{
+                timeGridWeek: {
+                  type: 'timeGrid',
+                  duration: { days: 7 },
+                  dateIncrement: { days: 1 } // 👈 これが「縛りにとらわれない」魔法の設定！
+                }
+              }}
               initialView="dayGridMonth"
               slotEventOverlap={overlapMode === 'cascade'}
               droppable={true}
