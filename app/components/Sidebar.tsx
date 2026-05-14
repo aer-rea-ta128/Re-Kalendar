@@ -92,6 +92,8 @@ export default function Sidebar({
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [editUserName, setEditUserName] = useState('');
+  const [isCategoryHistoryOpen, setIsCategoryHistoryOpen] = useState(false);
+  const [historyCategory, setHistoryCategory] = useState('すべて');
 
   const [expanded, setExpanded] = useState<string[]>([]);
   const toggleSection = (sec: string) => setExpanded(prev => prev.includes(sec) ? prev.filter(s => s !== sec) : [...prev, sec]);
@@ -152,6 +154,8 @@ export default function Sidebar({
   const MENU_ACTIONS = [
     { id: 'create_event', label: '新しく予定を作成', icon: Edit3, color: themeColor },
     { id: 'schedule_assistant', label: '日程調整アシスタント', icon: Users, color: '#f59e0b' }, 
+    { id: 'category_history', label: 'ジャンル別の履歴・振り返り', icon: FolderKanban, color: themeColor },
+    { id: 'finance_single', label: '単発の収支を記録', icon: Banknote, color: themeColor },
     { id: 'finance_single', label: '単発の収支を記録', icon: Banknote, color: themeColor },
     { id: 'finance_history', label: '収支履歴を見る', icon: HistoryIcon, color: themeColor },
     { id: 'finance_bar', label: '収支サマリーバー', icon: Target, color: themeColor }, // 👈 追加
@@ -166,6 +170,8 @@ export default function Sidebar({
 
   const handleMenuAction = (id: string) => {
     if (id === 'dashboard') { setIsModalOpen(false); setIsAnalyticsModalOpen(true); setIsSidebarOpen(false); }
+    else if (id === 'category_history') { setIsCategoryHistoryOpen(true); setIsSidebarOpen(false); }
+    else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); setIsSidebarOpen(false); }
     else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); setIsSidebarOpen(false); }
     else if (id === 'travel_map') { setIsModalOpen(false); setIsTravelMapOpen(true); setIsSidebarOpen(false); }
     else if (id === 'category_settings') { setIsModalOpen(false); setIsCategoryModalOpen(true); setIsSidebarOpen(false); }
@@ -357,6 +363,9 @@ export default function Sidebar({
             <AccordionHeader id="reports" title="レポート・ギャラリー" icon={FolderKanban} />
             {expanded.includes('reports') && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', paddingBottom: '16px' }}>
+                <button onClick={() => handleMenuAction('category_history')} style={{ padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
+                  <FolderKanban size={18} color={themeColor} /> <span style={{ fontWeight: 'bold' }}>ジャンル別の履歴・振り返り</span>
+                </button>
                 <button onClick={() => handleMenuAction('dashboard')} style={{ padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
                   <PieChart size={18} color={themeColor} /> <span style={{ fontWeight: 'bold' }}>振り返りダッシュボード</span>
                 </button>
@@ -470,9 +479,11 @@ export default function Sidebar({
           {viewType === 'dayGridMonth' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--input-bg)', borderRadius: '12px', padding: '8px', border: `1px solid var(--border-color)` }}>
               <div style={{ display: 'flex', background: 'var(--bg-main)', borderRadius: '8px', padding: '2px' }}>
-                <button onClick={() => setDisplayMode('normal')} style={{ flex: 1, padding: '6px', borderRadius: '6px', background: displayMode === 'normal' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'normal' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'normal' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.2s' }}>通常</button>
-                <button onClick={() => setDisplayMode('dot')} style={{ flex: 1, padding: '6px', borderRadius: '6px', background: displayMode === 'dot' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'dot' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'dot' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.2s' }}>ドット</button>
-                <button onClick={() => setDisplayMode('photo')} style={{ flex: 1, padding: '6px', borderRadius: '6px', background: displayMode === 'photo' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'photo' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'photo' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.75rem', transition: 'all 0.2s' }}>写真</button>
+                {/* 👇 ボタンを4つに増やし、1行/2行を切り替えられるようにしました */}
+                <button onClick={() => setDisplayMode('normal')} style={{ flex: 1, padding: '6px 2px', borderRadius: '6px', background: displayMode === 'normal' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'normal' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'normal' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.7rem', transition: 'all 0.2s' }}>2行</button>
+                <button onClick={() => setDisplayMode('compact')} style={{ flex: 1, padding: '6px 2px', borderRadius: '6px', background: displayMode === 'compact' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'compact' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'compact' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.7rem', transition: 'all 0.2s' }}>1行</button>
+                <button onClick={() => setDisplayMode('dot')} style={{ flex: 1, padding: '6px 2px', borderRadius: '6px', background: displayMode === 'dot' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'dot' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'dot' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.7rem', transition: 'all 0.2s' }}>ドット</button>
+                <button onClick={() => setDisplayMode('photo')} style={{ flex: 1, padding: '6px 2px', borderRadius: '6px', background: displayMode === 'photo' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'photo' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'photo' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.7rem', transition: 'all 0.2s' }}>写真</button>
               </div>
               <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
                 <button onClick={() => setCalendarCategoryFilter('すべて')} style={{ padding: '4px 10px', fontSize: '0.7rem', borderRadius: '10px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: calendarCategoryFilter === 'すべて' ? 'var(--theme)' : 'var(--card-bg)', color: calendarCategoryFilter === 'すべて' ? '#fff' : 'var(--text-sub)', border: '1px solid var(--border-color)', transition: 'all 0.2s' }}>すべて</button>
@@ -879,6 +890,52 @@ export default function Sidebar({
           </div>
         </div>
       )}
+      {/* 👇 追加！：ジャンル別履歴モーダル */}
+      {isCategoryHistoryOpen && (() => {
+        const sortedEvents = events
+          .filter((e: any) => historyCategory === 'すべて' || e.extendedProps?.category === historyCategory)
+          .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsCategoryHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <ModalHeader title="ジャンル別の履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
+              
+              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '4px' }}>
+                <button onClick={() => setHistoryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: historyCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: historyCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
+                {categories.map((c: any) => (
+                  <button key={c.name} onClick={() => setHistoryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: historyCategory === c.name ? c.color : 'var(--input-bg)', color: historyCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+
+              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
+                {sortedEvents.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-sub)', fontSize: '0.85rem' }}>予定がありません</div>
+                ) : (
+                  sortedEvents.map((e: any) => {
+                    const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                    const dateStr = e.start.split('T')[0].replace(/-/g, '/');
+                    const memo = e.extendedProps?.metadata?.memo;
+                    const rating = e.extendedProps?.metadata?.rating;
+                    return (
+                      <div key={e.id} onClick={() => { setIsCategoryHistoryOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', borderLeft: `6px solid ${cColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', lineHeight: 1.3 }}>{e.title}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{dateStr}</div>
+                        </div>
+                        {memo && <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', background: 'var(--input-bg)', padding: '8px', borderRadius: '8px', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}>{memo}</div>}
+                        {rating > 0 && <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{'★'.repeat(rating)}</div>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }

@@ -44,6 +44,7 @@ export default function SmartLifeOS() {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const isSwipingRef = useRef(false);
+  const isTouchActiveRef = useRef(false);
 
   // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
@@ -694,39 +695,40 @@ export default function SmartLifeOS() {
     if (touchStartX.current === null) return;
     
     if (isSwipingRef.current) {
-      setIsTransitioning(true); // 👈 指を離したらアニメーションをオンにする
-      
-      if (swipeOffset > 80) {
-        // 右にスワイプ（前の週へ）
-        setSwipeOffset(window.innerWidth);
-        setTimeout(() => {
-          setIsTransitioning(false);
-          calendarRef.current?.getApi().prev();
-          setSwipeOffset(-window.innerWidth);
-          setTimeout(() => {
-            setIsTransitioning(true);
-            setSwipeOffset(0);
-          }, 30);
-        }, 250);
-      } else if (swipeOffset < -80) {
-        // 左にスワイプ（次の週へ）
-        setSwipeOffset(-window.innerWidth);
-        setTimeout(() => {
-          setIsTransitioning(false);
-          calendarRef.current?.getApi().next();
+      if (swipeOffset > 60) {
+        let startRelativeX = touchStartX.current;
+        const container = document.querySelector('.fixed-mobile-frame');
+        if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
+        
+        if (startRelativeX < 40) {
+          setIsSidebarOpen(true);
+          setSwipeOffset(0);
+        } else {
+          // 👇 スッと右へ流れるアニメーション
           setSwipeOffset(window.innerWidth);
           setTimeout(() => {
-            setIsTransitioning(true);
-            setSwipeOffset(0);
-          }, 30);
+            calendarRef.current?.getApi().prev();
+            setSwipeOffset(0); // 次の画面になったらスワイプ位置を戻す
+          }, 250);
+        }
+      } else if (swipeOffset < -60) {
+        // 👇 スッと左へ流れるアニメーション
+        setSwipeOffset(-window.innerWidth);
+        setTimeout(() => {
+          calendarRef.current?.getApi().next();
+          setSwipeOffset(0);
         }, 250);
       } else {
-        // スワイプが足りない場合は元に戻す
         setSwipeOffset(0);
       }
+    } else {
+      setSwipeOffset(0);
     }
     
-    setTimeout(() => { isSwipingRef.current = false; }, 100);
+    isTouchActiveRef.current = false;
+    setTimeout(() => {
+      isSwipingRef.current = false;
+    }, 100);
     touchStartX.current = null; 
   };
 
@@ -873,6 +875,21 @@ export default function SmartLifeOS() {
   const handleEventClick = (info: any) => {
     if (isSwipingRef.current) return;
     const { event } = info;
+
+    if (String(event.id).startsWith('sub-')) {
+      const [_, name, y, m] = String(event.id).split('-');
+      const d = event.start.getDate();
+      const dateStr = `${y}-${m ? m.padStart(2, '0') : '01'}-${String(d).padStart(2, '0')}`;
+      
+      setMode('expense');
+      setStartDate(dateStr);
+      setCategoryName(event.extendedProps.category);
+      setTitle(`${name} (今月の支払い)`);
+      setExpenseAmount(event.extendedProps.metadata?.customFields?.standardExpenseAmount || '');
+      setCustomFieldsData({ transactionMode: 'expense', isExpenseSet: true, paymentMethod: 'credit' });
+      setIsModalOpen(true);
+      return;
+    }
 
     if (isDeleteMode) {
       if (event.extendedProps.isAnniversary || event.extendedProps.isRoutine) return;
@@ -1395,20 +1412,41 @@ export default function SmartLifeOS() {
       }
 
       const isMultiDay = event.allDay || (end && (new Date(end).getTime() - new Date(start).getTime() > 24 * 60 * 60 * 1000));
-      return (
-        <div className={highlightClass} style={{
-          display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', width: '100%', height: '20px', /* 👈 28pxを20pxに */
-          backgroundColor: isMultiDay ? hexToRgba(cColor, 0.15) : 'transparent',
-          backgroundImage: isMultiDay ? 'none' : `linear-gradient(to top, ${hexToRgba(cColor, 0.25)} 0%, transparent 6px)`,
-          borderLeft: `3px solid ${cColor}`, borderRadius: '2px', boxSizing: 'border-box'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', width: '100%' }}>
-            {!isMultiDay && !event.allDay && <span style={{ fontSize: '0.6rem', fontWeight: '900', color: cColor, lineHeight: '1', flexShrink: 0 }}>{startTimeOnly}</span>}
-            {metadata.isPinned && <Pin size={8} style={{ flexShrink: 0, transform: 'rotate(45deg)', color: 'var(--text-main)' }} />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.65rem', color: 'var(--text-main)' }}>{displayTitle}</span>
+      
+      // 👇 追加：1行表示（コンパクト）モード
+      if (displayMode === 'compact') {
+        return (
+          <div className={highlightClass} style={{
+            display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', width: '100%', height: '20px',
+            backgroundColor: isMultiDay ? hexToRgba(cColor, 0.15) : 'transparent',
+            backgroundImage: isMultiDay ? 'none' : `linear-gradient(to top, ${hexToRgba(cColor, 0.25)} 0%, transparent 6px)`,
+            borderLeft: `3px solid ${cColor}`, borderRadius: '2px', boxSizing: 'border-box'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', width: '100%' }}>
+              {!isMultiDay && !event.allDay && <span style={{ fontSize: '0.6rem', fontWeight: '900', color: cColor, lineHeight: '1', flexShrink: 0 }}>{startTimeOnly}</span>}
+              {metadata.isPinned && <Pin size={8} style={{ flexShrink: 0, transform: 'rotate(45deg)', color: 'var(--text-main)' }} />}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.65rem', color: 'var(--text-main)' }}>{displayTitle}</span>
+            </div>
           </div>
-        </div>
-      );
+        );
+      } 
+      // 👇 追加：2行表示（元の通常モード）。3つ収まるように高さを26pxに微調整しています。
+      else {
+        return (
+          <div className={highlightClass} style={{
+            display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 4px', overflow: 'hidden', width: '100%', height: '26px',
+            backgroundColor: isMultiDay ? hexToRgba(cColor, 0.15) : 'transparent',
+            backgroundImage: isMultiDay ? 'none' : `linear-gradient(to top, ${hexToRgba(cColor, 0.25)} 0%, transparent 6px)`,
+            borderLeft: `3px solid ${cColor}`, borderRadius: '2px', boxSizing: 'border-box'
+          }}>
+            {!isMultiDay && !event.allDay && <span style={{ fontSize: '0.55rem', fontWeight: '900', color: cColor, lineHeight: '1' }}>{startTimeOnly}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', width: '100%' }}>
+              {metadata.isPinned && <Pin size={10} style={{ flexShrink: 0, transform: 'rotate(45deg)', color: 'var(--text-main)' }} />}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.7rem', color: 'var(--text-main)' }}>{displayTitle}</span>
+            </div>
+          </div>
+        );
+      }
     }
 
     if (isMilestone) {
