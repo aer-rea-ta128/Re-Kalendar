@@ -734,16 +734,11 @@ export default function SmartLifeOS() {
 
   const handleToday = () => {
     const api = calendarRef.current?.getApi(); if (!api) return;
-    const d = new Date();
+    api.today(); const d = api.getDate();
     setCurrentYear(String(d.getFullYear())); setCurrentMonthNum(String(d.getMonth() + 1)); setCurrentDayNum(String(d.getDate()));
-    
     if (viewType === 'timeGridWeek') {
-      const start = new Date(d); 
-      // 👇 「今日」ボタンを押した時は、基準の曜日（日曜/月曜）始まりに強制リセットする！
-      start.setDate(start.getDate() - ((start.getDay() - firstDayOfWeek + 7) % 7));
-      api.gotoDate(start);
-    } else {
-      api.today();
+      const start = new Date(d); start.setDate(start.getDate() - ((start.getDay() - firstDayOfWeek + 7) % 7));
+      calendarRef.current?.getApi().gotoDate(start);
     }
   };
 
@@ -2219,6 +2214,18 @@ useEffect(() => {
           opacity: 0.85 !important;
           border: 1.5px dashed var(--theme) !important;
         }
+          /* 👇 追加：スライド時に左側の時間枠（axis）を固定する魔法 */
+        .fc-scrollgrid {
+          transform: translateX(var(--swipe-x, 0px));
+          transition: var(--swipe-transition, none);
+        }
+        .fc-timegrid-axis {
+          transform: translateX(calc(var(--swipe-x, 0px) * -1));
+          transition: var(--swipe-transition, none);
+          background: var(--bg-main) !important; /* 下を通り抜ける予定を隠す */
+          position: relative;
+          z-index: 100 !important;
+        }
       `}</style>
 
       <div className="fixed-mobile-frame">
@@ -2345,11 +2352,16 @@ useEffect(() => {
           </div>
         )}
 
-        {/* 👇 カレンダー全体ブロック（日毎ビューの円形ダッシュボード化を含む） */}
-        <div style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-          {/* 👇 追加：指の動きに合わせて画面全体をスライドさせるアニメーション層 */}
-            <div style={{ width: '100%', height: '100%', transform: `translateX(${swipeOffset}px)`, transition: isTransitioning ? 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1)' : 'none' }}>            
-            <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '0px', right: '0px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* 👇 カレンダー全体ブロック */}
+        <div 
+          style={{ 
+            flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden',
+            '--swipe-x': `${swipeOffset}px`, 
+            '--swipe-transition': isTransitioning ? 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1)' : 'none'
+          } as React.CSSProperties} 
+          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+        >
+          <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '0px', right: '0px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             
             {/* 👇 新しい「日毎」のカスタム円形ダッシュボードUI 👇 */}
             {viewType === 'timeGridDay' && (() => {
@@ -2639,13 +2651,6 @@ useEffect(() => {
               key={displayMode + overlapMode}
               ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              views={{
-                timeGridWeek: {
-                  type: 'timeGrid',
-                  duration: { days: 7 },
-                  dateIncrement: { days: 1 } // 👈 これが「縛りにとらわれない」魔法の設定！
-                }
-              }}
               initialView="dayGridMonth"
               slotEventOverlap={overlapMode === 'cascade'}
               droppable={true}
@@ -4276,6 +4281,5 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
         </div>
       )}
       </div>
-    </div>
   );
 }
