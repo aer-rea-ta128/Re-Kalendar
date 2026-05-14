@@ -39,12 +39,8 @@ export default function SmartLifeOS() {
   const calendarRef = useRef<FullCalendar>(null);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
-  
-  // 👇 追加：スワイプの滑らかな動きと誤爆防止用
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+
   const isSwipingRef = useRef(false);
-  const isTouchActiveRef = useRef(false);
 
   // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
@@ -680,56 +676,42 @@ export default function SmartLifeOS() {
   const handleTouchStart = (e: React.TouchEvent) => { 
     touchStartX.current = e.targetTouches[0].clientX; 
     isSwipingRef.current = false;
-    setIsTransitioning(false); // 👈 触っている間はアニメーションを切る（指に吸い付かせる）
   };
 
   const handleTouchMove = (e: React.TouchEvent) => { 
     if (touchStartX.current === null) return;
-    const diff = e.targetTouches[0].clientX - touchStartX.current;
+    touchEndX.current = e.targetTouches[0].clientX;
+    const diff = touchEndX.current - touchStartX.current;
     
-    if (Math.abs(diff) > 10) isSwipingRef.current = true; 
-    if (isSwipingRef.current) setSwipeOffset(diff); // 👈 画面を動かす
+    // 15px以上動いたら「スワイプ中」と判定し、予定入力の誤爆を防ぐ
+    if (Math.abs(diff) > 15) isSwipingRef.current = true; 
   };
 
   const handleTouchEnd = () => { 
-    if (touchStartX.current === null) return;
+    if (touchStartX.current === null || touchEndX.current === null) {
+      touchStartX.current = null;
+      touchEndX.current = null;
+      setTimeout(() => { isSwipingRef.current = false; }, 100);
+      return;
+    }
     
     if (isSwipingRef.current) {
-      if (swipeOffset > 60) {
+      const diff = touchEndX.current - touchStartX.current;
+      if (diff > 50) {
         let startRelativeX = touchStartX.current;
         const container = document.querySelector('.fixed-mobile-frame');
         if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
         
-        if (startRelativeX < 40) {
-          setIsSidebarOpen(true);
-          setSwipeOffset(0);
-        } else {
-          // 👇 スッと右へ流れるアニメーション
-          setSwipeOffset(window.innerWidth);
-          setTimeout(() => {
-            calendarRef.current?.getApi().prev();
-            setSwipeOffset(0); // 次の画面になったらスワイプ位置を戻す
-          }, 250);
-        }
-      } else if (swipeOffset < -60) {
-        // 👇 スッと左へ流れるアニメーション
-        setSwipeOffset(-window.innerWidth);
-        setTimeout(() => {
-          calendarRef.current?.getApi().next();
-          setSwipeOffset(0);
-        }, 250);
-      } else {
-        setSwipeOffset(0);
+        if (startRelativeX < 40) setIsSidebarOpen(true);
+        else calendarRef.current?.getApi().prev();
+      } else if (diff < -50) {
+        calendarRef.current?.getApi().next();
       }
-    } else {
-      setSwipeOffset(0);
     }
     
-    isTouchActiveRef.current = false;
-    setTimeout(() => {
-      isSwipingRef.current = false;
-    }, 100);
     touchStartX.current = null; 
+    touchEndX.current = null;
+    setTimeout(() => { isSwipingRef.current = false; }, 100);
   };
 
   const handleToday = () => {
@@ -2214,18 +2196,7 @@ useEffect(() => {
           opacity: 0.85 !important;
           border: 1.5px dashed var(--theme) !important;
         }
-          /* 👇 追加：スライド時に左側の時間枠（axis）を固定する魔法 */
-        .fc-scrollgrid {
-          transform: translateX(var(--swipe-x, 0px));
-          transition: var(--swipe-transition, none);
-        }
-        .fc-timegrid-axis {
-          transform: translateX(calc(var(--swipe-x, 0px) * -1));
-          transition: var(--swipe-transition, none);
-          background: var(--bg-main) !important; /* 下を通り抜ける予定を隠す */
-          position: relative;
-          z-index: 100 !important;
-        }
+          
       `}</style>
 
       <div className="fixed-mobile-frame">
@@ -2354,11 +2325,7 @@ useEffect(() => {
 
         {/* 👇 カレンダー全体ブロック */}
         <div 
-          style={{ 
-            flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden',
-            '--swipe-x': `${swipeOffset}px`, 
-            '--swipe-transition': isTransitioning ? 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1)' : 'none'
-          } as React.CSSProperties} 
+          style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }} 
           onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         >
           <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '0px', right: '0px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
