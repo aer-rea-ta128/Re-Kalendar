@@ -5,7 +5,7 @@ import {
   Search, Moon, Sun, Clock, Target, Star, Edit3, 
   PieChart, Image as ImageIcon, Palette, Repeat, Gift, Database, Banknote, MapPin, Home, Train, Footprints,
   ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical,
-  LogOut, User, TrendingUp, Users, Send, MessageSquare
+  LogOut, User, TrendingUp, Users, Send, MessageSquare, Handshake, CheckCircle
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -115,6 +115,7 @@ export default function Sidebar({
   const [financeTypeFilter, setFinanceTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [isFinanceHistoryOpen, setIsFinanceHistoryOpen] = useState(false);
   const [isMenuCustomizeOpen, setIsMenuCustomizeOpen] = useState(false);
+  const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false); // 👈 追加
 
   const [incomeCalcBasis, setIncomeCalcBasis] = useState<'wage' | 'payday'>(() => {
     if (typeof window === 'undefined') return 'wage';
@@ -179,6 +180,7 @@ export default function Sidebar({
     else if (id === 'routine_settings') { setIsModalOpen(false); setIsRoutineModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'subscription_settings') { setMode('subscription'); setIsModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); setIsSidebarOpen(false); }
+    else if (id === 'settlement') { setIsSettlementModalOpen(true); setIsSidebarOpen(false); } // 👈 追加
     else if (id === 'finance_history') { setIsFinanceHistoryOpen(true); }
     else if (id === 'create_event') {
       const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
@@ -223,6 +225,7 @@ export default function Sidebar({
     switch (sectionId) {
       case 'finance':
         return (
+          
           <div key="finance">
             <AccordionHeader id="finance" title="収支履歴・管理" icon={Banknote} />
             {expanded.includes('finance') && (() => {
@@ -515,7 +518,17 @@ export default function Sidebar({
                   let inc = 0; let exp = 0;
                   evts.forEach((e: any) => {
                     const cf = e.extendedProps?.metadata?.customFields || {};
-                    if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
+                    if (cf.isExpenseSet) {
+                      // 立替リストを考慮した金額計算
+                      if (cf.expenses) {
+                        cf.expenses.forEach((ex: any) => {
+                          if (ex.type === 'expense' || ex.type === 'advance') exp += Number(ex.amount || 0);
+                          if (ex.type === 'income' || ex.type === 'borrow') inc += Number(ex.amount || 0);
+                        });
+                      } else {
+                        exp += Number(cf.standardExpenseAmount || 0);
+                      }
+                    }
                     if (cf.isIncomeSet) {
                       if (incomeCalcBasis === 'wage' && cf.isSalary) {} else { inc += Number(cf.standardIncomeAmount || 0); }
                     }
@@ -551,6 +564,67 @@ export default function Sidebar({
                       </div>
                       <div style={{ textAlign: 'center', fontSize: '1rem', marginTop: '8px', fontWeight: '900', color: inc >= exp ? '#10b981' : '#ef4444' }}>
                         残高: {inc >= exp ? '+' : '-'}¥{Math.abs(inc - exp).toLocaleString()}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 👇 追加：立替リストの表示 */}
+                {(() => {
+                  const unpayedAdvances = events.flatMap(e => {
+                    const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                    return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                  }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
+
+                  if (unpayedAdvances.length === 0) return null;
+
+                  return (
+                    <div style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: '1px dashed var(--theme)', marginTop: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', display: 'block', marginBottom: '8px' }}>未精算の立替・借入</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {unpayedAdvances.map((adv: any, i: number) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'var(--input-bg)', padding: '8px', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontWeight: 'bold', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
+                                {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
+                              </span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: '900' }}>¥{Number(adv.amount).toLocaleString()}</span>
+                              <button onClick={async () => {
+                                if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
+                                  const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                                  if (targetEvent) {
+                                    const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                      ex.id === adv.id ? { ...ex, isSettled: true } : ex
+                                    );
+                                    await supabase.from('events').update({
+                                      metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
+                                    }).eq('id', adv.eventId);
+                                    
+                                    // 精算完了として、相殺するイベントを新規作成
+                                    const today = toLocalYYYYMMDD(new Date());
+                                    await supabase.from('events').insert([{
+                                      title: `${adv.payee || '相手'} との立替精算`, category: '収支記録',
+                                      start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
+                                      metadata: {
+                                        isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
+                                        customFields: {
+                                          isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
+                                          isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
+                                        }
+                                      }
+                                    }]);
+                                    
+                                    // この関数はpage.tsxからpropsで渡されていないため、画面をリロードして反映させます（簡易対応）
+                                    window.location.reload();
+                                  }
+                                }
+                              }} style={{ background: themeColor, color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' }}>精算</button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
@@ -930,6 +1004,84 @@ export default function Sidebar({
                       </div>
                     );
                   })
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 🤝 追加：立替・精算管理モーダル */}
+      {isSettlementModalOpen && (() => {
+        const unpayedAdvances = events.flatMap(e => {
+          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsSettlementModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <ModalHeader title="立替・精算の管理" onClose={() => setIsSettlementModalOpen(false)} />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {unpayedAdvances.length === 0 ? (
+                  <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-sub)', padding: '30px', background: 'var(--input-bg)', borderRadius: '16px', border: '1px dashed var(--border-color)', fontWeight: 'bold' }}>
+                    未精算の項目はありません 🎉
+                  </div>
+                ) : (
+                  unpayedAdvances.map((adv: any, i: number) => (
+                    <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                            {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                        </div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
+                          ¥{Number(adv.amount).toLocaleString()}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={async () => {
+                          if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
+                            const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                            if (targetEvent) {
+                              const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                ex.id === adv.id ? { ...ex, isSettled: true } : ex
+                              );
+                              await supabase.from('events').update({
+                                metadata: { 
+                                  ...targetEvent.extendedProps.metadata, 
+                                  customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } 
+                                }
+                              }).eq('id', adv.eventId);
+                              
+                              const today = toLocalYYYYMMDD(new Date());
+                              await supabase.from('events').insert([{
+                                title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
+                                start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
+                                metadata: {
+                                  isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
+                                  customFields: {
+                                    isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
+                                    isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
+                                    paymentMethod: 'cash'
+                                  }
+                                }
+                              }]);
+                              alert('精算を完了として記録しました！');
+                              window.location.reload(); 
+                            }
+                          }
+                        }}
+                        className="btn-pop" 
+                        style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      >
+                        <CheckCircle size={16} /> 精算を完了する
+                      </button>
+                    </div>
+                  ))
                 )}
               </div>
             </div>

@@ -7,11 +7,11 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
 import { supabase } from '@/lib/supabase';
 import {
-  Train, Footprints, MapPin, Clock, Star, Inbox, Settings, Trash2, TrendingUp, Target,
+  Train, Footprints, MapPin, Clock, Star, Inbox, Settings, Trash2, TrendingUp, TrendingDown, Target,
   History, PieChart, Image as ImageIcon, Repeat, Pin, Database, Palette, Gift, Calendar as CalendarIcon, Zap,
   Home, Edit3, Flag, Monitor, Dumbbell, Beer, Circle, Search, Calendar, Plane, Bus, FileText, Sun, Moon, CreditCard, 
   Check, CheckCircle, Banknote, BookOpen, Users, Download, Share2, Sparkles, Unlock, Lock, Globe, Store,
-  Smartphone, Landmark, ChevronUp, ChevronDown
+  Smartphone, Landmark, ChevronUp, ChevronDown, Handshake
 } from 'lucide-react';
 
 // ★ 分割したファイルを読み込む（パスは画像の設定に合わせています）
@@ -41,7 +41,68 @@ export default function SmartLifeOS() {
   const touchEndX = useRef<number | null>(null);
 
   const isSwipingRef = useRef(false);
-  
+
+  // 👇==== ここから追加 ====👇
+  const touchStartY = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => { 
+    touchStartX.current = e.targetTouches[0].clientX; 
+    touchStartY.current = e.targetTouches[0].clientY; 
+    isSwipingRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => { 
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
+    
+    const diffX = touchEndX.current - touchStartX.current;
+    const diffY = touchEndY.current - touchStartY.current;
+    if (Math.abs(diffX) > 15 || Math.abs(diffY) > 15) isSwipingRef.current = true; 
+  };
+
+  const handleTouchEnd = () => { 
+    if (touchStartX.current === null || touchEndX.current === null || touchStartY.current === null || touchEndY.current === null) {
+      touchStartX.current = null; touchEndX.current = null;
+      touchStartY.current = null; touchEndY.current = null;
+      setTimeout(() => { isSwipingRef.current = false; }, 100);
+      return;
+    }
+    
+    if (isSwipingRef.current) {
+      const diffX = touchEndX.current - touchStartX.current;
+      const diffY = touchEndY.current - touchStartY.current;
+      
+      // 左右のスワイプ（日付・週の移動）
+      if (Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX > 50) {
+          let startRelativeX = touchStartX.current;
+          const container = document.querySelector('.fixed-mobile-frame');
+          if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
+          if (startRelativeX < 40) setIsSidebarOpen(true);
+          else calendarRef.current?.getApi().prev();
+        } else if (diffX < -50) {
+          calendarRef.current?.getApi().next();
+        }
+      } 
+      // 上下のスワイプ（月・週・日ビューの切り替え）
+      else {
+        if (diffY > 50) {
+          if (viewType === 'timeGridDay') { setViewType('timeGridWeek'); calendarRef.current?.getApi().changeView('timeGridWeek'); }
+          else if (viewType === 'timeGridWeek') { setViewType('dayGridMonth'); calendarRef.current?.getApi().changeView('dayGridMonth'); }
+        } else if (diffY < -50) {
+          if (viewType === 'dayGridMonth') { setViewType('timeGridWeek'); calendarRef.current?.getApi().changeView('timeGridWeek'); }
+          else if (viewType === 'timeGridWeek') { setViewType('timeGridDay'); calendarRef.current?.getApi().changeView('timeGridDay'); }
+        }
+      }
+    }
+    touchStartX.current = null; touchEndX.current = null;
+    touchStartY.current = null; touchEndY.current = null;
+    setTimeout(() => { isSwipingRef.current = false; }, 100);
+  };
+  // 👆==== ここまで追加 ====👆
+
   // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -1134,6 +1195,84 @@ export default function SmartLifeOS() {
             </button>
           )}
         </div>
+      </div>
+    );
+  };
+
+  const ExpenseTypeSelector = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const options = [
+      { id: 'expense', label: '通常の支出', icon: TrendingDown, color: '#ef4444' },
+      { id: 'income', label: '収入・戻り', icon: TrendingUp, color: '#10b981' },
+      { id: 'advance', label: '立て替えた (貸し)', icon: Handshake, color: '#f59e0b' },
+      { id: 'borrow', label: '立て替えられた (借り)', icon: Users, color: '#3b82f6' }
+    ];
+    const current = options.find(o => o.id === value) || options[0];
+    const Icon = current.icon;
+    
+    return (
+      <div style={{ position: 'relative', flex: 1 }}>
+        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ height: '36px', fontSize: '0.8rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
+          <Icon size={16} color={current.color} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
+          {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
+        </div>
+        {isOpen && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflow: 'hidden', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {options.map(o => {
+              const OptIcon = o.icon;
+              return (
+                <div key={o.id} onClick={() => { onChange(o.id); setIsOpen(false); }} style={{ padding: '10px 8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main)', background: value === o.id ? 'var(--input-bg)' : 'transparent', borderRadius: '8px', transition: 'background 0.2s' }}>
+                  <OptIcon size={16} color={o.color} style={{ flexShrink: 0 }} />
+                  {o.label}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // 👇 追加：支払い方法のスマートアイコン・セレクト
+  const PaymentMethodSelector = ({ value, onChange, isIncome }: { value: string, onChange: (val: string) => void, isIncome: boolean }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const methods = isIncome 
+      ? [
+          { id: 'bank', label: '振込・口座', icon: Landmark, color: 'var(--theme)' },
+          { id: 'cash', label: '現金・手渡し', icon: Banknote, color: 'var(--theme)' },
+          { id: 'paypay', label: '電子マネー', icon: Smartphone, color: 'var(--theme)' }
+        ]
+      : [
+          { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
+          { id: 'credit', label: 'クレカ', icon: CreditCard, color: 'var(--theme)' },
+          { id: 'paypay', label: 'スマホ決済', icon: Smartphone, color: 'var(--theme)' },
+          { id: 'ic', label: '交通系IC', icon: Train, color: 'var(--theme)' },
+          { id: 'reimburse', label: '立替 (要精算)', icon: Repeat, color: '#f59e0b' }
+        ];
+    const current = methods.find(m => m.id === value) || methods[0];
+    const Icon = current.icon;
+
+    return (
+      <div style={{ position: 'relative', width: '120px', flexShrink: 0 }}>
+        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ height: '36px', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
+          <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
+          {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
+        </div>
+        {isOpen && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, width: '140px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflow: 'hidden', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {methods.map(m => {
+              const OptIcon = m.icon;
+              return (
+                <div key={m.id} onClick={() => { onChange(m.id); setIsOpen(false); }} style={{ padding: '8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-main)', background: value === m.id ? 'var(--input-bg)' : 'transparent', borderRadius: '8px', transition: 'background 0.2s' }}>
+                  <OptIcon size={14} color={m.color} style={{ flexShrink: 0 }} />
+                  {m.label}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -2283,7 +2422,10 @@ useEffect(() => {
         )}
 
         {/* 👇 カレンダー全体ブロック */}
-        <div style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }}>
+        <div 
+          style={{ flex: 1, position: 'relative', padding: '0 6px 16px 6px', overflow: 'hidden' }}
+          onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+        >
           <div className="glass-panel" style={{ position: 'absolute', top: '2px', left: '0px', right: '0px', bottom: '16px', padding: '2px 4px', borderRadius: '20px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             
             {/* 👇 新しい「日毎」のカスタム円形ダッシュボードUI 👇 */}
@@ -3202,17 +3344,43 @@ useEffect(() => {
                     const isPastOrToday = new Date(startDate) <= new Date();
                     const showRecords = (mode === 'detail' || (mode === 'create' && isPastOrToday)) && currentCategoryObj?.fields && currentCategoryObj.fields.length > 0;
 
-                    const PaymentMethodSelector = ({ value, onChange, isIncome }: any) => {
+                    const PaymentMethodSelector = ({ value, onChange, isIncome }: { value: string, onChange: (val: string) => void, isIncome: boolean }) => {
+                      const [isOpen, setIsOpen] = useState(false);
                       const methods = isIncome 
-                        ? [{ id: 'bank', label: '振込', icon: Landmark }, { id: 'cash', label: '現金', icon: Banknote }, { id: 'paypay', label: '電子マネー', icon: Smartphone }]
-                        : [{ id: 'cash', label: '現金', icon: Banknote }, { id: 'credit', label: 'クレカ', icon: CreditCard }, { id: 'paypay', label: 'スマホ決済', icon: Smartphone }, { id: 'ic', label: '交通系IC', icon: Train }, { id: 'reimburse', label: '立替', icon: Repeat }];
+                        ? [
+                            { id: 'bank', label: '振込', icon: Landmark, color: 'var(--theme)' },
+                            { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
+                            { id: 'paypay', label: '電子マネー', icon: Smartphone, color: 'var(--theme)' }
+                          ]
+                        : [
+                            { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
+                            { id: 'credit', label: 'クレカ', icon: CreditCard, color: 'var(--theme)' },
+                            { id: 'paypay', label: 'スマホ', icon: Smartphone, color: 'var(--theme)' },
+                            { id: 'ic', label: '交通IC', icon: Train, color: 'var(--theme)' }
+                          ];
+                      const current = methods.find(m => m.id === value) || methods[0];
+                      const Icon = current.icon;
+
                       return (
-                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginTop: '12px' }} className="hide-scrollbar">
-                          {methods.map(m => (
-                            <button key={m.id} type="button" onClick={(e) => { e.preventDefault(); onChange(m.id); }} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '8px 12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', background: value === m.id ? 'var(--theme)' : 'var(--input-bg)', color: value === m.id ? '#fff' : 'var(--text-sub)', border: `1px solid ${value === m.id ? 'var(--theme)' : 'var(--border-color)'}`, whiteSpace: 'nowrap', transition: 'all 0.2s', cursor: 'pointer', boxShadow: value === m.id ? '0 4px 10px rgba(0,0,0,0.1)' : 'none' }}>
-                              <m.icon size={16} /> {m.label}
-                            </button>
-                          ))}
+                        <div style={{ position: 'relative', flex: 1, minWidth: '100px' }}>
+                          <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ height: '36px', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
+                            <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{current.label}</span>
+                            {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
+                          </div>
+                          {isOpen && (
+                            <div style={{ position: 'absolute', top: '100%', left: 0, width: '130px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflow: 'hidden', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {methods.map(m => {
+                                const OptIcon = m.icon;
+                                return (
+                                  <div key={m.id} onClick={() => { onChange(m.id); setIsOpen(false); }} style={{ padding: '8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-main)', background: value === m.id ? 'var(--input-bg)' : 'transparent', borderRadius: '8px' }}>
+                                    <OptIcon size={14} color={m.color} style={{ flexShrink: 0 }} />
+                                    {m.label}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     };
@@ -3316,12 +3484,12 @@ useEffect(() => {
                           <input type="text" className="pop-input" style={{ flex: 1 }} value={location} onChange={e => setLocation(e.target.value)} placeholder="目的地を入力" />
                         </div>
 
-                        {/* 💰 支出を記録（開閉式） */}
+                        {/* 💰 支出・立替を記録（複数対応 ＋ スマートUI） */}
                         <div className="card-box" style={{ margin: 0, padding: 0, background: customFieldsData.isExpenseSet ? 'var(--input-bg)' : 'transparent', borderStyle: customFieldsData.isExpenseSet ? 'solid' : 'dashed', overflow: 'hidden' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: 1 }}>
                               <input type="checkbox" checked={customFieldsData.isExpenseSet || false} onChange={e => { handleCustomFieldChange('isExpenseSet', e.target.checked); if (e.target.checked && !expandedBlocks.includes('expense')) toggleBlock('expense'); }} />
-                              <CreditCard size={16} style={{ color: 'var(--theme)' }} /> 支出を記録する
+                              <CreditCard size={16} style={{ color: 'var(--theme)' }} /> 支出・立替を記録する
                             </label>
                             {customFieldsData.isExpenseSet && (
                               <button type="button" onClick={() => toggleBlock('expense')} style={{ background: 'transparent', border: 'none', color: 'var(--text-sub)', cursor: 'pointer', display: 'flex' }}>
@@ -3329,21 +3497,113 @@ useEffect(() => {
                               </button>
                             )}
                           </div>
-                          {customFieldsData.isExpenseSet && expandedBlocks.includes('expense') && (
-                            <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <select className="pop-input" style={{ flex: 1, fontSize: '0.85rem', padding: '0 8px', height: '40px' }} value={customFieldsData.expenseCategory || categoryName || ''} onChange={e => handleCustomFieldChange('expenseCategory', e.target.value)}>
-                                  <option value="">ジャンル未設定</option>
-                                  {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
-                                </select>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-                                  <input type="number" className="pop-input" style={{ flex: 1, textAlign: 'right', fontSize: '1.2rem', fontWeight: 'bold', color: '#ef4444', padding: '0 8px', height: '40px' }} placeholder="金額" value={customFieldsData.standardExpenseAmount || ''} onChange={e => handleCustomFieldChange('standardExpenseAmount', e.target.value)} />
-                                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
-                                </div>
+                          {customFieldsData.isExpenseSet && expandedBlocks.includes('expense') && (() => {
+                            const expensesList = customFieldsData.expenses || [{
+                              id: Date.now(), 
+                              type: 'expense', 
+                              category: customFieldsData.expenseCategory || categoryName || '', 
+                              amount: customFieldsData.standardExpenseAmount || '', 
+                              method: customFieldsData.paymentMethod || 'cash', 
+                              payee: ''
+                            }];
+
+                            const updateExpense = (id: number, key: string, value: any) => {
+                              const newList = expensesList.map((e: any) => e.id === id ? { ...e, [key]: value } : e);
+                              handleCustomFieldChange('expenses', newList);
+                              if (newList[0].id === id) {
+                                if (key === 'amount') handleCustomFieldChange('standardExpenseAmount', value);
+                                if (key === 'category') handleCustomFieldChange('expenseCategory', value);
+                                if (key === 'method') handleCustomFieldChange('paymentMethod', value);
+                              }
+                            };
+
+                            const addExpense = () => {
+                              handleCustomFieldChange('expenses', [...expensesList, { id: Date.now(), type: 'expense', category: '', amount: '', method: 'cash', payee: '' }]);
+                            };
+
+                            const removeExpense = (id: number) => {
+                              if (expensesList.length <= 1) return;
+                              handleCustomFieldChange('expenses', expensesList.filter((e: any) => e.id !== id));
+                            };
+
+                            // 過去のイベントから「相手の名前/内容」の重複なしリストを作成
+                            const pastPayees = Array.from(new Set(events.flatMap(e => e.extendedProps?.metadata?.customFields?.expenses?.map((ex: any) => ex.payee)).filter(Boolean)));
+
+                            return (
+                              <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px' }}>
+                                {expensesList.map((exp: any, index: number) => {
+                                  const isIncome = exp.type === 'income' || exp.type === 'borrow';
+                                  const isAdvanceOrBorrow = exp.type === 'advance' || exp.type === 'borrow';
+
+                                  return (
+                                    <div key={exp.id} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: index < expensesList.length - 1 ? '1px dashed var(--border-color)' : 'none' }}>
+                                      
+                                      {/* 1行目: 支出タイプ ＆ (相手の名前 OR 支払い方法リスト) ＆ 削除ボタン */}
+                                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                                        <div style={{ flex: 1.2 }}>
+                                          <ExpenseTypeSelector value={exp.type} onChange={(val) => updateExpense(exp.id, 'type', val)} />
+                                        </div>
+                                        
+                                        {isAdvanceOrBorrow ? (
+                                          <div style={{ flex: 1, position: 'relative' }}>
+                                            {/* 👇 相手の名前：文字サイズを小さく、datalistでサジェスト可能に */}
+                                            <input 
+                                              type="text" 
+                                              list={`payee-list-${exp.id}`} 
+                                              className="pop-input" 
+                                              style={{ width: '100%', height: '36px', fontSize: '0.6rem', padding: '0 8px' }} 
+                                              placeholder="相手の名前" 
+                                              value={exp.payee || ''} 
+                                              onChange={e => updateExpense(exp.id, 'payee', e.target.value)} 
+                                            />
+                                            <datalist id={`payee-list-${exp.id}`}>
+                                              {pastPayees.map((p: any, i) => <option key={i} value={p} />)}
+                                            </datalist>
+                                          </div>
+                                        ) : (
+                                          <PaymentMethodSelector value={exp.method || 'cash'} onChange={(val: string) => updateExpense(exp.id, 'method', val)} isIncome={isIncome} />
+                                        )}
+                                        
+                                        {expensesList.length > 1 && (
+                                          <button onClick={(e) => { e.preventDefault(); removeExpense(exp.id); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', padding: '4px', cursor: 'pointer', flexShrink: 0 }}><Trash2 size={18} /></button>
+                                        )}
+                                      </div>
+
+                                      {/* 2行目: 内容 ＆ 金額 */}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{ flex: 1 }}>
+                                          <input 
+                                            type="text" 
+                                            className="pop-input" 
+                                            style={{ width: '100%', height: '36px', fontSize: '0.8rem', padding: '0 8px' }} 
+                                            placeholder="内容 (任意)" 
+                                            value={exp.description || ''} 
+                                            onChange={e => updateExpense(exp.id, 'description', e.target.value)} 
+                                          />
+                                        </div>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '110px' }}>
+                                          <input 
+                                            type="number" 
+                                            className="pop-input no-spin" 
+                                            style={{ width: '100%', textAlign: 'right', fontSize: '1.1rem', fontWeight: 'bold', color: isIncome ? '#10b981' : '#ef4444', padding: '0 8px', height: '36px' }} 
+                                            placeholder="0" 
+                                            value={exp.amount} 
+                                            onChange={e => updateExpense(exp.id, 'amount', e.target.value)} 
+                                          />
+                                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
+                                        </div>
+                                      </div>
+
+                                    </div>
+                                  );
+                                })}
+                                <button onClick={(e) => { e.preventDefault(); addExpense(); }} className="btn-secondary" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                                  ＋ 別の支出・立替を追加
+                                </button>
                               </div>
-                              <PaymentMethodSelector value={customFieldsData.paymentMethod || 'cash'} onChange={(val: string) => handleCustomFieldChange('paymentMethod', val)} isIncome={false} />
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
 
                         {/* 🚩 集合・出発時間を設定（開閉式） */}
@@ -3398,16 +3658,41 @@ useEffect(() => {
                           </div>
                           {customFieldsData.isTransit && expandedBlocks.includes('transit') && (
                             <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                              <select className="pop-input" value={customFieldsData.transitType || 'train'} onChange={e => handleCustomFieldChange('transitType', e.target.value)} style={{ height: '36px', fontSize: '0.75rem' }}>
-                                <option value="train"> 新幹線・電車</option>
-                                <option value="plane"> 飛行機</option>
-                                <option value="bus"> 高速バス・夜行バス</option>
-                              </select>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>乗車:</span><input type="time" className="pop-input" value={customFieldsData.transitDepTime || '10:00'} onChange={e => handleCustomFieldChange('transitDepTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>〜</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>降車:</span><input type="time" className="pop-input" value={customFieldsData.transitArrTime || '12:00'} onChange={e => handleCustomFieldChange('transitArrTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
+                              
+                              {/* 行き（往路） */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)' }}>往路（行き）</span>
+                                <select className="pop-input" value={customFieldsData.transitType || 'train'} onChange={e => handleCustomFieldChange('transitType', e.target.value)} style={{ height: '36px', fontSize: '0.75rem' }}>
+                                  <option value="train"> 新幹線・電車</option>
+                                  <option value="plane"> 飛行機</option>
+                                  <option value="bus"> 高速バス・夜行バス</option>
+                                </select>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{customFieldsData.transitType === 'plane' ? '搭乗:' : '乗車:'}</span><input type="time" className="pop-input" value={customFieldsData.transitDepTime || '10:00'} onChange={e => handleCustomFieldChange('transitDepTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>〜</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{customFieldsData.transitType === 'plane' ? '到着:' : '降車:'}</span><input type="time" className="pop-input" value={customFieldsData.transitArrTime || '12:00'} onChange={e => handleCustomFieldChange('transitArrTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
+                                </div>
                               </div>
+
+                              {/* 帰り（復路） */}
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', marginTop: '8px' }}>
+                                <input type="checkbox" checked={customFieldsData.hasReturnTransit || false} onChange={e => handleCustomFieldChange('hasReturnTransit', e.target.checked)} /> 復路（帰り）も記録する
+                              </label>
+                              {customFieldsData.hasReturnTransit && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--input-bg)', borderRadius: '12px' }}>
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)' }}>復路（帰り）</span>
+                                  <select className="pop-input" value={customFieldsData.returnTransitType || 'train'} onChange={e => handleCustomFieldChange('returnTransitType', e.target.value)} style={{ height: '36px', fontSize: '0.75rem' }}>
+                                    <option value="train"> 新幹線・電車</option>
+                                    <option value="plane"> 飛行機</option>
+                                    <option value="bus"> 高速バス・夜行バス</option>
+                                  </select>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{customFieldsData.returnTransitType === 'plane' ? '搭乗:' : '出発:'}</span><input type="time" className="pop-input" value={customFieldsData.returnTransitDepTime || '18:00'} onChange={e => handleCustomFieldChange('returnTransitDepTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>〜</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}><span style={{ fontSize: '0.75rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{customFieldsData.returnTransitType === 'plane' ? '到着:' : '到着:'}</span><input type="time" className="pop-input" value={customFieldsData.returnTransitArrTime || '20:00'} onChange={e => handleCustomFieldChange('returnTransitArrTime', e.target.value)} style={{ padding: '0 8px', fontSize: '0.9rem', width: '100%' }} /></div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

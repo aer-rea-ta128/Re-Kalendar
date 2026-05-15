@@ -216,19 +216,28 @@ export default function CategoryStudio({
             <div 
               key={c.name} 
               draggable
-              onDragStart={() => dragItem.current = catIndex}
-              onDragEnter={() => {
+              onDragStart={(e) => {
+                dragItem.current = catIndex;
+                e.currentTarget.style.opacity = '0.5';
+              }}
+              onDragEnter={(e) => {
                 if (dragItem.current !== null && dragItem.current !== catIndex) {
                   const newCats = [...categories];
                   const dragged = newCats.splice(dragItem.current, 1)[0];
                   newCats.splice(catIndex, 0, dragged);
                   dragItem.current = catIndex;
+                  // 即時反映
                   setCategories(newCats);
                 }
               }}
-              onDragEnd={() => dragItem.current = null}
+              onDragEnd={(e) => {
+                dragItem.current = null;
+                e.currentTarget.style.opacity = '1';
+                // 並べ替えが確定したタイミングでローカルストレージにも保存する
+                localStorage.setItem('os_categories', JSON.stringify(categories));
+              }}
               onDragOver={(e) => e.preventDefault()}
-              style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}
+              style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)', cursor: 'grab' }}
             >
               
               {/* ジャンル名と色の編集 */}
