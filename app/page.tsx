@@ -324,7 +324,7 @@ export default function SmartLifeOS() {
   const draggableRef = useRef<HTMLDivElement>(null);
   const [isAllDayBackground, setIsAllDayBackground] = useState(false);
   const [useEventColorForTitle, setUseEventColorForTitle] = useState(false);
-  const [expandedBlocks, setExpandedBlocks] = useState<string[]>(['expense', 'gathering', 'transit']);
+  const [expandedBlocks, setExpandedBlocks] = useState<string[]>([]); // 👈 初期値を空にする
   const toggleBlock = (b: string) => setExpandedBlocks(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
 
   useEffect(() => {
@@ -844,7 +844,7 @@ export default function SmartLifeOS() {
     const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1); setEndDate(toLocalYYYYMMDD(adjEnd));
     setTitle(''); setLocation(''); setIsGathering(false); setGatheringTime(''); setDepartureTime(''); setDepartureType(startPointType === 'station' ? 'train' : 'home'); setSelectedDays([]);
     
-    // 👇 修正：カレンダーのマスをタップして新しく追加する際も、過去の「支出」などの設定を確実にリセットする
+    // 👇 修正：カレンダーのマスをタップして追加する際も、すべての設定とバーの開閉を確実にリセットする
     setCustomFieldsData({});
     setExpandedBlocks([]);
     
@@ -919,12 +919,14 @@ export default function SmartLifeOS() {
     setIsPinned(props.metadata?.isPinned || false);
     setIsStocked(props.metadata?.isStocked || false);
     setIsTentative(props.metadata?.isTentative || false);
+    setIsTentative(props.metadata?.isTentative || false);
+    setExpandedBlocks([]);
     
-    // 👇 追加：既存のデータがある場合のみバーを展開状態にする
+    // 👇 追加：既存のデータがある場合のみバーを展開状態にする（支出はデフォルトで閉じる）
     const newExpanded = [];
     if (props.metadata?.isGathering) newExpanded.push('gathering');
     if (props.metadata?.customFields?.isTransit) newExpanded.push('transit');
-    if (props.metadata?.customFields?.isExpenseSet) newExpanded.push('expense');
+    // expenseはデフォルトで閉じた状態にするため追加しない
     setExpandedBlocks(newExpanded);
 
     const startDateStr = props.metadata?.startDateStr || (props.start_at ? props.start_at.split('T')[0] : toLocalYYYYMMDD(event.start));
@@ -1197,16 +1199,15 @@ export default function SmartLifeOS() {
     );
   };
 
+  // 👇 支出タイプのスマートアイコン・セレクト
   const ExpenseTypeSelector = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
     const selectorRef = useRef<HTMLDivElement>(null);
 
-    // 👇 外側をクリックした時に閉じる処理
+    // 外側をクリックした時に閉じる処理
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-        if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
+        if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) setIsOpen(false);
       };
       if (isOpen) {
         document.addEventListener('mousedown', handleClickOutside);
@@ -1228,20 +1229,19 @@ export default function SmartLifeOS() {
     const Icon = current.icon;
     
     return (
-      <div ref={selectorRef} style={{ position: 'relative', flex: 1, minWidth: '130px' }}>
-        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ height: '36px', fontSize: '0.8rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
-          <Icon size={16} color={current.color} style={{ flexShrink: 0 }} />
+      <div ref={selectorRef} style={{ position: 'relative', width: '100%' }}>
+        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ width: '100%', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
+          <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
           {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
         </div>
         {isOpen && (
-          // 👇 maxHeight を設定し、スクロール可能に
-          <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '180px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', minWidth: '140px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '160px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {options.map(o => {
               const OptIcon = o.icon;
               return (
-                <div key={o.id} onClick={() => { onChange(o.id); setIsOpen(false); }} style={{ padding: '10px 8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main)', background: value === o.id ? 'var(--input-bg)' : 'transparent', borderRadius: '8px', transition: 'background 0.2s' }}>
-                  <OptIcon size={16} color={o.color} style={{ flexShrink: 0 }} />
+                <div key={o.id} onClick={() => { onChange(o.id); setIsOpen(false); }} style={{ padding: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-main)', background: value === o.id ? 'var(--input-bg)' : 'transparent', borderRadius: '8px', transition: 'background 0.2s' }}>
+                  <OptIcon size={14} color={o.color} style={{ flexShrink: 0 }} />
                   {o.label}
                 </div>
               );
@@ -1252,57 +1252,52 @@ export default function SmartLifeOS() {
     );
   };
 
-  // 👇 追加：支払い方法のスマートアイコン・セレクト
   const PaymentMethodSelector = ({ value, onChange, isIncome }: { value: string, onChange: (val: string) => void, isIncome: boolean }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const selectorRef = useRef<HTMLDivElement>(null);
+                      const [isOpen, setIsOpen] = useState(false);
+                      const selectorRef = useRef<HTMLDivElement>(null);
 
-    // 👇 外側をクリックした時に閉じる処理
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-        if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
-      };
-      if (isOpen) {
-        document.addEventListener('mousedown', handleClickOutside);
-        document.addEventListener('touchstart', handleClickOutside);
-      }
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('touchstart', handleClickOutside);
-      };
-    }, [isOpen]);
+                      useEffect(() => {
+                        const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+                          if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) setIsOpen(false);
+                        };
+                        if (isOpen) {
+                          document.addEventListener('mousedown', handleClickOutside);
+                          document.addEventListener('touchstart', handleClickOutside);
+                        }
+                        return () => {
+                          document.removeEventListener('mousedown', handleClickOutside);
+                          document.removeEventListener('touchstart', handleClickOutside);
+                        };
+                      }, [isOpen]);
 
-    const methods = isIncome 
-      ? [
-          { id: 'bank', label: '振込', icon: Landmark, color: 'var(--theme)' },
-          { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
-          { id: 'paypay', label: '電子マネー', icon: Smartphone, color: 'var(--theme)' }
-        ]
-      : [
-          { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
-          { id: 'credit', label: 'クレカ', icon: CreditCard, color: 'var(--theme)' },
-          { id: 'paypay', label: 'スマホ', icon: Smartphone, color: 'var(--theme)' },
-          { id: 'ic', label: '交通IC', icon: Train, color: 'var(--theme)' }
-        ];
-    const current = methods.find(m => m.id === value) || methods[0];
-    const Icon = current.icon;
+                      const methods = isIncome 
+                        ? [
+                            { id: 'bank', label: '振込', icon: Landmark, color: 'var(--theme)' },
+                            { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
+                            { id: 'paypay', label: '電子マネー', icon: Smartphone, color: 'var(--theme)' }
+                          ]
+                        : [
+                            { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
+                            { id: 'credit', label: 'クレカ', icon: CreditCard, color: 'var(--theme)' },
+                            { id: 'paypay', label: 'スマホ', icon: Smartphone, color: 'var(--theme)' },
+                            { id: 'ic', label: '交通IC', icon: Train, color: 'var(--theme)' }
+                          ];
+                      const current = methods.find(m => m.id === value) || methods[0];
+                      const Icon = current.icon;
 
-    return (
-      <div ref={selectorRef} style={{ position: 'relative', width: '110px', flexShrink: 0 }}>
-        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ height: '36px', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
-          <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{current.label}</span>
+                      return (
+                        <div style={{ position: 'relative', flex: 1, minWidth: '100px' }}>
+                          <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
+                            <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
           {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
         </div>
         {isOpen && (
-          // 👇 maxHeight を設定し、スクロール可能に
-          <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '130px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '180px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', minWidth: '120px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '160px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {methods.map(m => {
               const OptIcon = m.icon;
               return (
-                <div key={m.id} onClick={() => { onChange(m.id); setIsOpen(false); }} style={{ padding: '8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-main)', background: value === m.id ? 'var(--input-bg)' : 'transparent', borderRadius: '8px', transition: 'background 0.2s' }}>
+                <div key={m.id} onClick={() => { onChange(m.id); setIsOpen(false); }} style={{ padding: '8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-main)', background: value === m.id ? 'var(--input-bg)' : 'transparent', borderRadius: '8px', transition: 'background 0.2s' }}>
                   <OptIcon size={14} color={m.color} style={{ flexShrink: 0 }} />
                   {m.label}
                 </div>
@@ -2400,8 +2395,11 @@ useEffect(() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
                 setMode('create'); setStartDate(today); setEndDate(today);
                 setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsAllDayBackground(false); setIsModalOpen(true);setIsTentative(false);
-                setExpandedBlocks([]); // 👈 追加：開いているバーを全て閉じる
+                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsAllDayBackground(false); setIsModalOpen(true); setIsTentative(false);
+                // 👇 修正：以前開いていたメニューを確実にすべて閉じてリセットする
+                setCustomFieldsData({});
+                setIsGathering(false);
+                setExpandedBlocks([]);
               }}
               style={{ background: 'var(--theme)', color: '#fff', fontSize: '2rem', fontWeight: 'bold', width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '4px', lineHeight: 0, flexShrink: 0 }}
             >
@@ -3575,8 +3573,8 @@ useEffect(() => {
                           <input type="text" className="pop-input" style={{ flex: 1 }} value={location} onChange={e => setLocation(e.target.value)} placeholder="目的地を入力" />
                         </div>
 
-                        {/* 💰 支出・立替を記録（複数対応 ＋ スマートUI） */}
-                        <div className="card-box" style={{ margin: 0, padding: 0, background: customFieldsData.isExpenseSet ? 'var(--input-bg)' : 'transparent', borderStyle: customFieldsData.isExpenseSet ? 'solid' : 'dashed', overflow: 'hidden' }}>
+                        {/* 💰 支出・立替を記録（バグ修正・レイアウト調整版） */}
+                        <div className="card-box" style={{ margin: 0, padding: 0, background: customFieldsData.isExpenseSet ? 'var(--input-bg)' : 'transparent', borderStyle: customFieldsData.isExpenseSet ? 'solid' : 'dashed', overflow: 'visible' }}> {/* 👈 hidden を visible に変更しリスト見切れを解消 */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: 1 }}>
                               <input type="checkbox" checked={customFieldsData.isExpenseSet || false} onChange={e => { handleCustomFieldChange('isExpenseSet', e.target.checked); if (e.target.checked && !expandedBlocks.includes('expense')) toggleBlock('expense'); }} />
@@ -3600,12 +3598,21 @@ useEffect(() => {
 
                             const updateExpense = (id: number, key: string, value: any) => {
                               const newList = expensesList.map((e: any) => e.id === id ? { ...e, [key]: value } : e);
-                              handleCustomFieldChange('expenses', newList);
-                              if (newList[0].id === id) {
-                                if (key === 'amount') handleCustomFieldChange('standardExpenseAmount', value);
-                                if (key === 'category') handleCustomFieldChange('expenseCategory', value);
-                                if (key === 'method') handleCustomFieldChange('paymentMethod', value);
-                              }
+                              // 👇 金額入力バグの修正：ステートの更新競合を防ぐため一括で処理する
+                              setCustomFieldsData((prev: any) => {
+                                const newData = { ...prev, expenses: newList };
+                                if (newList[0].id === id) {
+                                  if (key === 'amount') newData.standardExpenseAmount = value;
+                                  if (key === 'category') newData.expenseCategory = value;
+                                  if (key === 'method') newData.paymentMethod = value;
+                                }
+                                // DB即時反映
+                                if (mode === 'detail' && selectedId) {
+                                  const currentEvent = events.find((e: any) => e.id === selectedId);
+                                  if (currentEvent) supabase.from('events').update({ metadata: { ...(currentEvent.extendedProps.metadata || {}), customFields: newData } }).eq('id', selectedId);
+                                }
+                                return newData;
+                              });
                             };
 
                             const addExpense = () => {
@@ -3617,7 +3624,6 @@ useEffect(() => {
                               handleCustomFieldChange('expenses', expensesList.filter((e: any) => e.id !== id));
                             };
 
-                            // 過去のイベントから「相手の名前/内容」の重複なしリストを作成
                             const pastPayees = Array.from(new Set(events.flatMap(e => e.extendedProps?.metadata?.customFields?.expenses?.map((ex: any) => ex.payee)).filter(Boolean)));
 
                             return (
@@ -3629,59 +3635,43 @@ useEffect(() => {
                                   return (
                                     <div key={exp.id} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: index < expensesList.length - 1 ? '1px dashed var(--border-color)' : 'none' }}>
                                       
-                                      {/* 1行目: 支出タイプ ＆ (相手の名前 OR 支払い方法リスト) ＆ 削除ボタン */}
-                                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                                        <div style={{ flex: 1.2 }}>
+                                      {/* 1行目: 支出タイプ(比率2) ＆ (相手 or 支払い方法(比率1)) ＆ 削除ボタン */}
+                                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', width: '100%' }}>
+                                        <div style={{ flex: 2, minWidth: 0 }}>
                                           <ExpenseTypeSelector value={exp.type} onChange={(val) => updateExpense(exp.id, 'type', val)} />
                                         </div>
                                         
-                                        {isAdvanceOrBorrow ? (
-                                          <div style={{ flex: 1, position: 'relative' }}>
-                                            {/* 👇 相手の名前：文字サイズを小さく、datalistでサジェスト可能に */}
-                                            <input 
-                                              type="text" 
-                                              list={`payee-list-${exp.id}`} 
-                                              className="pop-input" 
-                                              style={{ width: '100%', height: '36px', fontSize: '0.6rem', padding: '0 8px' }} 
-                                              placeholder="相手の名前" 
-                                              value={exp.payee || ''} 
-                                              onChange={e => updateExpense(exp.id, 'payee', e.target.value)} 
-                                            />
-                                            <datalist id={`payee-list-${exp.id}`}>
-                                              {pastPayees.map((p: any, i) => <option key={i} value={p} />)}
-                                            </datalist>
-                                          </div>
-                                        ) : (
-                                          <PaymentMethodSelector value={exp.method || 'cash'} onChange={(val: string) => updateExpense(exp.id, 'method', val)} isIncome={isIncome} />
-                                        )}
+                                        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                                          {isAdvanceOrBorrow ? (
+                                            <>
+                                              <input type="text" list={`payee-list-${exp.id}`} className="pop-input" style={{ width: '100%', fontSize: '0.65rem', padding: '0 6px' }} placeholder="相手の名前" value={exp.payee || ''} onChange={e => updateExpense(exp.id, 'payee', e.target.value)} />
+                                              <datalist id={`payee-list-${exp.id}`}>
+                                                {pastPayees.map((p: any, i) => <option key={i} value={p} />)}
+                                              </datalist>
+                                            </>
+                                          ) : (
+                                            <PaymentMethodSelector value={exp.method || 'cash'} onChange={(val: string) => updateExpense(exp.id, 'method', val)} isIncome={isIncome} />
+                                          )}
+                                        </div>
                                         
                                         {expensesList.length > 1 && (
-                                          <button onClick={(e) => { e.preventDefault(); removeExpense(exp.id); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', padding: '4px', cursor: 'pointer', flexShrink: 0 }}><Trash2 size={18} /></button>
+                                          <button onClick={(e) => { e.preventDefault(); removeExpense(exp.id); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', display: 'flex', alignItems: 'center', padding: '0 4px', cursor: 'pointer', flexShrink: 0 }}>
+                                            <Trash2 size={18} />
+                                          </button>
                                         )}
                                       </div>
 
                                       {/* 2行目: 内容 ＆ 金額 */}
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div style={{ flex: 1 }}>
-                                          <input 
-                                            type="text" 
-                                            className="pop-input" 
-                                            style={{ width: '100%', height: '36px', fontSize: '0.8rem', padding: '0 8px' }} 
-                                            placeholder="内容 (任意)" 
-                                            value={exp.description || ''} 
-                                            onChange={e => updateExpense(exp.id, 'description', e.target.value)} 
-                                          />
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                                        <div style={{ flex: 1, position: 'relative' }}>
+                                          <input type="text" className="pop-input" style={{ width: '100%', fontSize: '0.8rem', padding: '0 8px' }} placeholder="内容 (任意)" value={exp.description || (!isAdvanceOrBorrow ? exp.payee : '')} onChange={e => {
+                                            updateExpense(exp.id, 'description', e.target.value);
+                                            if (!isAdvanceOrBorrow) updateExpense(exp.id, 'payee', e.target.value);
+                                          }} />
                                         </div>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '110px' }}>
-                                          <input 
-                                            type="number" 
-                                            className="pop-input no-spin" 
-                                            style={{ width: '100%', textAlign: 'right', fontSize: '1.1rem', fontWeight: 'bold', color: isIncome ? '#10b981' : '#ef4444', padding: '0 8px', height: '36px' }} 
-                                            placeholder="0" 
-                                            value={exp.amount} 
-                                            onChange={e => updateExpense(exp.id, 'amount', e.target.value)} 
-                                          />
+                                          <input type="number" className="pop-input no-spin" style={{ width: '100%', textAlign: 'right', fontSize: '1.1rem', fontWeight: 'bold', color: isIncome ? '#10b981' : '#ef4444', padding: '0 8px' }} placeholder="0" value={exp.amount} onChange={e => updateExpense(exp.id, 'amount', e.target.value)} />
                                           <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
                                         </div>
                                       </div>
@@ -3689,7 +3679,7 @@ useEffect(() => {
                                     </div>
                                   );
                                 })}
-                                <button onClick={(e) => { e.preventDefault(); addExpense(); }} className="btn-secondary" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', gap: '6px' }}>
+                                <button onClick={(e) => { e.preventDefault(); addExpense(); }} className="btn-secondary" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '4px' }}>
                                   ＋ 別の支出・立替を追加
                                 </button>
                               </div>
