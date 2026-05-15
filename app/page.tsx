@@ -74,7 +74,7 @@ export default function SmartLifeOS() {
       const diffX = touchEndX.current - touchStartX.current;
       const diffY = touchEndY.current - touchStartY.current;
       
-      // 左右のスワイプ（日付・週の移動）
+      // 左右のスワイプ（日付・週の移動）のみ処理。上下は通常スクロールに任せる。
       if (Math.abs(diffX) > Math.abs(diffY)) {
         if (diffX > 50) {
           let startRelativeX = touchStartX.current;
@@ -84,16 +84,6 @@ export default function SmartLifeOS() {
           else calendarRef.current?.getApi().prev();
         } else if (diffX < -50) {
           calendarRef.current?.getApi().next();
-        }
-      } 
-      // 上下のスワイプ（月・週・日ビューの切り替え）
-      else {
-        if (diffY > 50) {
-          if (viewType === 'timeGridDay') { setViewType('timeGridWeek'); calendarRef.current?.getApi().changeView('timeGridWeek'); }
-          else if (viewType === 'timeGridWeek') { setViewType('dayGridMonth'); calendarRef.current?.getApi().changeView('dayGridMonth'); }
-        } else if (diffY < -50) {
-          if (viewType === 'dayGridMonth') { setViewType('timeGridWeek'); calendarRef.current?.getApi().changeView('timeGridWeek'); }
-          else if (viewType === 'timeGridWeek') { setViewType('timeGridDay'); calendarRef.current?.getApi().changeView('timeGridDay'); }
         }
       }
     }
@@ -856,6 +846,7 @@ export default function SmartLifeOS() {
     
     // 👇 修正：カレンダーのマスをタップして新しく追加する際も、過去の「支出」などの設定を確実にリセットする
     setCustomFieldsData({});
+    setExpandedBlocks([]);
     
     if (info.allDay) {
       const nowH = new Date().getHours(); setStartH(String(nowH).padStart(2, '0')); setStartM('00'); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0')); setEndM('00');
@@ -928,6 +919,13 @@ export default function SmartLifeOS() {
     setIsPinned(props.metadata?.isPinned || false);
     setIsStocked(props.metadata?.isStocked || false);
     setIsTentative(props.metadata?.isTentative || false);
+    
+    // 👇 追加：既存のデータがある場合のみバーを展開状態にする
+    const newExpanded = [];
+    if (props.metadata?.isGathering) newExpanded.push('gathering');
+    if (props.metadata?.customFields?.isTransit) newExpanded.push('transit');
+    if (props.metadata?.customFields?.isExpenseSet) newExpanded.push('expense');
+    setExpandedBlocks(newExpanded);
 
     const startDateStr = props.metadata?.startDateStr || (props.start_at ? props.start_at.split('T')[0] : toLocalYYYYMMDD(event.start));
     const endDateStr = props.metadata?.endDateStr || (props.end_at ? props.end_at.split('T')[0] : toLocalYYYYMMDD(event.end || event.start));
@@ -1201,6 +1199,25 @@ export default function SmartLifeOS() {
 
   const ExpenseTypeSelector = ({ value, onChange }: { value: string, onChange: (val: string) => void }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const selectorRef = useRef<HTMLDivElement>(null);
+
+    // 👇 外側をクリックした時に閉じる処理
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+        if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+      }
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+      };
+    }, [isOpen]);
+
     const options = [
       { id: 'expense', label: '通常の支出', icon: TrendingDown, color: '#ef4444' },
       { id: 'income', label: '収入・戻り', icon: TrendingUp, color: '#10b981' },
@@ -1211,14 +1228,15 @@ export default function SmartLifeOS() {
     const Icon = current.icon;
     
     return (
-      <div style={{ position: 'relative', flex: 1 }}>
+      <div ref={selectorRef} style={{ position: 'relative', flex: 1, minWidth: '130px' }}>
         <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ height: '36px', fontSize: '0.8rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
           <Icon size={16} color={current.color} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
           {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
         </div>
         {isOpen && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflow: 'hidden', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          // 👇 maxHeight を設定し、スクロール可能に
+          <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '180px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {options.map(o => {
               const OptIcon = o.icon;
               return (
@@ -1237,31 +1255,50 @@ export default function SmartLifeOS() {
   // 👇 追加：支払い方法のスマートアイコン・セレクト
   const PaymentMethodSelector = ({ value, onChange, isIncome }: { value: string, onChange: (val: string) => void, isIncome: boolean }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const selectorRef = useRef<HTMLDivElement>(null);
+
+    // 👇 外側をクリックした時に閉じる処理
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+        if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+      }
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+      };
+    }, [isOpen]);
+
     const methods = isIncome 
       ? [
-          { id: 'bank', label: '振込・口座', icon: Landmark, color: 'var(--theme)' },
-          { id: 'cash', label: '現金・手渡し', icon: Banknote, color: 'var(--theme)' },
+          { id: 'bank', label: '振込', icon: Landmark, color: 'var(--theme)' },
+          { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
           { id: 'paypay', label: '電子マネー', icon: Smartphone, color: 'var(--theme)' }
         ]
       : [
           { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
           { id: 'credit', label: 'クレカ', icon: CreditCard, color: 'var(--theme)' },
-          { id: 'paypay', label: 'スマホ決済', icon: Smartphone, color: 'var(--theme)' },
-          { id: 'ic', label: '交通系IC', icon: Train, color: 'var(--theme)' },
-          { id: 'reimburse', label: '立替 (要精算)', icon: Repeat, color: '#f59e0b' }
+          { id: 'paypay', label: 'スマホ', icon: Smartphone, color: 'var(--theme)' },
+          { id: 'ic', label: '交通IC', icon: Train, color: 'var(--theme)' }
         ];
     const current = methods.find(m => m.id === value) || methods[0];
     const Icon = current.icon;
 
     return (
-      <div style={{ position: 'relative', width: '120px', flexShrink: 0 }}>
+      <div ref={selectorRef} style={{ position: 'relative', width: '110px', flexShrink: 0 }}>
         <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ height: '36px', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
           <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
+          <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden' }}>{current.label}</span>
           {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
         </div>
         {isOpen && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, width: '140px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflow: 'hidden', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          // 👇 maxHeight を設定し、スクロール可能に
+          <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '130px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '180px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {methods.map(m => {
               const OptIcon = m.icon;
               return (
@@ -1341,8 +1378,10 @@ export default function SmartLifeOS() {
       const sT = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
       const eT = end ? `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}` : '';
       
+      const targetId = event.id.replace('-travel', '').replace('-transit-out', '').replace('-transit-ret', '');
+
       return (
-        <div data-travel-target={event.id.replace('-travel', '')} style={{
+        <div data-travel-target={targetId} style={{
           width: '100%', height: '100%', padding: '2px',
           background: 'transparent', border: `1.5px dashed ${cColor}`,
           borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
@@ -1809,9 +1848,8 @@ export default function SmartLifeOS() {
     const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
     const results = [];
 
-    // 移動ブロックの生成
+    // 出発・集合ブロックの生成
     if (metadata.isGathering && metadata.departureTime) {
-      // ✅ ここで変数(dh, dm, gh, gm, wTime)をしっかり定義します
       const [dh, dm] = metadata.departureTime.split(':').map(Number);
       const [gh, gm] = (metadata.gatheringTime || "12:00").split(':').map(Number);
       const wTime = parseInt(metadata.walkTime || walkTime || '0', 10);
@@ -1825,7 +1863,6 @@ export default function SmartLifeOS() {
 
       results.push({
         id: `${e.id}-travel`,
-        // 👇 groupId を追加して、幅計算のヒントをカレンダーに与える
         groupId: e.id, 
         title: `${moveStart.getHours()}:${String(moveStart.getMinutes()).padStart(2,'0')} → ${metadata.gatheringTime}`,
         start: moveStart.toISOString(),
@@ -1837,9 +1874,63 @@ export default function SmartLifeOS() {
       });
     }
 
+    // 👇 追加：交通機関（往復）ブロックの生成
+    if (metadata.customFields?.isTransit) {
+      if (metadata.customFields.transitDepTime && metadata.customFields.transitArrTime) {
+        const [dh, dm] = metadata.customFields.transitDepTime.split(':').map(Number);
+        const [ah, am] = metadata.customFields.transitArrTime.split(':').map(Number);
+        
+        const tStart = new Date(e.start);
+        tStart.setHours(dh, dm, 0);
+        
+        const tEnd = new Date(e.start);
+        tEnd.setHours(ah, am, 0);
+        if (tEnd < tStart) tEnd.setDate(tEnd.getDate() + 1);
+
+        results.push({
+          id: `${e.id}-transit-out`,
+          groupId: e.id, 
+          title: `行き`,
+          start: tStart.toISOString(),
+          end: tEnd.toISOString(),
+          allDay: false,
+          backgroundColor: 'transparent',
+          borderColor: cColor,
+          extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.transitType }
+        });
+      }
+
+      if (metadata.customFields.hasReturnTransit && metadata.customFields.returnTransitDepTime && metadata.customFields.returnTransitArrTime) {
+        const [dh, dm] = metadata.customFields.returnTransitDepTime.split(':').map(Number);
+        const [ah, am] = metadata.customFields.returnTransitArrTime.split(':').map(Number);
+        
+        // 復路は予定の終了日を基準にする
+        const retBase = e.end ? new Date(e.end) : new Date(e.start);
+        if (e.allDay && e.end) retBase.setDate(retBase.getDate() - 1); 
+        
+        const retStart = new Date(retBase);
+        retStart.setHours(dh, dm, 0);
+        
+        const retEnd = new Date(retBase);
+        retEnd.setHours(ah, am, 0);
+        if (retEnd < retStart) retEnd.setDate(retEnd.getDate() + 1);
+
+        results.push({
+          id: `${e.id}-transit-ret`,
+          groupId: e.id, 
+          title: `帰り`,
+          start: retStart.toISOString(),
+          end: retEnd.toISOString(),
+          allDay: false,
+          backgroundColor: 'transparent',
+          borderColor: cColor,
+          extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.returnTransitType }
+        });
+      }
+    }
+
     results.push({ 
       ...e, 
-      // 👇 本体にも同じ groupId を持たせる
       groupId: e.id, 
       extendedProps: { ...e.extendedProps, originalStart: e.start } 
     });
@@ -2309,8 +2400,8 @@ useEffect(() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
                 setMode('create'); setStartDate(today); setEndDate(today);
                 setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-                // 👇 追加：setIsAllDayBackground(false) で時間入力をデフォルトに！
                 setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsAllDayBackground(false); setIsModalOpen(true);setIsTentative(false);
+                setExpandedBlocks([]); // 👈 追加：開いているバーを全て閉じる
               }}
               style={{ background: 'var(--theme)', color: '#fff', fontSize: '2rem', fontWeight: 'bold', width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '4px', lineHeight: 0, flexShrink: 0 }}
             >
