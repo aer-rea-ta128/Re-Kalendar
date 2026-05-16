@@ -215,6 +215,7 @@ export default function CategoryStudio({
             return (
             <div 
               key={c.name} 
+              data-index={catIndex} // 👈 タッチ操作用の目印として追加
               draggable
               onDragStart={(e) => {
                 dragItem.current = catIndex;
@@ -237,7 +238,34 @@ export default function CategoryStudio({
                 localStorage.setItem('os_categories', JSON.stringify(categories));
               }}
               onDragOver={(e) => e.preventDefault()}
-              style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)', cursor: 'grab' }}
+              // 👇 スマホ（タッチ）用の処理を追加
+              onTouchStart={(e) => {
+                dragItem.current = catIndex;
+                e.currentTarget.style.opacity = '0.5';
+              }}
+              onTouchMove={(e) => {
+                if (dragItem.current === null) return;
+                const touch = e.touches[0];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                const dropTarget = target?.closest('[data-index]');
+                if (dropTarget) {
+                  const hoverIndex = parseInt(dropTarget.getAttribute('data-index') || '-1', 10);
+                  if (hoverIndex !== -1 && hoverIndex !== dragItem.current) {
+                    const newCats = [...categories];
+                    const dragged = newCats.splice(dragItem.current, 1)[0];
+                    newCats.splice(hoverIndex, 0, dragged);
+                    dragItem.current = hoverIndex;
+                    setCategories(newCats);
+                  }
+                }
+              }}
+              onTouchEnd={(e) => {
+                dragItem.current = null;
+                e.currentTarget.style.opacity = '1';
+                localStorage.setItem('os_categories', JSON.stringify(categories));
+              }}
+              // 👇 touchAction: 'none' を追加して画面のスクロールを防止
+              style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)', cursor: 'grab', touchAction: 'none' }}
             >
               
               {/* ジャンル名と色の編集 */}

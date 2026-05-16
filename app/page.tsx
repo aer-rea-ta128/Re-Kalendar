@@ -121,6 +121,11 @@ export default function SmartLifeOS() {
   // 👇 追加：収支グラフを開くための状態管理
   const [isFinanceGraphOpen, setIsFinanceGraphOpen] = useState(false);
   const [isScheduleAssistantOpen, setIsScheduleAssistantOpen] = useState(false);
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+
+  const [advanceTab, setAdvanceTab] = useState<'unsettled' | 'settled' | 'partners'>('unsettled');
+  const [customPayees, setCustomPayees] = useState<string[]>(() => loadData('os_customPayees', []));
+  const [newPayeeName, setNewPayeeName] = useState('');
   const [isTentative, setIsTentative] = useState(false);
   const [graphSpan, setGraphSpan] = useState<'month' | 'week'>('month');
   const [assistMode, setAssistMode] = useState<'send' | 'receive'>('send');
@@ -155,11 +160,11 @@ export default function SmartLifeOS() {
   };
 
   // --- 状態管理 ---
-  const loadData = (key: string, defaultData: any) => {
+  function loadData(key: string, defaultData: any) {
     if (typeof window === 'undefined') return defaultData;
     const saved = localStorage.getItem(key);
     try { return saved ? JSON.parse(saved) : defaultData; } catch (e) { return defaultData; }
-  };
+  }
 
   const [themeColor, setThemeColor] = useState(() => loadData('os_themeColor', '#4D96FF'));  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [userColors, setUserColors] = useState<string[]>(() => loadData('os_userColors', []));
@@ -373,6 +378,7 @@ export default function SmartLifeOS() {
     localStorage.setItem('os_station', JSON.stringify(nearestStation));
     localStorage.setItem('os_walkTime', JSON.stringify(walkTime));
     localStorage.setItem('os_startPointType', JSON.stringify(startPointType));
+    localStorage.setItem('os_customPayees', JSON.stringify(customPayees));
   }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor]); // 👈 配列の最後に themeColor を追加
 
   const activePresets: string[] = [...INITIAL_PRESETS, ...userColors];
@@ -855,8 +861,15 @@ export default function SmartLifeOS() {
       setStartH(String(s.getHours()).padStart(2, '0')); setStartM(String(s.getMinutes()).padStart(2, '0')); setEndH(String(e.getHours()).padStart(2, '0')); setEndM(String(e.getMinutes()).padStart(2, '0'));
     }
     setIsStocked(false);
-    // 👇 変更：カレンダーをタップした時も、常に時間指定をデフォルトにする
-    setIsAllDayBackground(false);
+
+    // 👇 修正：月カレンダーで「複数日（ドラッグして選択）」した場合は1日単位をデフォルトにする
+    const diffDays = Math.round((new Date(info.end).getTime() - new Date(info.start).getTime()) / (1000 * 60 * 60 * 24));
+    if (viewType === 'dayGridMonth' && diffDays > 1) {
+      setIsAllDayBackground(true);
+    } else {
+      setIsAllDayBackground(false);
+    }
+    
     setRepeatUntil(toLocalYYYYMMDD(new Date(adjEnd.getFullYear(), adjEnd.getMonth() + 1, 0))); setIsModalOpen(true);
   };
 
@@ -918,16 +931,9 @@ export default function SmartLifeOS() {
     setRating(props.metadata?.rating || 0);
     setIsPinned(props.metadata?.isPinned || false);
     setIsStocked(props.metadata?.isStocked || false);
+    // 挿入するコード
     setIsTentative(props.metadata?.isTentative || false);
-    setIsTentative(props.metadata?.isTentative || false);
-    setExpandedBlocks([]);
-    
-    // 👇 追加：既存のデータがある場合のみバーを展開状態にする（支出はデフォルトで閉じる）
-    const newExpanded = [];
-    if (props.metadata?.isGathering) newExpanded.push('gathering');
-    if (props.metadata?.customFields?.isTransit) newExpanded.push('transit');
-    // expenseはデフォルトで閉じた状態にするため追加しない
-    setExpandedBlocks(newExpanded);
+    setExpandedBlocks([]); // 👈 支出、集合出発、交通機関のすべてのメニューを閉じた状態で開く
 
     const startDateStr = props.metadata?.startDateStr || (props.start_at ? props.start_at.split('T')[0] : toLocalYYYYMMDD(event.start));
     const endDateStr = props.metadata?.endDateStr || (props.end_at ? props.end_at.split('T')[0] : toLocalYYYYMMDD(event.end || event.start));
@@ -1368,21 +1374,31 @@ export default function SmartLifeOS() {
       }
     }
 
+    // 挿入するコード
     if (extendedProps.isTransitEvent) {
       if (viewType === 'dayGridMonth') return null;
-      const sT = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
-      const eT = end ? `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}` : '';
+      const startObj = new Date(start);
+      const endObj = end ? new Date(end) : new Date(startObj.getTime() + 3600000);
+      const sT = `${String(startObj.getHours()).padStart(2, '0')}:${String(startObj.getMinutes()).padStart(2, '0')}`;
+      const eT = `${String(endObj.getHours()).padStart(2, '0')}:${String(endObj.getMinutes()).padStart(2, '0')}`;
       
       const targetId = event.id.replace('-travel', '').replace('-transit-out', '').replace('-transit-ret', '');
 
+      // 交通機関の種類に応じたスマートアイコンの判定
+      let TransitIcon = Train;
+      if (extendedProps.transitType === 'plane') TransitIcon = Plane;
+      else if (extendedProps.transitType === 'bus') TransitIcon = Bus;
+      else if (extendedProps.transitType === 'home') TransitIcon = Home;
+
       return (
         <div data-travel-target={targetId} style={{
-          width: '100%', height: '100%', padding: '2px',
-          background: 'transparent', border: `1.5px dashed ${cColor}`,
-          borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden'
+          width: '100%', height: '100%', padding: '4px',
+          background: hexToRgba(cColor, 0.1), border: `1.5px solid ${cColor}`, // 👈 点線(dashed)から実線(solid)へ変更
+          borderRadius: '4px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', gap: '2px'
         }}>
-          <span style={{ fontSize: '0.6rem', fontWeight: '900', color: cColor, textAlign: 'center', lineHeight: 1.1 }}>
-            {sT} 〜 {eT}
+          <TransitIcon size={12} color={cColor} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: '0.55rem', fontWeight: '900', color: cColor, textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+            {sT}〜{eT}
           </span>
         </div>
       );
@@ -2722,11 +2738,38 @@ useEffect(() => {
                       );
                     })}
 
+                    // 挿入するコード
                     {dayEvents.length === 0 && allDayEvents.length === 0 ? (
                       <div style={{ textAlign: 'center', color: 'var(--text-sub)', padding: '40px 20px', fontWeight: 'bold', fontSize: '0.95rem' }}>この日の予定はありません</div>
                     ) : (
                       dayEvents.map((e: any) => {
-                        if (e.extendedProps?.isTransitEvent) return null;
+                        // 👇 交通機関イベントの場合のリストアイテム表示を追加
+                        if (e.extendedProps?.isTransitEvent) {
+                          const sObj = new Date(e.start);
+                          const eObj = new Date(e.end || sObj.getTime() + 3600000);
+                          const sH = String(sObj.getHours()).padStart(2, '0');
+                          const sM = String(sObj.getMinutes()).padStart(2, '0');
+                          const eH = String(eObj.getHours()).padStart(2, '0');
+                          const eM = String(eObj.getMinutes()).padStart(2, '0');
+                          const cColor = e.extendedProps?.cColor || 'var(--theme)';
+                          
+                          let TransitIcon = Train;
+                          if (e.extendedProps.transitType === 'plane') TransitIcon = Plane;
+                          else if (e.extendedProps.transitType === 'bus') TransitIcon = Bus;
+                          else if (e.extendedProps.transitType === 'home') TransitIcon = Home;
+
+                          return (
+                            <div key={e.id} style={{ background: 'var(--card-bg)', borderRadius: '16px', border: `2px solid ${cColor}`, borderLeft: `8px solid ${cColor}`, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <TransitIcon size={16} color={cColor} />
+                                <div style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>{e.title}</div>
+                              </div>
+                              <span style={{ flexShrink: 0, fontSize: '0.85rem', fontWeight: '900', color: cColor, background: hexToRgba(cColor, 0.1), padding: '6px 12px', borderRadius: '12px' }}>
+                                {sH}:{sM} ~ {eH}:{eM}
+                              </span>
+                            </div>
+                          );
+                        }
                         const s = new Date(e.start);
                         const end = e.end ? new Date(e.end) : new Date(s.getTime() + 3600000);
                         
@@ -3041,6 +3084,7 @@ useEffect(() => {
           onLogout={handleLogout}
           setIsFinanceGraphOpen={setIsFinanceGraphOpen} // 👈 追加
           setIsScheduleAssistantOpen={setIsScheduleAssistantOpen}
+          setIsAdvanceModalOpen={setIsAdvanceModalOpen}
         />
 
         {/* ギャラリー */}
@@ -3624,7 +3668,9 @@ useEffect(() => {
                               handleCustomFieldChange('expenses', expensesList.filter((e: any) => e.id !== id));
                             };
 
-                            const pastPayees = Array.from(new Set(events.flatMap(e => e.extendedProps?.metadata?.customFields?.expenses?.map((ex: any) => ex.payee)).filter(Boolean)));
+                            // 👇 修正：過去の予定から抽出した名前に、手動で登録したカスタムリストを合流させる！
+                            const dynamicPayees = events.flatMap(e => e.extendedProps?.metadata?.customFields?.expenses?.map((ex: any) => ex.payee));
+                            const pastPayees = Array.from(new Set([...customPayees, ...dynamicPayees])).filter(Boolean);
 
                             return (
                               <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px' }}>
@@ -4569,6 +4615,150 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
           </div>
         </div>
       )}
+      {/* 🤝 立替・貸し借り管理 モーダル */}
+      {isAdvanceModalOpen && (() => {
+        // 未精算のリスト
+        const unsettledAdvances = events.flatMap(e => {
+          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
+
+        // 精算済みのリスト
+        const settledAdvances = events.flatMap(e => {
+          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.isSettled);
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsAdvanceModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+              <ModalHeader title="立替・貸し借り管理" onClose={() => setIsAdvanceModalOpen(false)} />
+              
+              {/* タブ切り替えボタン */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
+                <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>未精算 ({unsettledAdvances.length})</button>
+                <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>精算済 ({settledAdvances.length})</button>
+                <button onClick={() => setAdvanceTab('partners')} className={advanceTab === 'partners' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>相手リスト</button>
+              </div>
+
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
+                
+                {/* 👇 タブ：未精算 */}
+                {advanceTab === 'unsettled' && (
+                  unsettledAdvances.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                      <Handshake size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5, color: 'var(--theme)' }} />
+                      <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>現在、未精算の立替記録はありません。</p>
+                      <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>※カレンダーの「予定を追加」画面の<br/>「支出・立替を記録する」から<br/>立て替えた金額を登録するとここに表示されます。</p>
+                    </div>
+                  ) : (
+                    unsettledAdvances.map((adv: any, i: number) => (
+                      <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                              {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                          </div>
+                          <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
+                            ¥{Number(adv.amount).toLocaleString()}
+                          </div>
+                        </div>
+                        <button onClick={async () => {
+                            if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
+                              const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                              if (targetEvent) {
+                                const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                  ex.id === adv.id ? { ...ex, isSettled: true } : ex
+                                );
+                                await supabase.from('events').update({
+                                  metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
+                                }).eq('id', adv.eventId);
+                                
+                                const today = toLocalYYYYMMDD(new Date());
+                                await supabase.from('events').insert([{
+                                  title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
+                                  start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
+                                  metadata: {
+                                    isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
+                                    customFields: {
+                                      isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
+                                      isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
+                                      paymentMethod: 'cash'
+                                    }
+                                  }
+                                }]);
+                                alert('精算を完了として記録しました！');
+                                window.location.reload(); 
+                              }
+                            }
+                          }}
+                          className="btn-pop" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        >
+                          <CheckCircle size={16} /> 精算を完了する
+                        </button>
+                      </div>
+                    ))
+                  )
+                )}
+
+                {/* 👇 タブ：精算済履歴 */}
+                {advanceTab === 'settled' && (
+                  settledAdvances.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold', fontSize: '0.85rem' }}>精算済みの記録はありません</div>
+                  ) : (
+                    settledAdvances.map((adv: any, i: number) => (
+                      <div key={i} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-sub)', textDecoration: 'line-through' }}>
+                            {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
+                          </span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                        </div>
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>
+                          ¥{Number(adv.amount).toLocaleString()}
+                        </div>
+                      </div>
+                    ))
+                  )
+                )}
+
+                {/* 👇 タブ：相手リスト管理 */}
+                {advanceTab === 'partners' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input type="text" className="pop-input" placeholder="よく立て替える相手の名前を追加" value={newPayeeName} onChange={e => setNewPayeeName(e.target.value)} style={{ flex: 1, fontSize: '0.85rem' }} />
+                      <button onClick={() => {
+                        if (newPayeeName.trim() && !customPayees.includes(newPayeeName.trim())) {
+                          setCustomPayees([...customPayees, newPayeeName.trim()]);
+                          setNewPayeeName('');
+                        }
+                      }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>追加</button>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px' }}>登録済みの相手リスト</span>
+                      {customPayees.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>登録されている相手はいません</div>
+                      ) : (
+                        customPayees.map((p, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                            <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{p}</span>
+                            <button onClick={() => setCustomPayees(customPayees.filter(name => name !== p))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       </div>
   );
 }

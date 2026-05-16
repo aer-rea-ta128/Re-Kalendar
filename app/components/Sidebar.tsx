@@ -5,7 +5,8 @@ import {
   Search, Moon, Sun, Clock, Target, Star, Edit3, 
   PieChart, Image as ImageIcon, Palette, Repeat, Gift, Database, Banknote, MapPin, Home, Train, Footprints,
   ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical,
-  LogOut, User, TrendingUp, Users, Send, MessageSquare, Handshake, CheckCircle
+  LogOut, User, TrendingUp, Users, Send, MessageSquare, Handshake, CheckCircle, Trash2,
+  CreditCard, Smartphone, Landmark // 👈 スマートアイコンを完全対応させるために追加
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -70,7 +71,8 @@ interface SidebarProps {
   setActiveUserName: React.Dispatch<React.SetStateAction<string>>;
   onLogout: () => void;
   setIsFinanceGraphOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsScheduleAssistantOpen: React.Dispatch<React.SetStateAction<boolean>>; // 👈 追加
+  setIsScheduleAssistantOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsAdvanceModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function Sidebar({
@@ -87,7 +89,8 @@ export default function Sidebar({
   setCustomFieldsData, homeLocation, setHomeLocation, nearestStation, setNearestStation,
   walkTime, setWalkTime, startPointType, setStartPointType,
   displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter,
-  activeUserId, activeUserName,activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, setIsFinanceGraphOpen, setIsScheduleAssistantOpen
+  activeUserId, activeUserName,activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, 
+  setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen
 }: SidebarProps) {
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -95,15 +98,7 @@ export default function Sidebar({
   const [isCategoryHistoryOpen, setIsCategoryHistoryOpen] = useState(false);
   const [historyCategory, setHistoryCategory] = useState('すべて');
 
-  const [expanded, setExpanded] = useState<string[]>([]);
-  const toggleSection = (sec: string) => setExpanded(prev => prev.includes(sec) ? prev.filter(s => s !== sec) : [...prev, sec]);
-
-  useEffect(() => {
-    if (!isSidebarOpen) setExpanded([]); 
-  }, [isSidebarOpen]);
-
   const [isTravelMapOpen, setIsTravelMapOpen] = useState(false);
-  const [mapZoom, setMapZoom] = useState(1);
   const [visitedPrefs, setVisitedPrefs] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {};
     const saved = localStorage.getItem('os_visitedPrefs');
@@ -114,15 +109,13 @@ export default function Sidebar({
   const [historySpan, setHistorySpan] = useState<'month' | 'year' | 'all'>('month');
   const [financeTypeFilter, setFinanceTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [isFinanceHistoryOpen, setIsFinanceHistoryOpen] = useState(false);
-  const [isMenuCustomizeOpen, setIsMenuCustomizeOpen] = useState(false);
-  const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false); // 👈 追加
+  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
 
   const [incomeCalcBasis, setIncomeCalcBasis] = useState<'wage' | 'payday'>(() => {
     if (typeof window === 'undefined') return 'wage';
     return localStorage.getItem('os_incomeCalcBasis') as 'wage' | 'payday' || 'wage';
   });
 
-  // 👇 サイドバーのセクション順序
   const DEFAULT_ORDER = ['finance', 'actions', 'reports', 'settings', 'transit'];
   const [sidebarOrder, setSidebarOrder] = useState<string[]>(() => {
     if (typeof window === 'undefined') return DEFAULT_ORDER;
@@ -130,7 +123,6 @@ export default function Sidebar({
     try { return saved ? JSON.parse(saved) : DEFAULT_ORDER; } catch(e) { return DEFAULT_ORDER; }
   });
 
-  // 👇 個別のお気に入りアイテム管理
   const [favoriteItems, setFavoriteItems] = useState<string[]>(() => {
     if (typeof window === 'undefined') return ['create_event', 'finance_single'];
     const saved = localStorage.getItem('os_favoriteItems');
@@ -138,8 +130,6 @@ export default function Sidebar({
   });
   
   const dragSection = useRef<number | null>(null);
-
-  // 👇 追加：要望モーダル用のState
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
@@ -151,15 +141,13 @@ export default function Sidebar({
     localStorage.setItem('os_favoriteItems', JSON.stringify(favoriteItems));
   }, [visitedPrefs, incomeCalcBasis, sidebarOrder, favoriteItems]);
 
-  // すべての個別アクションを定義
   const MENU_ACTIONS = [
     { id: 'create_event', label: '新しく予定を作成', icon: Edit3, color: themeColor },
     { id: 'schedule_assistant', label: '日程調整アシスタント', icon: Users, color: '#f59e0b' }, 
     { id: 'category_history', label: 'ジャンル別の履歴・振り返り', icon: FolderKanban, color: themeColor },
     { id: 'finance_single', label: '単発の収支を記録', icon: Banknote, color: themeColor },
-    { id: 'finance_single', label: '単発の収支を記録', icon: Banknote, color: themeColor },
     { id: 'finance_history', label: '収支履歴を見る', icon: HistoryIcon, color: themeColor },
-    { id: 'finance_bar', label: '収支サマリーバー', icon: Target, color: themeColor }, // 👈 追加
+    { id: 'finance_bar', label: '収支サマリーバー', icon: Target, color: themeColor },
     { id: 'dashboard', label: 'ダッシュボード', icon: PieChart, color: themeColor },
     { id: 'gallery', label: '思い出ギャラリー', icon: ImageIcon, color: '#9B59B6' },
     { id: 'travel_map', label: 'トラベル・マップ', icon: Globe, color: '#10B981' },
@@ -173,14 +161,12 @@ export default function Sidebar({
     if (id === 'dashboard') { setIsModalOpen(false); setIsAnalyticsModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'category_history') { setIsCategoryHistoryOpen(true); setIsSidebarOpen(false); }
     else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); setIsSidebarOpen(false); }
     else if (id === 'travel_map') { setIsModalOpen(false); setIsTravelMapOpen(true); setIsSidebarOpen(false); }
     else if (id === 'category_settings') { setIsModalOpen(false); setIsCategoryModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'schedule_assistant') { setIsScheduleAssistantOpen(true); setIsSidebarOpen(false); } 
     else if (id === 'routine_settings') { setIsModalOpen(false); setIsRoutineModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'subscription_settings') { setMode('subscription'); setIsModalOpen(true); setIsSidebarOpen(false); }
     else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'settlement') { setIsSettlementModalOpen(true); setIsSidebarOpen(false); } // 👈 追加
     else if (id === 'finance_history') { setIsFinanceHistoryOpen(true); }
     else if (id === 'create_event') {
       const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
@@ -212,256 +198,20 @@ export default function Sidebar({
     </div>
   );
 
-  const AccordionHeader = ({ id, title, icon: Icon }: any) => (
-    <div onClick={() => toggleSection(id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: expanded.includes(id) ? 'var(--theme-shadow)' : 'var(--input-bg)', borderRadius: '12px', cursor: 'pointer', marginBottom: expanded.includes(id) ? '12px' : '8px', border: `1px solid ${expanded.includes(id) ? themeColor : 'var(--border-color)'}`, transition: 'all 0.2s', boxShadow: expanded.includes(id) ? `0 4px 12px ${themeColor}20` : 'none' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: expanded.includes(id) ? themeColor : 'var(--text-sub)', fontWeight: '900', fontSize: '0.85rem', letterSpacing: '1px' }}>
-        <Icon size={18} /> {title}
-      </div>
-      {expanded.includes(id) ? <ChevronDown size={18} style={{ color: themeColor }}/> : <ChevronRight size={18} style={{ color: 'var(--text-sub)' }}/>}
-    </div>
+  const MenuListItem = ({ icon: Icon, label, onClick, color = 'var(--text-main)' }: any) => (
+    <button onClick={onClick} style={{ width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: '12px', background: 'transparent', border: 'none', color: color, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background 0.2s', fontWeight: 'bold' }} className="hover-bg-glass">
+      <Icon size={18} color={color === 'var(--text-main)' ? themeColor : color} />
+      <span>{label}</span>
+    </button>
   );
-
-  const renderSection = (sectionId: string) => {
-    switch (sectionId) {
-      case 'finance':
-        return (
-          
-          <div key="finance">
-            <AccordionHeader id="finance" title="収支履歴・管理" icon={Banknote} />
-            {expanded.includes('finance') && (() => {
-              const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-              const tYear = String(new Date().getFullYear());
-              const evts = events.filter((e: any) => e.start && (ledgerSpan === 'month' ? e.start.startsWith(tMonth) : e.start.startsWith(tYear)));
-              
-              let inc = 0; let exp = 0;
-              evts.forEach((e: any) => {
-                const cf = e.extendedProps?.metadata?.customFields || {};
-                if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
-                if (cf.isIncomeSet) {
-                  if (incomeCalcBasis === 'wage' && cf.isSalary) { /* skip */ } 
-                  else { inc += Number(cf.standardIncomeAmount || 0); }
-                }
-                const catObj = categories.find((c: any) => c.name === e.extendedProps.category);
-                if (catObj?.fields) {
-                  catObj.fields.forEach((f: any) => {
-                    if (f.type === 'money') { 
-                      const d = cf[f.id]; 
-                      if (d?.type === 'income') inc += Number(d.amount || 0); 
-                      if (d?.type === 'expense') exp += Number(d.amount || 0); 
-                    }
-                    else if (f.type === 'money_income') inc += Number(cf[f.id] || 0);
-                    else if (f.type === 'money_expense') exp += Number(cf[f.id] || 0);
-                    else if (f.type === 'wage' && !f.excludeFromTotal) {
-                      if (incomeCalcBasis === 'payday') { /* skip */ } 
-                      else {
-                        const d = cf[f.id];
-                        if (d?.calculatedWage !== undefined) inc += Number(d.calculatedWage);
-                        else if (d?.hours) inc += (Number(d.hours) * Number(f.wageRules?.[0]?.wage || f.wage || 0));
-                      }
-                    }
-                  });
-                }
-              });
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '16px' }}>
-                  <button onClick={() => handleMenuAction('finance_single')} style={{ padding: '14px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: 'var(--input-bg)', color: 'var(--text-main)', border: '2px solid var(--theme)', cursor: 'pointer', fontWeight: 'bold' }}>
-                    <Banknote size={20} style={{ color: 'var(--theme)' }} /> <span>単発の収支をサッと記録</span>
-                  </button>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      収入の計算:
-                      <select value={incomeCalcBasis} onChange={e => setIncomeCalcBasis(e.target.value as any)} style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--theme)', outline: 'none', cursor: 'pointer' }}>
-                        <option value="wage">時給・シフト換算</option>
-                        <option value="payday">給料日・入金ベース</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
-                      <button onClick={() => setLedgerSpan('month')} className={ledgerSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '6px', fontSize: '0.75rem', borderRadius: '8px' }}>今月</button>
-                      <button onClick={() => setLedgerSpan('year')} className={ledgerSpan === 'year' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '6px', fontSize: '0.75rem', borderRadius: '8px' }}>今年</button>
-                    </div>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '900' }}>
-                      <span style={{ color: '#10b981' }}>収入: ¥{inc.toLocaleString()}</span>
-                      <span style={{ color: '#ef4444' }}>支出: ¥{exp.toLocaleString()}</span>
-                    </div>
-                    <div style={{ width: '100%', height: '10px', background: 'var(--border-color)', borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
-                      {inc + exp > 0 ? (
-                        <>
-                          {inc > 0 && <div style={{ width: `${(inc / (inc + exp)) * 100}%`, background: '#10b981', transition: 'width 0.4s' }} />}
-                          {exp > 0 && <div style={{ width: `${(exp / (inc + exp)) * 100}%`, background: '#ef4444', transition: 'width 0.4s' }} />}
-                        </>
-                      ) : null}
-                    </div>
-                    <div style={{ textAlign: 'center', fontSize: '1rem', marginTop: '12px', fontWeight: '900', color: inc >= exp ? '#10b981' : '#ef4444' }}>
-                      残高: {inc >= exp ? '+' : '-'}¥{Math.abs(inc - exp).toLocaleString()}
-                    </div>
-                  </div>
-
-                  <button onClick={() => handleMenuAction('finance_history')} style={{ padding: '12px', background: 'var(--input-bg)', color: 'var(--text-main)', borderRadius: '12px', fontWeight: 'bold', border: `1px solid ${themeColor}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px' }}>
-                    <HistoryIcon size={16} color={themeColor} /> 収支履歴をすべて見る
-                  </button>
-                  <button onClick={() => { setIsFinanceGraphOpen(true); setIsSidebarOpen(false); }} style={{ padding: '12px', background: 'var(--input-bg)', color: 'var(--text-main)', borderRadius: '12px', fontWeight: 'bold', border: `1px solid ${themeColor}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '8px' }}>
-                    <TrendingUp size={16} color={themeColor} /> 収支推移グラフ（棒グラフ）を見る
-                  </button>
-                </div>
-              );
-            })()}
-          </div>
-        );
-
-      case 'actions':
-        return (
-          <div key="actions">
-            <AccordionHeader id="actions" title="アクション・予定追加" icon={Zap} />
-            {expanded.includes('actions') && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', paddingBottom: '16px' }}>
-                <button onClick={() => handleMenuAction('create_event')} style={{ gridColumn: 'span 2', padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: themeColor, color: '#fff', border: 'none', boxShadow: `0 4px 15px ${themeColor}40`, cursor: 'pointer' }}>
-                  <Edit3 size={18} /> <span style={{ fontWeight: 'bold' }}>新しく予定を作成</span>
-                </button>
-                <button onClick={() => handleMenuAction('schedule_assistant')} style={{ gridColumn: 'span 1', padding: '12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '16px', background: '#f59e0b', color: '#fff', border: 'none', boxShadow: `0 4px 15px rgba(245,158,11,0.4)`, cursor: 'pointer' }}>
-                  <Users size={16} /> <span style={{ fontWeight: 'bold' }}>日程調整アシスタント</span>
-                </button>
-
-                {quickTemplates.map((t, i) => (
-                  <div key={i} style={{ position: 'relative' }}>
-                    <button onClick={() => {
-                      const today = toLocalYYYYMMDD(new Date());
-                      setMode('create'); setStartDate(today); setEndDate(today);
-                      setTitle(t.title); setLocation(t.location || ''); setStartH(t.startH); setStartM(t.startM); setEndH(t.endH); setEndM(t.endM); setCategoryName(t.categoryName); setIsAllDayBackground(t.isAllDayBackground); setEventColor(t.eventColor || '');
-                      setCustomFieldsData({}); 
-                      setIsModalOpen(true); setIsSidebarOpen(false);
-                    }} style={{ width: '100%', padding: '12px 8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                      <Star size={20} color={t.eventColor || themeColor} />
-                      <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>{t.title}</span>
-                    </button>
-                    {/* 👇 追加：削除ボタン */}
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if(confirm(`テンプレート「${t.title}」を削除しますか？`)) {
-                          const updated = quickTemplates.filter((_, idx) => idx !== i);
-                          setQuickTemplates(updated);
-                          localStorage.setItem('quickTemplates', JSON.stringify(updated));
-                        }
-                      }} 
-                      style={{ position: 'absolute', top: '-6px', right: '-6px', width: '22px', height: '22px', borderRadius: '50%', background: '#ef4444', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-
-      case 'reports':
-        return (
-          <div key="reports">
-            <AccordionHeader id="reports" title="レポート・ギャラリー" icon={FolderKanban} />
-            {expanded.includes('reports') && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px', paddingBottom: '16px' }}>
-                <button onClick={() => handleMenuAction('category_history')} style={{ padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                  <FolderKanban size={18} color={themeColor} /> <span style={{ fontWeight: 'bold' }}>ジャンル別の履歴・振り返り</span>
-                </button>
-                <button onClick={() => handleMenuAction('dashboard')} style={{ padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                  <PieChart size={18} color={themeColor} /> <span style={{ fontWeight: 'bold' }}>振り返りダッシュボード</span>
-                </button>
-                <button onClick={() => handleMenuAction('gallery')} style={{ padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                  <ImageIcon size={18} color="#9B59B6" /> <span style={{ fontWeight: 'bold' }}>思い出ギャラリー</span>
-                </button>
-                <button onClick={() => handleMenuAction('travel_map')} style={{ padding: '14px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                  <Globe size={18} color="#10B981" /> <span style={{ fontWeight: 'bold' }}>トラベル・マップ</span>
-                </button>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'settings':
-        return (
-          <div key="settings">
-            <AccordionHeader id="settings" title="各種設定・マスター管理" icon={Settings2} />
-            {expanded.includes('settings') && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'var(--card-bg)', padding: '8px', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                <button onClick={() => handleMenuAction('category_settings')} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Palette size={16} color="var(--text-sub)" /> <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>ジャンル・記録項目</span>
-                </button>
-                <button onClick={() => handleMenuAction('routine_settings')} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Repeat size={16} color="var(--text-sub)" /> <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>毎月の予定 (給料・支払い等)</span>
-                </button>
-                <button onClick={() => handleMenuAction('subscription_settings')} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Banknote size={16} color="var(--text-sub)" /> <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>サブスク管理 (毎月/毎年)</span>
-                </button>
-                <button onClick={() => handleMenuAction('anniversary_settings')} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: '1px solid transparent', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Gift size={16} color="var(--text-sub)" /> <span style={{ fontWeight: 'bold', fontSize: '0.8rem' }}>記念日管理</span>
-                </button>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'transit':
-        return (
-          <div key="transit">
-            <AccordionHeader id="transit" title="出発地・ルート検索設定" icon={MapPin} />
-            {expanded.includes('transit') && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Target size={14} color="var(--text-sub)" /> ルート検索の基準
-                  </label>
-                  <select className="pop-input" value={startPointType} onChange={e => setStartPointType(e.target.value)} style={{ height: '40px', fontSize: '0.85rem', padding: '0 10px', background: 'var(--bg-main)' }}>
-                    <option value="address">自宅の住所から出発</option>
-                    <option value="station">最寄り駅から出発</option>
-                  </select>
-                </div>
-                {startPointType === 'address' ? (
-                  <div style={{ animation: 'fadeIn 0.3s' }}>
-                    <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Home size={14} color="var(--theme)" /> 自宅の住所
-                    </label>
-                    <input type="text" className="pop-input" value={homeLocation} onChange={e => setHomeLocation(e.target.value)} placeholder="東京都渋谷区..." style={{ height: '40px', fontSize: '0.85rem', padding: '0 12px' }} />
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', animation: 'fadeIn 0.3s' }}>
-                    <div>
-                      <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Train size={14} color="var(--theme)" /> 最寄り駅
-                      </label>
-                      <input type="text" className="pop-input" value={nearestStation} onChange={e => setNearestStation(e.target.value)} placeholder="渋谷駅" style={{ height: '40px', fontSize: '0.85rem', padding: '0 12px' }} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <label className="form-label" style={{ fontSize: '0.75rem', margin: 0, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Footprints size={14} color="var(--theme)" /> 駅までの徒歩
-                      </label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
-                        <input type="number" className="pop-input no-spin" value={walkTime} onChange={e => setWalkTime(e.target.value)} style={{ height: '40px', fontSize: '1rem', textAlign: 'center', padding: '0 10px' }} />
-                        <span style={{ fontSize: '0.85rem', fontWeight: '900', color: 'var(--text-main)' }}>分</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-
-      default: return null;
-    }
-  };
 
   return (
     <>
-      <div onClick={() => { setOpenSections([]); setIsSidebarOpen(false); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', zIndex: 1999, opacity: isSidebarOpen ? 1 : 0, pointerEvents: isSidebarOpen ? 'auto' : 'none', transition: 'all 0.3s ease' }} />
+      <div onClick={() => { setIsSidebarOpen(false); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', zIndex: 1999, opacity: isSidebarOpen ? 1 : 0, pointerEvents: isSidebarOpen ? 'auto' : 'none', transition: 'all 0.3s ease' }} />
 
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '85%', maxWidth: '300px', height: '100dvh', borderTopRightRadius: '24px', borderBottomRightRadius: '24px', zIndex: 2000, transform: isSidebarOpen ? 'translateX(0)' : 'translateX(-100%)', padding: '24px 20px', transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1)', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', boxShadow: isSidebarOpen ? '4px 0 24px rgba(0,0,0,0.15)' : 'none', borderRight: '1px solid var(--border-color)' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '85%', maxWidth: '320px', height: '100dvh', borderTopRightRadius: '24px', borderBottomRightRadius: '24px', zIndex: 2000, transform: isSidebarOpen ? 'translateX(0)' : 'translateX(-100%)', padding: '24px 20px', transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1)', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', boxShadow: isSidebarOpen ? '4px 0 24px rgba(0,0,0,0.15)' : 'none', borderRight: '1px solid var(--border-color)' }}>
         
+        {/* ヘッダーエリア */}
         <ModalHeader title="Smart LifeOS" onClose={() => setIsSidebarOpen(false)} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', flexShrink: 0 }}>
@@ -478,11 +228,10 @@ export default function Sidebar({
             </button>
           </div>
           
-          {/* 👇 月毎カレンダー専用の切り替え・絞り込みツール */}
+          {/* 月毎カレンダー表示時のフィルター */}
           {viewType === 'dayGridMonth' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--input-bg)', borderRadius: '12px', padding: '8px', border: `1px solid var(--border-color)` }}>
               <div style={{ display: 'flex', background: 'var(--bg-main)', borderRadius: '8px', padding: '2px' }}>
-                {/* 👇 ボタンを4つに増やし、1行/2行を切り替えられるようにしました */}
                 <button onClick={() => setDisplayMode('normal')} style={{ flex: 1, padding: '6px 2px', borderRadius: '6px', background: displayMode === 'normal' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'normal' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'normal' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.7rem', transition: 'all 0.2s' }}>2行</button>
                 <button onClick={() => setDisplayMode('compact')} style={{ flex: 1, padding: '6px 2px', borderRadius: '6px', background: displayMode === 'compact' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'compact' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'compact' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.7rem', transition: 'all 0.2s' }}>1行</button>
                 <button onClick={() => setDisplayMode('dot')} style={{ flex: 1, padding: '6px 2px', borderRadius: '6px', background: displayMode === 'dot' ? 'var(--card-bg)' : 'transparent', color: displayMode === 'dot' ? 'var(--theme)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: displayMode === 'dot' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.7rem', transition: 'all 0.2s' }}>ドット</button>
@@ -500,209 +249,194 @@ export default function Sidebar({
           )}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px', paddingLeft: '1px', display: 'flex', flexDirection: 'column', gap: '8px' }} className="hide-scrollbar">
+        {/* スクロール領域：メインメニュー群 */}
+        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px', display: 'flex', flexDirection: 'column', gap: '24px' }} className="hide-scrollbar">
 
-          {/* 👇 お気に入りメニュー（上にピン留めされたボタンたち） */}
+          {/* ⭐️ お気に入り（クイックアクション） */}
           {favoriteItems.length > 0 && (
-            <div style={{ marginBottom: '8px' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '4px' }}>
-                <Star size={14} fill="var(--theme)" /> よく使うメニュー
+            <div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '4px' }}>
+                <Zap size={14} fill="var(--theme)" /> クイックアクション
+              </span>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {favoriteItems.filter(id => id !== 'finance_bar').map(itemId => {
+                  const item = MENU_ACTIONS.find(m => m.id === itemId);
+                  if (!item) return null;
+                  return (
+                    <button key={item.id} onClick={() => handleMenuAction(item.id)} style={{ padding: '12px 8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
+                      <item.icon size={20} color={item.color} />
+                      <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                
-                {/* 👇 収支サマリーバーがお気に入りに含まれる場合の描画 */}
-                {favoriteItems.includes('finance_bar') && (() => {
-                  const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-                  const tYear = String(new Date().getFullYear());
-                  const evts = events.filter((e: any) => e.start && (ledgerSpan === 'month' ? e.start.startsWith(tMonth) : e.start.startsWith(tYear)));
-                  let inc = 0; let exp = 0;
-                  evts.forEach((e: any) => {
-                    const cf = e.extendedProps?.metadata?.customFields || {};
-                    if (cf.isExpenseSet) {
-                      // 立替リストを考慮した金額計算
-                      if (cf.expenses) {
-                        cf.expenses.forEach((ex: any) => {
-                          if (ex.type === 'expense' || ex.type === 'advance') exp += Number(ex.amount || 0);
-                          if (ex.type === 'income' || ex.type === 'borrow') inc += Number(ex.amount || 0);
-                        });
-                      } else {
-                        exp += Number(cf.standardExpenseAmount || 0);
-                      }
-                    }
-                    if (cf.isIncomeSet) {
-                      if (incomeCalcBasis === 'wage' && cf.isSalary) {} else { inc += Number(cf.standardIncomeAmount || 0); }
-                    }
-                    const catObj = categories.find((c: any) => c.name === e.extendedProps.category);
-                    if (catObj?.fields) {
-                      catObj.fields.forEach((f: any) => {
-                        if (f.type === 'money') { const d = cf[f.id]; if (d?.type === 'income') inc += Number(d.amount || 0); if (d?.type === 'expense') exp += Number(d.amount || 0); }
-                        else if (f.type === 'money_income') inc += Number(cf[f.id] || 0);
-                        else if (f.type === 'money_expense') exp += Number(cf[f.id] || 0);
-                        else if (f.type === 'wage' && !f.excludeFromTotal) {
-                          if (incomeCalcBasis === 'payday') {} else {
-                            const d = cf[f.id];
-                            if (d?.calculatedWage !== undefined) inc += Number(d.calculatedWage);
-                            else if (d?.hours) inc += (Number(d.hours) * Number(f.wageRules?.[0]?.wage || f.wage || 0));
-                          }
+
+              {favoriteItems.includes('finance_bar') && (() => {
+                const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                const tYear = String(new Date().getFullYear());
+                const evts = events.filter((e: any) => e.start && (ledgerSpan === 'month' ? e.start.startsWith(tMonth) : e.start.startsWith(tYear)));
+                let inc = 0; let exp = 0;
+                evts.forEach((e: any) => {
+                  const cf = e.extendedProps?.metadata?.customFields || {};
+                  if (cf.isExpenseSet) {
+                    if (cf.expenses) { cf.expenses.forEach((ex: any) => { if (ex.type === 'expense' || ex.type === 'advance') exp += Number(ex.amount || 0); if (ex.type === 'income' || ex.type === 'borrow') inc += Number(ex.amount || 0); }); } 
+                    else { exp += Number(cf.standardExpenseAmount || 0); }
+                  }
+                  if (cf.isIncomeSet) { if (incomeCalcBasis === 'wage' && cf.isSalary) {} else { inc += Number(cf.standardIncomeAmount || 0); } }
+                  const catObj = categories.find((c: any) => c.name === e.extendedProps.category);
+                  if (catObj?.fields) {
+                    catObj.fields.forEach((f: any) => {
+                      if (f.type === 'money') { const d = cf[f.id]; if (d?.type === 'income') inc += Number(d.amount || 0); if (d?.type === 'expense') exp += Number(d.amount || 0); }
+                      else if (f.type === 'money_income') inc += Number(cf[f.id] || 0);
+                      else if (f.type === 'money_expense') exp += Number(cf[f.id] || 0);
+                      else if (f.type === 'wage' && !f.excludeFromTotal) {
+                        if (incomeCalcBasis === 'payday') {} else {
+                          const d = cf[f.id];
+                          if (d?.calculatedWage !== undefined) inc += Number(d.calculatedWage);
+                          else if (d?.hours) inc += (Number(d.hours) * Number(f.wageRules?.[0]?.wage || f.wage || 0));
                         }
-                      });
-                    }
-                  });
-                  return (
-                    <div style={{ background: 'var(--card-bg)', padding: '12px 16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '900' }}>
-                        <span style={{ color: '#10b981' }}>収入: ¥{inc.toLocaleString()}</span>
-                        <span style={{ color: '#ef4444' }}>支出: ¥{exp.toLocaleString()}</span>
-                      </div>
-                      <div style={{ width: '100%', height: '10px', background: 'var(--border-color)', borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
-                        {inc + exp > 0 ? (
-                          <>
-                            {inc > 0 && <div style={{ width: `${(inc / (inc + exp)) * 100}%`, background: '#10b981', transition: 'width 0.4s' }} />}
-                            {exp > 0 && <div style={{ width: `${(exp / (inc + exp)) * 100}%`, background: '#ef4444', transition: 'width 0.4s' }} />}
-                          </>
-                        ) : null}
-                      </div>
-                      <div style={{ textAlign: 'center', fontSize: '1rem', marginTop: '8px', fontWeight: '900', color: inc >= exp ? '#10b981' : '#ef4444' }}>
-                        残高: {inc >= exp ? '+' : '-'}¥{Math.abs(inc - exp).toLocaleString()}
-                      </div>
+                      }
+                    });
+                  }
+                });
+                return (
+                  <div style={{ background: 'var(--card-bg)', padding: '12px 16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem', fontWeight: '900' }}>
+                      <span style={{ color: '#10b981' }}>収入: ¥{inc.toLocaleString()}</span>
+                      <span style={{ color: '#ef4444' }}>支出: ¥{exp.toLocaleString()}</span>
                     </div>
-                  );
-                })()}
-
-                {/* 👇 追加：立替リストの表示 */}
-                {(() => {
-                  const unpayedAdvances = events.flatMap(e => {
-                    const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-                    return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-                  }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
-
-                  if (unpayedAdvances.length === 0) return null;
-
-                  return (
-                    <div style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: '1px dashed var(--theme)', marginTop: '8px' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', display: 'block', marginBottom: '8px' }}>未精算の立替・借入</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {unpayedAdvances.map((adv: any, i: number) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', background: 'var(--input-bg)', padding: '8px', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontWeight: 'bold', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
-                                {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
-                              </span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontWeight: '900' }}>¥{Number(adv.amount).toLocaleString()}</span>
-                              <button onClick={async () => {
-                                if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
-                                  const targetEvent = events.find((e: any) => e.id === adv.eventId);
-                                  if (targetEvent) {
-                                    const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
-                                      ex.id === adv.id ? { ...ex, isSettled: true } : ex
-                                    );
-                                    await supabase.from('events').update({
-                                      metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
-                                    }).eq('id', adv.eventId);
-                                    
-                                    // 精算完了として、相殺するイベントを新規作成
-                                    const today = toLocalYYYYMMDD(new Date());
-                                    await supabase.from('events').insert([{
-                                      title: `${adv.payee || '相手'} との立替精算`, category: '収支記録',
-                                      start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
-                                      metadata: {
-                                        isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
-                                        customFields: {
-                                          isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
-                                          isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
-                                        }
-                                      }
-                                    }]);
-                                    
-                                    // この関数はpage.tsxからpropsで渡されていないため、画面をリロードして反映させます（簡易対応）
-                                    window.location.reload();
-                                  }
-                                }
-                              }} style={{ background: themeColor, color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', cursor: 'pointer', fontWeight: 'bold' }}>精算</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    <div style={{ width: '100%', height: '10px', background: 'var(--border-color)', borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
+                      {inc + exp > 0 ? (
+                        <>
+                          {inc > 0 && <div style={{ width: `${(inc / (inc + exp)) * 100}%`, background: '#10b981', transition: 'width 0.4s' }} />}
+                          {exp > 0 && <div style={{ width: `${(exp / (inc + exp)) * 100}%`, background: '#ef4444', transition: 'width 0.4s' }} />}
+                        </>
+                      ) : null}
                     </div>
-                  );
-                })()}
-
-                {/* バー以外のボタンを描画 */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                  {favoriteItems.filter(id => id !== 'finance_bar').map(itemId => {
-                    const item = MENU_ACTIONS.find(m => m.id === itemId);
-                    if (!item) return null;
-                    return (
-                      <button key={item.id} onClick={() => handleMenuAction(item.id)} style={{ padding: '12px 8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', cursor: 'pointer' }}>
-                        <item.icon size={20} color={item.color} />
-                        <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                    <div style={{ textAlign: 'center', fontSize: '1rem', marginTop: '8px', fontWeight: '900', color: inc >= exp ? '#10b981' : '#ef4444' }}>
+                      残高: {inc >= exp ? '+' : '-'}¥{Math.abs(inc - exp).toLocaleString()}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
-          {/* セクション群 */}
-          {sidebarOrder.map(sectionId => renderSection(sectionId))}
-
-          <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            
-            {/* 👇 追加：ログイン中のユーザープロフィールとログアウトボタン */}
-            {activeUserId && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: `1px solid var(--border-color)`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                    <User size={20} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{activeUserName}</span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>@{activeUserId}</span>
-                  </div>
-                </div>
-                <button onClick={onLogout} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '12px', flexShrink: 0 }}>
-                  <LogOut size={16} />
-                </button>
-              </div>
-            )}
-            {/* 👇 ここに追加！：ご要望・不具合の報告ボタン */}
-            <button onClick={() => { setIsFeedbackModalOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', background: 'var(--input-bg)', border: 'none', color: 'var(--theme)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold' }}>
-              <MessageSquare size={16} /> ご要望・不具合の報告
-            </button>
-
-            {/* 👇 メニューのカスタマイズ（一番下に独立配置） */}
-            <button onClick={() => { setIsMenuCustomizeOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px dashed var(--theme)', color: 'var(--theme)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold' }}>
-              <Settings2 size={16} /> メニューのカスタマイズ
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-sub)' }}>データ保存先</span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', background: themeColor, color: '#fff', padding: '2px 8px', borderRadius: '10px' }}>ローカル</span>
+          {/* 📱 アプリケーション（日常的に見る・使うもの） */}
+          <div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', display: 'block', paddingLeft: '4px' }}>アプリケーション</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <MenuListItem icon={PieChart} label="振り返りダッシュボード" onClick={() => handleMenuAction('dashboard')} />
+              <MenuListItem icon={FolderKanban} label="ジャンル別の履歴" onClick={() => handleMenuAction('category_history')} />
+              <MenuListItem icon={Handshake} label="立替・貸し借り管理" onClick={() => { setIsAdvanceModalOpen(true); setIsSidebarOpen(false); }} />
+              <MenuListItem icon={HistoryIcon} label="すべての収支履歴・推移" onClick={() => { setIsFinanceHistoryOpen(true); setIsSidebarOpen(false); }} />
+              <MenuListItem icon={ImageIcon} label="思い出ギャラリー" onClick={() => handleMenuAction('gallery')} />
+              <MenuListItem icon={Globe} label="トラベル・マップ" onClick={() => handleMenuAction('travel_map')} />
             </div>
-            <button onClick={syncWithCloud} style={{ width: '100%', padding: '12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: `1px dashed ${themeColor}`, color: themeColor, borderRadius: '16px', background: 'transparent', cursor: 'pointer', fontWeight: 'bold' }}>
-              <Database size={16} /> クラウド同期・ログイン
-            </button>
           </div>
+        </div>
+
+        {/* ⚙️ ボトムエリア（設定やアカウント） */}
+        <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+          
+          {activeUserId && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: `1px solid var(--border-color)`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
+                  <User size={20} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{activeUserName}</span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>@{activeUserId}</span>
+                </div>
+              </div>
+              <button onClick={onLogout} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '12px', flexShrink: 0 }}>
+                <LogOut size={16} />
+              </button>
+            </div>
+          )}
+
+          <button onClick={() => { setIsSettingsPanelOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'var(--input-bg)', border: 'none', color: 'var(--text-main)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold', transition: 'background 0.2s' }}>
+            <Settings2 size={16} color="var(--theme)" /> アプリ設定と管理
+          </button>
+
+          <button onClick={() => { setIsFeedbackModalOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'var(--input-bg)', border: 'none', color: 'var(--text-main)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold', transition: 'background 0.2s' }}>
+            <MessageSquare size={16} color="var(--theme)" /> ご要望・不具合の報告
+          </button>
+
+          <button onClick={syncWithCloud} style={{ width: '100%', padding: '12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: `1px dashed var(--theme)`, color: 'var(--theme)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', fontWeight: 'bold' }}>
+            <Database size={16} /> クラウド同期
+          </button>
         </div>
       </div>
 
-      {/* メニューのカスタマイズ モーダル */}
-      {isMenuCustomizeOpen && (
-        <div className="modal-overlay" onClick={() => setIsMenuCustomizeOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '400px', borderRadius: '28px', border: '1px solid var(--glass-border)', overflowY: 'auto', maxHeight: '90vh', background: 'var(--bg-main)', color: 'var(--text-main)', padding: '24px' }}>
-            <ModalHeader title="メニューのカスタマイズ" onClose={() => setIsMenuCustomizeOpen(false)} />
+      {/* =========================================
+          🛠 アプリ設定と管理パネル（全体モーダル）
+      ========================================= */}
+      {isSettingsPanelOpen && (
+        <div className="modal-overlay" onClick={() => setIsSettingsPanelOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '440px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <ModalHeader title="アプリ設定と管理" onClose={() => setIsSettingsPanelOpen(false)} />
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px', paddingRight: '4px' }}>
               
-              {/* 1. お気に入り項目の選択 */}
+              {/* マスターデータ管理 */}
               <div>
-                <h3 style={{ fontSize: '0.9rem', color: 'var(--theme)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Star size={16} fill="var(--theme)" /> よく使う機能を選ぶ
-                </h3>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>マスターデータの管理</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button onClick={() => { setIsCategoryModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
+                    <Palette size={18} color="var(--theme)" /> ジャンル・記録項目の設定
+                  </button>
+                  <button onClick={() => { setIsRoutineModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
+                    <Repeat size={18} color="var(--theme)" /> 毎月の予定 (給料・引き落とし等)
+                  </button>
+                  <button onClick={() => { setMode('subscription'); setIsModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
+                    <Banknote size={18} color="var(--theme)" /> サブスク管理 (毎月/毎年)
+                  </button>
+                  <button onClick={() => { setIsAnniversaryModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
+                    <Gift size={18} color="var(--theme)" /> 記念日管理
+                  </button>
+                </div>
+              </div>
+
+              {/* 出発地・ルート検索設定 */}
+              <div>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>ルート検索のデフォルト設定</span>
+                <div style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <select className="pop-input" value={startPointType} onChange={e => setStartPointType(e.target.value)} style={{ fontSize: '0.85rem' }}>
+                    <option value="address">自宅の住所から出発</option>
+                    <option value="station">最寄り駅から出発</option>
+                  </select>
+                  
+                  {startPointType === 'address' ? (
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}><Home size={14} color="var(--theme)" /> 自宅の住所</label>
+                      <input type="text" className="pop-input" value={homeLocation} onChange={e => setHomeLocation(e.target.value)} placeholder="東京都渋谷区..." style={{ fontSize: '0.85rem' }} />
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}><Train size={14} color="var(--theme)" /> 最寄り駅</label>
+                        <input type="text" className="pop-input" value={nearestStation} onChange={e => setNearestStation(e.target.value)} placeholder="渋谷駅" style={{ fontSize: '0.85rem' }} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <label className="form-label" style={{ fontSize: '0.75rem', margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}><Footprints size={14} color="var(--theme)" /> 駅までの徒歩</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+                          <input type="number" className="pop-input no-spin" value={walkTime} onChange={e => setWalkTime(e.target.value)} style={{ fontSize: '1rem', textAlign: 'center' }} />
+                          <span style={{ fontSize: '0.85rem', fontWeight: '900' }}>分</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* メニューのカスタマイズ */}
+              <div>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Star size={16} fill="var(--theme)" /> クイックアクションのカスタマイズ
+                </span>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   {MENU_ACTIONS.map(item => {
                     const isFav = favoriteItems.includes(item.id);
@@ -716,55 +450,22 @@ export default function Sidebar({
                 </div>
               </div>
 
-              <div style={{ height: '1px', background: 'var(--border-color)' }} />
-
-              {/* 2. セクションの並び替え */}
+              {/* 収支計算の基準設定 */}
               <div>
-                <h3 style={{ fontSize: '0.9rem', color: 'var(--theme)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <LayoutDashboard size={16} /> 大項目の並び替え
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {sidebarOrder.map((id, index) => {
-                    const info = SECTION_INFO[id];
-                    if (!info) return null;
-                    return (
-                      <div
-                        key={id}
-                        draggable
-                        onDragStart={() => dragSection.current = index}
-                        onDragEnter={() => {
-                          if (dragSection.current !== null && dragSection.current !== index) {
-                            const newOrder = [...sidebarOrder];
-                            const dragged = newOrder.splice(dragSection.current, 1)[0];
-                            newOrder.splice(index, 0, dragged);
-                            dragSection.current = index;
-                            setSidebarOrder(newOrder);
-                          }
-                        }}
-                        onDragEnd={() => dragSection.current = null}
-                        onDragOver={(e) => e.preventDefault()}
-                        style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--input-bg)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', cursor: 'grab', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
-                      >
-                        <GripVertical size={16} style={{ color: 'var(--text-sub)' }} />
-                        <info.icon size={16} style={{ color: themeColor }} />
-                        <span style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--text-main)' }}>{info.title}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>収入の計算基準</span>
+                <select className="pop-input" value={incomeCalcBasis} onChange={e => setIncomeCalcBasis(e.target.value as any)} style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
+                  <option value="wage">時給・シフトの予定から自動計算</option>
+                  <option value="payday">給料日・実際の入金のみを計算</option>
+                </select>
               </div>
 
             </div>
-
-            <button onClick={() => setIsMenuCustomizeOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '24px', padding: '14px', borderRadius: '16px' }}>完了</button>
           </div>
         </div>
       )}
 
-      {/* 以下、独立モーダル群（省略せず描画されます） */}
-      {isTravelMapOpen && (() => {
-        return <div style={{display:'none'}}>Map</div>;
-      })()}
+      {/* 以下、独立モーダル群 */}
+      {isTravelMapOpen && (() => { return <div style={{display:'none'}}>Map</div>; })()}
 
       {isFinanceHistoryOpen && (() => {
         const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -791,20 +492,12 @@ export default function Sidebar({
           <div className="modal-overlay" onClick={() => setIsFinanceHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', overflowY: 'auto', maxHeight: '90vh', background: 'var(--bg-main)', color: 'var(--text-main)', padding: '24px' }}>
               <ModalHeader title="すべての収支履歴" onClose={() => setIsFinanceHistoryOpen(false)} />
-              
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                 <button onClick={() => setHistorySpan('month')} className={historySpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>今月</button>
                 <button onClick={() => setHistorySpan('year')} className={historySpan === 'year' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>今年</button>
                 <button onClick={() => setHistorySpan('all')} className={historySpan === 'all' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>全期間</button>
               </div>
-
-              <div style={{ display: 'flex', background: 'var(--input-bg)', borderRadius: '12px', padding: '4px', border: '1px solid var(--border-color)', marginBottom: '16px' }}>
-                <button onClick={() => setFinanceTypeFilter('all')} style={{ flex: 1, padding: '8px', borderRadius: '8px', background: financeTypeFilter === 'all' ? 'var(--card-bg)' : 'transparent', color: financeTypeFilter === 'all' ? 'var(--text-main)' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', boxShadow: financeTypeFilter === 'all' ? '0 2px 6px rgba(0,0,0,0.05)' : 'none', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.2s' }}>すべて</button>
-                <button onClick={() => setFinanceTypeFilter('income')} style={{ flex: 1, padding: '8px', borderRadius: '8px', background: financeTypeFilter === 'income' ? 'rgba(16,185,129,0.1)' : 'transparent', color: financeTypeFilter === 'income' ? '#10b981' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.2s' }}>収入のみ</button>
-                <button onClick={() => setFinanceTypeFilter('expense')} style={{ flex: 1, padding: '8px', borderRadius: '8px', background: financeTypeFilter === 'expense' ? 'rgba(239,68,68,0.1)' : 'transparent', color: financeTypeFilter === 'expense' ? '#ef4444' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', fontSize: '0.8rem', transition: 'all 0.2s' }}>支出のみ</button>
-              </div>
-
-              <div className="hide-scrollbar" style={{ height: '55vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
+              <div className="hide-scrollbar" style={{ height: '65vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px' }}>
                 {filteredHistory.length === 0 ? (
                   <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-sub)', padding: '24px' }}>記録がありません</div>
                 ) : (
@@ -815,15 +508,19 @@ export default function Sidebar({
                       : e.extendedProps?.metadata?.customFields?.standardExpenseAmount;
                     const dateStr = e.start.split('T')[0].replace(/-/g, '/');
                     const method = e.extendedProps?.metadata?.customFields?.paymentMethod || 'cash';
-                    const methodLabel = !isIncome ? (
-                      method === 'credit' ? '💳 クレカ' :
-                      method === 'paypay' ? '📱 スマホ決済' :
-                      method === 'ic' ? '🪪 交通系IC' :
-                      method === 'reimburse' ? '🔄 立替' : '💴 現金'
-                    ) : (
-                      method === 'bank' ? '🏦 振込' :
-                      method === 'paypay' ? '📱 電子マネー' : '💴 現金'
-                    );
+                    
+                    // 👇 絵文字を排除しスマートアイコンでの描画に統一
+                    let MethodIcon = Banknote;
+                    let methodText = '現金';
+                    if (!isIncome) {
+                      if (method === 'credit') { MethodIcon = CreditCard; methodText = 'クレカ'; }
+                      else if (method === 'paypay') { MethodIcon = Smartphone; methodText = 'スマホ決済'; }
+                      else if (method === 'ic') { MethodIcon = Train; methodText = '交通系IC'; }
+                      else if (method === 'reimburse') { MethodIcon = Repeat; methodText = '立替'; }
+                    } else {
+                      if (method === 'bank') { MethodIcon = Landmark; methodText = '振込'; }
+                      else if (method === 'paypay') { MethodIcon = Smartphone; methodText = '電子マネー'; }
+                    }
 
                     return (
                       <div key={e.id} onClick={() => { setIsFinanceHistoryOpen(false); setIsSidebarOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
@@ -831,7 +528,9 @@ export default function Sidebar({
                           <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{e.title}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <Clock size={12} /> {dateStr}
-                            <span style={{ marginLeft: '4px', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '6px', fontSize: '0.65rem' }}>{methodLabel}</span>
+                            <span style={{ marginLeft: '4px', background: 'var(--input-bg)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <MethodIcon size={10} /> {methodText}
+                            </span>
                           </div>
                         </div>
                         <div style={{ fontWeight: '900', color: isIncome ? '#10b981' : '#ef4444', fontSize: '1.2rem', flexShrink: 0 }}>
@@ -846,243 +545,50 @@ export default function Sidebar({
           </div>
         );
       })()}
-      {/* 👇 ここに追加！：要望・フィードバックモーダル */}
+
       {isFeedbackModalOpen && (
         <div className="modal-overlay" onClick={() => setIsFeedbackModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px' }}>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '92%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: 'var(--theme)', fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <MessageSquare size={20} /> ご要望・不具合の報告
-              </h2>
+              <h2 style={{ margin: 0, color: 'var(--theme)', fontSize: '1.2rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}><MessageSquare size={20} /> ご要望・不具合の報告</h2>
               <button onClick={() => setIsFeedbackModalOpen(false)} style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', color: 'var(--text-sub)', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
             </div>
-            
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-sub)', marginBottom: '16px', lineHeight: 1.5, fontWeight: 'bold' }}>
-              アプリをより良くしていくため、「こんな機能がほしい」「ここが使いにくい」といったご意見をぜひお聞かせください！<br/>
-              <span style={{ fontSize: '0.75rem', color: '#f59e0b' }}>※送信内容は開発者にのみ共有されます。</span>
-            </p>
-
-            <textarea
-              value={feedbackText}
-              onChange={e => setFeedbackText(e.target.value)}
-              placeholder="例：〇〇の機能を追加してほしい、〇〇の画面でエラーになる..."
-              rows={6}
-              style={{ padding: '12px', fontSize: '0.9rem', resize: 'vertical', minHeight: '120px', marginBottom: '20px', width: '100%', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none' }}
-              autoFocus
-            />
-
+            <textarea value={feedbackText} onChange={e => setFeedbackText(e.target.value)} placeholder="例：〇〇の機能を追加してほしい..." rows={6} style={{ padding: '12px', fontSize: '0.9rem', resize: 'vertical', minHeight: '120px', marginBottom: '20px', width: '100%', borderRadius: '12px', border: '2px solid var(--border-color)', background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none' }} autoFocus />
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setIsFeedbackModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '16px', fontWeight: 'bold', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>キャンセル</button>
-              <button 
-                disabled={isSendingFeedback || !feedbackText.trim()}
-                onClick={async () => {
-                  setIsSendingFeedback(true);
-                  try {
-                    // Supabaseの feedbacks テーブルに保存する処理
-                    await supabase.from('feedbacks').insert([{ 
-                      user_id: activeUserId, 
-                      user_name: activeUserName, 
-                      content: feedbackText.trim()
-                    }]);
-                    alert('ご要望を送信しました！貴重なご意見ありがとうございます。');
-                    setFeedbackText('');
-                    setIsFeedbackModalOpen(false);
-                  } catch (e) {
-                    alert('送信に失敗しました。時間をおいて再度お試しください。');
-                  } finally {
-                    setIsSendingFeedback(false);
-                  }
-                }} 
-                style={{ flex: 1.5, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '16px', background: themeColor, color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', boxShadow: `0 4px 15px ${themeColor}60`, opacity: (isSendingFeedback || !feedbackText.trim()) ? 0.6 : 1 }}
-              >
-                {isSendingFeedback ? '送信中...' : <><Send size={16} /> 送信する</>}
-              </button>
+              <button onClick={() => setIsFeedbackModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '16px', fontWeight: 'bold' }}>キャンセル</button>
+              <button disabled={isSendingFeedback || !feedbackText.trim()} onClick={async () => { setIsSendingFeedback(true); try { await supabase.from('feedbacks').insert([{ user_id: activeUserId, user_name: activeUserName, content: feedbackText.trim() }]); alert('ご要望を送信しました！'); setFeedbackText(''); setIsFeedbackModalOpen(false); } catch (e) { alert('送信に失敗しました。'); } finally { setIsSendingFeedback(false); } }} style={{ flex: 1.5, padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '16px', background: themeColor, color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', opacity: (isSendingFeedback || !feedbackText.trim()) ? 0.6 : 1 }}>{isSendingFeedback ? '送信中...' : <><Send size={16} /> 送信する</>}</button>
             </div>
           </div>
         </div>
       )}
-      {isProfileModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsProfileModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px' }}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '92%', maxWidth: '380px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
-            <ModalHeader title="プロフィールの編集" onClose={() => setIsProfileModalOpen(false)} />
-            
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-              
-              {/* アイコン画像変更 */}
-              <div style={{ position: 'relative' }}>
-                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: activeUserAvatar ? `url(${activeUserAvatar}) center/cover` : themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: `2px solid var(--theme)`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-                  {!activeUserAvatar && <User size={40} />}
-                </div>
-                <label style={{ position: 'absolute', bottom: 0, right: 0, background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', color: 'var(--theme)' }}>
-                  <Edit3 size={14} />
-                  <input type="file" accept="image/*" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => setActiveUserAvatar(ev.target?.result as string);
-                    reader.readAsDataURL(file);
-                  }} style={{ display: 'none' }} />
-                </label>
-              </div>
 
-              {/* 名前変更 */}
-              <div style={{ width: '100%' }}>
-                <label className="form-label" style={{ textAlign: 'center' }}>ニックネーム</label>
-                <input type="text" className="pop-input" value={editUserName} onChange={e => setEditUserName(e.target.value)} style={{ textAlign: 'center' }} />
-              </div>
-              <div style={{ width: '100%' }}>
-                <label className="form-label" style={{ textAlign: 'center' }}>ユーザーID</label>
-                <input type="text" className="pop-input" value={`@${activeUserId}`} disabled style={{ textAlign: 'center', opacity: 0.6, background: 'var(--bg-main)' }} />
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)', display: 'block', textAlign: 'center', marginTop: '4px' }}>※ユーザーIDは変更できません</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setIsProfileModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '16px' }}>キャンセル</button>
-              <button onClick={() => {
-                if (!editUserName.trim()) return alert('ニックネームを入力してください');
-                setActiveUserName(editUserName.trim());
-                localStorage.setItem('os_user_avatar', activeUserAvatar);
-                
-                const session = localStorage.getItem('os_active_session');
-                if (session) {
-                  const sObj = JSON.parse(session);
-                  sObj.name = editUserName.trim();
-                  localStorage.setItem('os_active_session', JSON.stringify(sObj));
-                }
-                
-                const savedUsers = localStorage.getItem('os_local_users');
-                if (savedUsers) {
-                  const users = JSON.parse(savedUsers);
-                  const updated = users.map((u:any) => u.id === activeUserId ? { ...u, nickname: editUserName.trim() } : u);
-                  localStorage.setItem('os_local_users', JSON.stringify(updated));
-                }
-                
-                setIsProfileModalOpen(false);
-              }} className="btn-pop" style={{ flex: 1.5, padding: '12px', borderRadius: '16px' }}>保存する</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* 👇 追加！：ジャンル別履歴モーダル */}
       {isCategoryHistoryOpen && (() => {
-        const sortedEvents = events
-          .filter((e: any) => historyCategory === 'すべて' || e.extendedProps?.category === historyCategory)
-          .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
-
+        const sortedEvents = events.filter((e: any) => historyCategory === 'すべて' || e.extendedProps?.category === historyCategory).sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
         return (
           <div className="modal-overlay" onClick={() => setIsCategoryHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
               <ModalHeader title="ジャンル別の履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
-              
               <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '4px' }}>
                 <button onClick={() => setHistoryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: historyCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: historyCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
-                {categories.map((c: any) => (
-                  <button key={c.name} onClick={() => setHistoryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: historyCategory === c.name ? c.color : 'var(--input-bg)', color: historyCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>
-                    {c.name}
-                  </button>
-                ))}
+                {categories.map((c: any) => ( <button key={c.name} onClick={() => setHistoryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: historyCategory === c.name ? c.color : 'var(--input-bg)', color: historyCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>{c.name}</button> ))}
               </div>
-
               <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
-                {sortedEvents.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-sub)', fontSize: '0.85rem' }}>予定がありません</div>
-                ) : (
-                  sortedEvents.map((e: any) => {
-                    const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
-                    const dateStr = e.start.split('T')[0].replace(/-/g, '/');
-                    const memo = e.extendedProps?.metadata?.memo;
-                    const rating = e.extendedProps?.metadata?.rating;
-                    return (
-                      <div key={e.id} onClick={() => { setIsCategoryHistoryOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', borderLeft: `6px solid ${cColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', lineHeight: 1.3 }}>{e.title}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{dateStr}</div>
-                        </div>
-                        {memo && <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', background: 'var(--input-bg)', padding: '8px', borderRadius: '8px', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}>{memo}</div>}
-                        {rating > 0 && <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{'★'.repeat(rating)}</div>}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* 🤝 追加：立替・精算管理モーダル */}
-      {isSettlementModalOpen && (() => {
-        const unpayedAdvances = events.flatMap(e => {
-          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
-
-        return (
-          <div className="modal-overlay" onClick={() => setIsSettlementModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
-              <ModalHeader title="立替・精算の管理" onClose={() => setIsSettlementModalOpen(false)} />
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {unpayedAdvances.length === 0 ? (
-                  <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-sub)', padding: '30px', background: 'var(--input-bg)', borderRadius: '16px', border: '1px dashed var(--border-color)', fontWeight: 'bold' }}>
-                    未精算の項目はありません 🎉
-                  </div>
-                ) : (
-                  unpayedAdvances.map((adv: any, i: number) => (
-                    <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {sortedEvents.length === 0 ? <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-sub)', fontSize: '0.85rem' }}>予定がありません</div> : sortedEvents.map((e: any) => {
+                  const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                  const dateStr = e.start.split('T')[0].replace(/-/g, '/');
+                  const memo = e.extendedProps?.metadata?.memo;
+                  const rating = e.extendedProps?.metadata?.rating;
+                  return (
+                    <div key={e.id} onClick={() => { setIsCategoryHistoryOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', borderLeft: `6px solid ${cColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
-                            {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
-                        </div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
-                          ¥{Number(adv.amount).toLocaleString()}
-                        </div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', lineHeight: 1.3 }}>{e.title}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{dateStr}</div>
                       </div>
-                      <button 
-                        onClick={async () => {
-                          if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
-                            const targetEvent = events.find((e: any) => e.id === adv.eventId);
-                            if (targetEvent) {
-                              const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
-                                ex.id === adv.id ? { ...ex, isSettled: true } : ex
-                              );
-                              await supabase.from('events').update({
-                                metadata: { 
-                                  ...targetEvent.extendedProps.metadata, 
-                                  customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } 
-                                }
-                              }).eq('id', adv.eventId);
-                              
-                              const today = toLocalYYYYMMDD(new Date());
-                              await supabase.from('events').insert([{
-                                title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
-                                start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
-                                metadata: {
-                                  isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
-                                  customFields: {
-                                    isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
-                                    isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
-                                    paymentMethod: 'cash'
-                                  }
-                                }
-                              }]);
-                              alert('精算を完了として記録しました！');
-                              window.location.reload(); 
-                            }
-                          }
-                        }}
-                        className="btn-pop" 
-                        style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                      >
-                        <CheckCircle size={16} /> 精算を完了する
-                      </button>
+                      {memo && <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', background: 'var(--input-bg)', padding: '8px', borderRadius: '8px', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}>{memo}</div>}
+                      {rating > 0 && <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{'★'.repeat(rating)}</div>}
                     </div>
-                  ))
-                )}
+                  );
+                })}
               </div>
             </div>
           </div>
