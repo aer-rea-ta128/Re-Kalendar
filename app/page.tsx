@@ -833,9 +833,12 @@ export default function SmartLifeOS() {
 
   const handleSelect = (info: any) => {
     if (isDeleteMode) return;
-    if (isSwipingRef.current) return;
+    
+    // 👇 修正：選択された期間が2日以上の場合は、スワイプ判定を無視して予定作成画面を開く！
+    const diffDays = Math.round((new Date(info.end).getTime() - new Date(info.start).getTime()) / (1000 * 60 * 60 * 24));
+    if (isSwipingRef.current && diffDays <= 1) return;
 
-    // 👇 追加：コピーしている予定があれば、それをペーストして開く！
+    // コピーしている予定があれば、それをペーストして開く
     if (clipboardEvent) {
       setMode('create');
       setStartDate(toLocalYYYYMMDD(info.start));
@@ -883,8 +886,7 @@ export default function SmartLifeOS() {
     }
     setIsStocked(false);
 
-    // 👇 修正：月カレンダーで「複数日（ドラッグして選択）」した場合は1日単位をデフォルトにする
-    const diffDays = Math.round((new Date(info.end).getTime() - new Date(info.start).getTime()) / (1000 * 60 * 60 * 24));
+    // 👇 修正：上のほうですでに計算しているので、ここの「const diffDays = ...」の行をまるごと消します
     if (viewType === 'dayGridMonth' && diffDays > 1) {
       setIsAllDayBackground(true);
     } else {
@@ -2015,29 +2017,29 @@ export default function SmartLifeOS() {
       }
 
       results.push({ 
-        ...e, 
-        groupId: e.id, 
-        extendedProps: { ...e.extendedProps, originalStart: e.start } 
-      });
-      return results;
-    }).filter((e: any) => {
-      if (e.extendedProps?.metadata?.isStocked) return false;
-      if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
-      if (e.extendedProps?.metadata?.isPureFinance) return false;
-      
-      if (viewType === 'dayGridMonth') {
-        // 👇 修正：ルーティン（給料など）やサブスクは、枠線ブロックとして表示させない！
-        const isSub = String(e.id).startsWith('sub-');
-        const isRoutine = e.extendedProps?.isRoutine;
-        if (isSub || isRoutine) return false;
-        
-        if (calendarCategoryFilter !== 'すべて' && e.extendedProps?.category !== calendarCategoryFilter) {
-          return false;
-        }
-      }
-      
-      return true;
+      ...e, 
+      groupId: e.id, 
+      extendedProps: { ...e.extendedProps, originalStart: e.start } 
     });
+    return results;
+  }).filter((e: any) => {
+    if (e.extendedProps?.metadata?.isStocked) return false;
+    if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
+    if (e.extendedProps?.metadata?.isPureFinance) return false;
+    
+    if (viewType === 'dayGridMonth') {
+      // 👇 追加：サブスクとルーティンを「枠（帯）」としては絶対に表示させない！
+      const isSub = String(e.id).startsWith('sub-');
+      const isRoutine = e.extendedProps?.isRoutine;
+      if (isSub || isRoutine) return false;
+
+      if (calendarCategoryFilter !== 'すべて' && e.extendedProps?.category !== calendarCategoryFilter) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
   const currentCategoryObj = categories.find((c: any) => c.name === categoryName);
   const currentMonthStr = `${currentYear}-${currentMonthNum.padStart(2, '0')}`;
@@ -2650,6 +2652,11 @@ useEffect(() => {
                 return targetTime >= sDate.getTime() && targetTime < eDate.getTime();
               });
 
+              // 👇 修正：ルーティン・サブスクの色を抽出し、リストからは除外する
+              const monthlyEvent = allDayEvents.find((e: any) => e.extendedProps?.isRoutine || String(e.id).startsWith('sub-'));
+              const centerColor = monthlyEvent ? (monthlyEvent.extendedProps?.cColor || monthlyEvent.backgroundColor || 'var(--theme)') : null;
+              const displayAllDayEvents = allDayEvents.filter((e: any) => !e.extendedProps?.isRoutine && !String(e.id).startsWith('sub-'));
+
               // 予定の重なり（クラスター）を正確に計算するロジック
               const clusters: any[][] = [];
               let currentCluster: any[] = [];
@@ -2702,7 +2709,6 @@ useEffect(() => {
               const dayOfWeek = targetDateObj.getDay();
               const isHoliday = holidays[toLocalYYYYMMDD(targetDateObj)];
               const dayColor = (dayOfWeek === 0 || isHoliday) ? '#ef4444' : (dayOfWeek === 6 ? '#3b82f6' : 'var(--text-sub)');
-              const centerColor = allDayEvents.length > 0 ? (allDayEvents[0].extendedProps?.cColor || allDayEvents[0].backgroundColor || 'var(--theme)') : null;
 
               const handleDayNav = (days: number) => {
                 const api = calendarRef.current?.getApi();
@@ -2717,7 +2723,8 @@ useEffect(() => {
                       <svg viewBox="0 0 160 160" style={{ width: '100%', height: '100%', overflow: 'visible', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.06))' }}>
                         
                         <circle cx="80" cy="80" r="50" fill="none" stroke="var(--border-color)" strokeWidth="24" opacity="0.4" />
-                        <circle cx="80" cy="80" r="38" fill={centerColor ? hexToRgba(centerColor, 0.1) : 'var(--bg-main)'} stroke={centerColor || 'var(--border-color)'} strokeWidth={centerColor ? "2.5" : "1"} style={{ transition: 'all 0.3s' }} />
+                        {/* 👇 修正：枠線(stroke)は変えずに、背景色(fill)だけを薄くする */}
+                        <circle cx="80" cy="80" r="38" fill={centerColor ? hexToRgba(centerColor, 0.15) : 'var(--bg-main)'} stroke="var(--border-color)" strokeWidth="1" style={{ transition: 'all 0.3s' }} />
                         
                         {Array.from({length: 24}).map((_, i) => {
                           const angle = (i * 15 - 90) * (Math.PI / 180);
@@ -2830,25 +2837,23 @@ useEffect(() => {
                   <div 
                     style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' }} 
                     className="hide-scrollbar"
-                    onTouchStart={e => e.stopPropagation()} // 👈 追加：スクロール操作をスワイプと混同させない
-                    onTouchMove={e => e.stopPropagation()}  // 👈 追加
-                    onTouchEnd={e => e.stopPropagation()}   // 👈 追加
+                    onTouchStart={e => e.stopPropagation()}
+                    onTouchMove={e => e.stopPropagation()} 
+                    onTouchEnd={e => e.stopPropagation()}   
                   >
                     
-                    {allDayEvents.map((e: any) => {
+                    {/* 👇 修正：ルーティン等を除外した通常の終日予定のみを表示 */}
+                    {displayAllDayEvents.map((e: any) => {
                       const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
-                      const isPayment = e.extendedProps?.metadata?.routineType === 'expense' || String(e.id).startsWith('sub-') || e.extendedProps?.metadata?.customFields?.isExpenseSet;
                       return (
                         <div key={e.id} onClick={() => handleEventClick({event: e})} style={{ background: 'var(--card-bg)', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${cColor}`, borderRadius: '12px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{e.title.replace('🔄 ', '')}</div>
-                          <div style={{ fontSize: '0.75rem', fontWeight: '900', color: cColor, background: hexToRgba(cColor, 0.1), padding: '4px 10px', borderRadius: '8px' }}>
-                            {isPayment ? '支払い' : '終日'}
-                          </div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{e.title}</div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: '900', color: cColor, background: hexToRgba(cColor, 0.1), padding: '4px 10px', borderRadius: '8px' }}>終日</div>
                         </div>
                       );
                     })}
 
-                    {dayEvents.length === 0 && allDayEvents.length === 0 ? (
+                    {dayEvents.length === 0 && displayAllDayEvents.length === 0 ? (
                       <div style={{ textAlign: 'center', color: 'var(--text-sub)', padding: '40px 20px', fontWeight: 'bold', fontSize: '0.95rem' }}>この日の予定はありません</div>
                     ) : (
                       dayEvents.map((e: any) => {
@@ -3060,24 +3065,17 @@ useEffect(() => {
               dayCellContent={(arg: any) => {
                 if (arg.view.type === 'dayGridMonth') {
                   const dStr = toLocalYYYYMMDD(arg.date);
-                  // 👇 修正：ルーティン（給料など）やサブスクがある日を探す
-                  const monthlyEvent = [...routineEvents, ...subEvents].find((e: any) => {
-                    return e.start?.startsWith(dStr);
-                  });
-
-                  // イベントがあれば背景を薄い色にし、文字色を濃くする
-                  const bgColor = monthlyEvent ? hexToRgba(monthlyEvent.backgroundColor || monthlyEvent.extendedProps?.metadata?.customColor || 'var(--theme)', 0.2) : 'transparent';
-                  const txtColor = monthlyEvent ? (monthlyEvent.backgroundColor || monthlyEvent.extendedProps?.metadata?.customColor || 'var(--theme)') : 'inherit';
+                  // 👇 その日にサブスクやルーティンがあるかチェック
+                  const paymentEvent = [...routineEvents, ...subEvents].find((e: any) => e.start?.startsWith(dStr));
 
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-                      <div style={{ 
-                        position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: '24px', height: '24px', borderRadius: '50%',
-                        backgroundColor: bgColor,
-                        color: txtColor
-                      }}>
-                        <span style={{ fontWeight: monthlyEvent ? '900' : 'normal' }}>{arg.date.getDate()}</span>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span>{arg.date.getDate()}</span>
+                        {/* 👇 サブスク等がある日だけ、日付の右上に小さな点を表示（場所を取らない） */}
+                        {paymentEvent && (
+                          <div style={{ position: 'absolute', top: '2px', right: '-8px', width: '5px', height: '5px', borderRadius: '50%', background: paymentEvent.backgroundColor || 'var(--text-sub)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }} />
+                        )}
                       </div>
                     </div>
                   );
