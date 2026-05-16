@@ -2285,9 +2285,13 @@ useEffect(() => {
         input:checked + .slider { background-color: var(--theme); border-color: var(--theme); }
         input:checked + .slider:before { transform: translateX(20px); background-color: #fff; }
 
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
+        .hide-scrollbar {
+          -ms-overflow-style: none;  /* IE, Edge */
+          scrollbar-width: none;     /* Firefox */
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;             /* Chrome, Safari */
+        }
         .highlighted-event { position: relative; z-index: 30 !important; animation: focus-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), pulse-glow 2s infinite; border: 2px solid #ef4444 !important; border-radius: 8px !important; }
         @keyframes focus-bounce { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
         @keyframes pulse-glow { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
@@ -3196,42 +3200,6 @@ useEffect(() => {
           setIsScheduleAssistantOpen={setIsScheduleAssistantOpen}
           setIsAdvanceModalOpen={setIsAdvanceModalOpen}
         />
-
-        {/* ギャラリー */}
-        {isGalleryOpen && (
-          <div className="modal-overlay" onClick={() => setIsGalleryOpen(false)}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px' }}>
-              <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
-              
-              {/* 👇 追加：ジャンル絞り込みボタン */}
-              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', paddingRight: '4px', alignContent: 'start' }}>                <button onClick={() => setGalleryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: galleryCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
-                {categories.map((c: any) => (
-                  <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px', maxHeight: '55vh', overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
-               {/* 👇 修正：写真のみを敷き詰めるUIに変更 */}
-                {events
-                  .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
-                  .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
-                  .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
-                  .flatMap((e: any) =>
-                  e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
-                    <div key={`${e.id}-${index}`} style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                      <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
-                    </div>
-                  ))
-                )}
-                {events.filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0).length === 0 && (
-                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900', fontSize: '0.9rem' }}>思い出の写真を追加しましょう</div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* 日付選択モーダル */}
         {isDayPickerOpen && (
@@ -4353,316 +4321,6 @@ useEffect(() => {
           </div>
         )}
 
-        {/* 振り返りダッシュボード */}
-        {isAnalyticsModalOpen && (
-          <div className="modal-overlay" onClick={() => setIsAnalyticsModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-              <ModalHeader title="ダッシュボード" onClose={() => setIsAnalyticsModalOpen(false)} />
-
-              {/* 年・月選択エリア */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
-                <select className="pop-input" value={analyticsYear} onChange={e => setAnalyticsYear(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
-                  {Array.from({length: 21}, (_, i: number) => currentY - 10 + i).map((y: number) => <option key={y} value={String(y)}>{y}年</option>)}
-                </select>
-                {(analyticsSpan === 'month' || analyticsSpan === 'pie') && (
-                  <select className="pop-input" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
-                    {Array.from({length: 12}, (_, i: number) => i + 1).map((m: number) => <option key={m} value={String(m).padStart(2, '0')}>{m}月</option>)}
-                  </select>
-                )}
-              </div>
-
-              {/* 切替ボタンエリア */}
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexShrink: 0 }}>
-                <button onClick={() => setAnalyticsSpan('month')} className={analyticsSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: analyticsSpan === 'month' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'month' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'month' ? '#fff' : 'var(--text-main)' }}>月間</button>
-                <button onClick={() => setAnalyticsSpan('year')} className={analyticsSpan === 'year' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: analyticsSpan === 'year' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'year' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'year' ? '#fff' : 'var(--text-main)' }}>年間</button>
-                <button onClick={() => setAnalyticsSpan('pie')} className={analyticsSpan === 'pie' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', background: analyticsSpan === 'pie' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'pie' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'pie' ? '#fff' : 'var(--text-main)' }}>円グラフ</button>
-              </div>
-
-              {/* カテゴリチップ */}
-              {analyticsSpan !== 'pie' && (
-                <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', paddingBottom: '8px', flexShrink: 0 }}>
-                  {categories.filter((c: any) => c.fields && c.fields.length > 0).map((c: any) => (
-                    <button key={c.name} onClick={() => setAnalyticsCat(c.name)} style={{ background: analyticsCat === c.name ? c.color : 'var(--input-bg)', color: analyticsCat === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', whiteSpace: 'nowrap', cursor: 'pointer', boxShadow: analyticsCat === c.name ? `0 6px 15px ${c.color}50` : '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}>{c.name}</button>
-                  ))}
-                </div>
-              )}
-
-              {/* コンテンツエリア（ここが伸びてスクロールする） */}
-              <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
-                {(() => {
-                  const targetMonthStr = `${analyticsYear}-${analyticsMonth}`;
-                  const targetEvents = analyticsSpan === 'month' || analyticsSpan === 'pie'
-                    ? displayEvents.filter((e: any) => e.start && e.start.startsWith(targetMonthStr))
-                    : displayEvents.filter((e: any) => e.start && e.start.startsWith(analyticsYear));
-
-                  if (analyticsSpan === 'pie') {
-                    let totalIncome = 0;
-                    const catIncomes = categories.map((c: any) => {
-                      let catInc = 0;
-                      targetEvents.forEach((e: any) => {
-                        const incomeCat = e.extendedProps.metadata?.customFields?.incomeCategory || e.extendedProps.category;
-                        if (incomeCat === c.name && e.extendedProps.metadata?.customFields?.isIncomeSet) catInc += Number(e.extendedProps.metadata.customFields.standardIncomeAmount || 0);
-                        if (e.extendedProps.category === c.name) {
-                          const fields = e.extendedProps.metadata?.customFields;
-                          if (fields && c.fields) {
-                            c.fields.forEach((f: any) => {
-                              if (f.type === 'money' && fields[f.id]?.type === 'income') catInc += Number(fields[f.id].amount || 0);
-                              if (f.type === 'money_income') catInc += Number(fields[f.id] || 0);
-                              if (f.type === 'wage' && !f.excludeFromTotal) {
-                                if (fields[f.id]?.calculatedWage !== undefined) catInc += Number(fields[f.id].calculatedWage);
-                                else {
-                                  const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
-                                  catInc += Number(fields[f.id]?.hours || 0) * Number(fallbackWage);
-                                }
-                              }
-                            });
-                          }
-                        }
-                      });
-                      totalIncome += catInc;
-                      return { name: c.name, color: c.color, value: catInc };
-                    }).filter((c: any) => c.value > 0).sort((a: any, b: any) => b.value - a.value);
-
-                    let totalExpense = 0;
-                    const catExpenses = categories.map((c: any) => {
-                      let catExp = 0;
-                      targetEvents.forEach((e: any) => {
-                        const expenseCat = e.extendedProps.metadata?.customFields?.expenseCategory || e.extendedProps.category;
-                        if (expenseCat === c.name && e.extendedProps.metadata?.customFields?.isExpenseSet) catExp += Number(e.extendedProps.metadata.customFields.standardExpenseAmount || 0);
-                        if (e.extendedProps.category === c.name) {
-                          const fields = e.extendedProps.metadata?.customFields;
-                          if (fields && c.fields) {
-                            c.fields.forEach((f: any) => {
-                              if (f.type === 'money' && fields[f.id]?.type === 'expense') catExp += Number(fields[f.id].amount || 0);
-                              if (f.type === 'money_expense') catExp += Number(fields[f.id] || 0);
-                            });
-                          }
-                        }
-                      });
-                      totalExpense += catExp;
-                      return { name: c.name, color: c.color, value: catExp };
-                    }).filter((c: any) => c.value > 0).sort((a: any, b: any) => b.value - a.value);
-
-                    const renderPie = (title: string, data: any[], total: number, isIncome: boolean) => {
-                      if (data.length === 0) return null;
-                      let currentDeg = 0;
-                      const gradientStops = data.map((c: any) => {
-                        const perc = (c.value / total) * 100;
-                        const stop = `${c.color} ${currentDeg}deg, ${c.color} ${currentDeg + perc * 3.6}deg`;
-                        currentDeg += perc * 3.6;
-                        return stop;
-                      }).join(', ');
-                      return (
-                        <div className="card-box" style={{ padding: '20px', marginBottom: '16px' }}>
-                          <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '900' }}>{title} <span style={{fontSize:'1rem', color: isIncome ? '#10b981' : '#ef4444'}}>¥{total.toLocaleString()}</span></h3>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <div style={{ width: '180px', height: '180px', borderRadius: '50%', background: `conic-gradient(${gradientStops})`, boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginBottom: '24px' }} />
-                            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              {data.map((c: any) => (
-                                <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', padding: '10px 12px', borderRadius: '10px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: c.color }} />
-                                    <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>{c.name}</span>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{Math.round((c.value / total) * 100)}%</span>
-                                    <span style={{ fontWeight: '900', fontSize: '1rem', color: 'var(--text-main)' }}>¥{c.value.toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    };
-
-                    return (
-                      <>
-                        {totalIncome === 0 && totalExpense === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900' }}>収支データがありません</div>}
-                        {renderPie('収入の割合', catIncomes, totalIncome, true)}
-                        {renderPie('支出の割合', catExpenses, totalExpense, false)}
-                      </>
-                    );
-                  }
-
-                  return categories.filter((c: any) => c.name === analyticsCat).map((cat: any) => {
-                    if (!cat.fields || cat.fields.length === 0) return null;
-                    const catEvents = targetEvents.filter((e: any) => e.extendedProps.category === cat.name);
-
-                    if (catEvents.length === 0) {
-                      return <div key={cat.name} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900' }}><div>記録データがありません。</div></div>;
-                    }
-
-                    return (
-                      <div key={cat.name} className="card-box" style={{ borderLeft: `6px solid ${cat.color}`, padding: '20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                          <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '900' }}>{cat.name} の記録 <span style={{fontSize:'0.8rem', color:'var(--text-sub)'}}>({analyticsSpan === 'month' ? `${analyticsMonth}月` : `${analyticsYear}年`})</span></h3>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px', background: 'var(--input-bg)', padding: '8px 12px', borderRadius: '12px' }}>
-                          {cat.fields.map((f: any) => (
-                            <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', cursor: 'pointer' }}>
-                              <input type="checkbox" checked={visibleDashboardFields[f.id] !== false} onChange={e => setVisibleDashboardFields({...visibleDashboardFields, [f.id]: e.target.checked})} style={{ cursor: 'pointer' }} />
-                              {f.name}
-                            </label>
-                          ))}
-                        </div>
-
-                        {analyticsSpan === 'month' ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {cat.fields.map((f:any) => {
-                              if (visibleDashboardFields[f.id] === false) return null;
-                              let content;
-
-                              if (f.type === 'number') {
-                                const total = catEvents.reduce((sum: number, e: any) => sum + (Number(e.extendedProps.metadata?.customFields?.[f.id]) || 0), 0);
-                                content = <div style={{ fontSize: '1.4rem', color: cat.color, fontWeight: '900' }}>{total.toLocaleString()}<span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginLeft: '4px' }}>{f.unit}</span></div>;
-                              } else if (f.type === 'wage') {
-                                const currentCatEvents = targetEvents.filter((e: any) => e.extendedProps.category === cat.name);
-                                const totalH = currentCatEvents.reduce((sum: number, e: any) => sum + (Number(e.extendedProps.metadata?.customFields?.[f.id]?.hours) || 0), 0);
-                                const totalWage = currentCatEvents.reduce((sum: number, e: any) => {
-                                  const d = e.extendedProps.metadata?.customFields?.[f.id];
-                                  if (!d) return sum;
-                                  if (d.calculatedWage !== undefined) return sum + Number(d.calculatedWage);
-                                  const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
-                                  return sum + ((Number(d.hours) || 0) * Number(fallbackWage));
-                                }, 0);
-
-                                const currentCatExpense = currentCatEvents.reduce((sum: number, e: any) => {
-                                  if (e.extendedProps.metadata?.customFields?.isExpenseSet) {
-                                    return sum + Number(e.extendedProps.metadata.customFields.standardExpenseAmount || 0);
-                                  }
-                                  return sum;
-                                }, 0);
-
-                                content = (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                      <span style={{ fontSize: '1.5rem', fontWeight: '900', color: cat.color }}>
-                                        ¥{Math.round(totalWage).toLocaleString()}
-                                      </span>
-                                      <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
-                                        ({totalH}時間)
-                                      </span>
-                                    </div>
-                                    {currentCatExpense > 0 && (
-                                      <div style={{ paddingTop: '8px', borderTop: '1px dashed var(--border-color)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                        <span style={{ color: 'var(--text-sub)' }}>シフト時の支出・経費</span>
-                                        <span style={{ color: '#ef4444' }}>-¥{currentCatExpense.toLocaleString()}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              } else if (f.type === 'money') {
-                                let inc = 0, exp = 0;
-                                catEvents.forEach((e: any) => {
-                                  const d = e.extendedProps.metadata?.customFields?.[f.id];
-                                  if(d) { if(d.type==='income') inc+=Number(d.amount)||0; else exp+=Number(d.amount)||0; }
-                                });
-                                content = <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', fontSize: '1.2rem' }}><span style={{color:'#10b981', fontWeight:'900'}}>+{inc.toLocaleString()}</span> <span style={{color:'#ef4444', fontWeight:'900'}}>-{exp.toLocaleString()}</span></div>;
-                              } else if (f.type === 'score') {
-                                let w = 0, l = 0, d = 0;
-                                catEvents.forEach((e: any) => {
-                                  const r = e.extendedProps.metadata?.customFields?.[f.id]?.res;
-                                  if(r==='win') w++; else if(r==='lose') l++; else if(r==='draw') d++;
-                                });
-                                const totalGames = w + l + d;
-                                const winRate = totalGames > 0 ? Math.round((w / totalGames) * 100) : 0;
-                                
-                                content = (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                      <div style={{ fontSize: '1.8rem', color: cat.color, fontWeight: '900', letterSpacing: '1px' }}>
-                                        <span style={{ color: '#10b981' }}>{w}勝</span> <span style={{ color: '#ef4444' }}>{l}敗</span> <span style={{ color: '#94a3b8' }}>{d}分</span>
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                        <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>勝率</span>
-                                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>{winRate}%</span>
-                                      </div>
-                                    </div>
-                                    <div style={{ width: '100%', height: '12px', borderRadius: '6px', display: 'flex', overflow: 'hidden', background: 'var(--border-color)' }}>
-                                      {w > 0 && <div style={{ width: `${(w/totalGames)*100}%`, background: '#10b981' }} title="勝ち" />}
-                                      {d > 0 && <div style={{ width: `${(d/totalGames)*100}%`, background: '#94a3b8' }} title="引き分け" />}
-                                      {l > 0 && <div style={{ width: `${(l/totalGames)*100}%`, background: '#ef4444' }} title="負け" />}
-                                    </div>
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <div key={f.id} style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold', marginBottom: '8px' }}>{f.name}</div>
-                                  {content}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          // 年間表示
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {cat.fields.map((f:any) => {
-                              if (visibleDashboardFields[f.id] === false) return null;
-
-                              if (f.type === 'score') {
-                                let w = 0, l = 0, d = 0;
-                                catEvents.forEach((e: any) => {
-                                  const r = e.extendedProps.metadata?.customFields?.[f.id]?.res;
-                                  if(r==='win') w++; else if(r==='lose') l++; else if(r==='draw') d++;
-                                });
-                                return (
-                                  <div key={f.id} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '12px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid var(--border-color)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '5px' }}>
-                                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{f.name}</span>
-                                      <span style={{ fontSize: '1.3rem', fontWeight: '900', color: cat.color }}>{w}勝 {l}敗 {d}分</span>
-                                    </div>
-                                  </div>
-                                );
-                              }
-
-                              const monthlyData = Array.from({length: 12}, (_, i: number) => {
-                                const mStr = `${analyticsYear}-${String(i+1).padStart(2,'0')}`;
-                                return catEvents.filter((e: any) => e.start.startsWith(mStr)).reduce((sum: number, e: any) => {
-                                  const dat = e.extendedProps.metadata?.customFields?.[f.id];
-                                  if(!dat) return sum;
-                                  if(f.type === 'number') return sum + Number(dat);
-                                  if(f.type === 'wage') return sum + (dat.calculatedWage !== undefined ? Number(dat.calculatedWage) : (Number(dat.hours) * Number(dat.wage || f.wage || 0)));
-                                  if(f.type === 'money') return sum + (dat.type==='income' ? Number(dat.amount) : -Number(dat.amount));
-                                  return sum;
-                                }, 0);
-                              });
-
-                              const maxVal = Math.max(...monthlyData.map(Math.abs), 1);
-                              const totalYear = monthlyData.reduce((a: number, b: number) => a+b, 0);
-                              const unit = f.type === 'wage' || f.type === 'money' ? '円' : f.unit;
-
-                              return (
-                                <div key={f.id} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '12px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid var(--border-color)' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
-                                    <span style={{ fontSize: '0.9rem', fontWeight: '900', color: 'var(--text-sub)' }}>{f.name}</span>
-                                    <span style={{ fontSize: '1.3rem', fontWeight: '900', color: cat.color }}>{totalYear.toLocaleString()}<span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginLeft: '4px' }}>{unit}/年</span></span>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'flex-end', height: '120px', gap: '4px', borderBottom: '2px solid var(--border-color)', paddingBottom: '4px' }}>
-                                    {monthlyData.map((val: number, idx: number) => (
-                                      <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                                        <div style={{ fontSize: '0.55rem', color: 'var(--text-sub)', fontWeight: '900', whiteSpace: 'nowrap', opacity: val !== 0 ? 1 : 0, transition: 'all 0.2s' }}>{val !== 0 ? (val >= 10000 ? Math.floor(val/1000)+'k' : val) : ''}</div>
-                                        <div style={{ width: '100%', height: `${(Math.abs(val)/maxVal)*80}px`, background: val >= 0 ? cat.color : '#ef4444', borderRadius: '6px 6px 0 0', minHeight: val !== 0 ? '6px' : '0', transition: 'height 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)', boxShadow: val !== 0 ? `0 4px 10px ${val >= 0 ? cat.color : '#ef4444'}40` : 'none' }} />
-                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', marginTop: '6px', fontWeight: '900' }}>{idx+1}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
       {/* 📊 収支グラフ（棒グラフ）モーダル */}
       {isFinanceGraphOpen && (() => {
         // 🚨 ここに useState があったら絶対に消してください！🚨
@@ -4822,6 +4480,557 @@ useEffect(() => {
           </div>
         </div>
       )}
+      {/* 🖼 思い出ギャラリー モーダル */}
+      {isGalleryOpen && (
+        <div className="modal-overlay" onClick={() => setIsGalleryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+            
+            <div style={{ flexShrink: 0 }}>
+              <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
+            </div>
+            
+            <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', flexShrink: 0, paddingBottom: '4px', whiteSpace: 'nowrap' }}>
+              <button onClick={() => setGalleryCategory('すべて')} style={{ background: galleryCategory === 'すべて' ? themeColor : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>すべて</button>
+              {categories.filter((c: any) => c.allowPhoto).map((c: any) => (
+                <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
+              ))}
+            </div>
+
+            <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', paddingRight: '4px', alignContent: 'start' }}>
+              {events
+                .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
+                .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
+                .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
+                .flatMap((e: any) =>
+                e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
+                  <div key={`${e.id}-${index}`} style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+                    <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
+                  </div>
+                ))
+              )}
+              {events.filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0).length === 0 && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900', fontSize: '0.9rem' }}>思い出の写真を追加しましょう</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📊 振り返りダッシュボード（収支・円グラフなど） モーダル */}
+      {isAnalyticsModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAnalyticsModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+            <div style={{ flexShrink: 0 }}>
+              <ModalHeader title="ダッシュボード" onClose={() => setIsAnalyticsModalOpen(false)} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
+              <select className="pop-input" value={analyticsYear} onChange={e => setAnalyticsYear(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
+                {Array.from({length: 21}, (_, i: number) => currentY - 10 + i).map((y: number) => <option key={y} value={String(y)}>{y}年</option>)}
+              </select>
+              {(analyticsSpan === 'month' || analyticsSpan === 'pie') && (
+                <select className="pop-input" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
+                  {Array.from({length: 12}, (_, i: number) => i + 1).map((m: number) => <option key={m} value={String(m).padStart(2, '0')}>{m}月</option>)}
+                </select>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
+              {['month', 'year', 'pie'].map((type: any) => (
+                <button 
+                  key={type}
+                  onClick={() => setAnalyticsSpan(type)} 
+                  className={analyticsSpan === type ? 'btn-pop' : 'btn-secondary'} 
+                  style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: analyticsSpan === type ? themeColor : 'var(--input-bg)', color: analyticsSpan === type ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: type === 'pie' ? '0.8rem' : '0.85rem', fontWeight: 'bold', boxShadow: analyticsSpan === type ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}
+                >
+                  {type === 'month' ? '月間' : type === 'year' ? '年間' : '円グラフ'}
+                </button>
+              ))}
+            </div>
+
+            {analyticsSpan !== 'pie' && (
+              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', paddingBottom: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                {categories.filter((c: any) => c.fields && c.fields.length > 0).map((c: any) => (
+                  <button key={c.name} onClick={() => setAnalyticsCat(c.name)} style={{ background: analyticsCat === c.name ? c.color : 'var(--input-bg)', color: analyticsCat === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
+              {(() => {
+                const targetMonthStr = `${analyticsYear}-${analyticsMonth}`;
+                const targetEvents = analyticsSpan === 'month' || analyticsSpan === 'pie'
+                  ? displayEvents.filter((e: any) => e.start && e.start.startsWith(targetMonthStr))
+                  : displayEvents.filter((e: any) => e.start && e.start.startsWith(analyticsYear));
+
+                if (analyticsSpan === 'pie') {
+                  let totalIncome = 0;
+                  const catIncomes = categories.map((c: any) => {
+                    let catInc = 0;
+                    targetEvents.forEach((e: any) => {
+                      const incomeCat = e.extendedProps.metadata?.customFields?.incomeCategory || e.extendedProps.category;
+                      if (incomeCat === c.name && e.extendedProps.metadata?.customFields?.isIncomeSet) catInc += Number(e.extendedProps.metadata.customFields.standardIncomeAmount || 0);
+                      if (e.extendedProps.category === c.name) {
+                        const fields = e.extendedProps.metadata?.customFields;
+                        if (fields && c.fields) {
+                          c.fields.forEach((f: any) => {
+                            if (f.type === 'money' && fields[f.id]?.type === 'income') catInc += Number(fields[f.id].amount || 0);
+                            if (f.type === 'money_income') catInc += Number(fields[f.id] || 0);
+                            if (f.type === 'wage' && !f.excludeFromTotal) {
+                              if (fields[f.id]?.calculatedWage !== undefined) catInc += Number(fields[f.id].calculatedWage);
+                              else {
+                                const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
+                                catInc += Number(fields[f.id]?.hours || 0) * Number(fallbackWage);
+                              }
+                            }
+                          });
+                        }
+                      }
+                    });
+                    totalIncome += catInc;
+                    return { name: c.name, color: c.color, value: catInc };
+                  }).filter((c: any) => c.value > 0).sort((a: any, b: any) => b.value - a.value);
+
+                  let totalExpense = 0;
+                  const catExpenses = categories.map((c: any) => {
+                    let catExp = 0;
+                    targetEvents.forEach((e: any) => {
+                      const expenseCat = e.extendedProps.metadata?.customFields?.expenseCategory || e.extendedProps.category;
+                      if (expenseCat === c.name && e.extendedProps.metadata?.customFields?.isExpenseSet) catExp += Number(e.extendedProps.metadata.customFields.standardExpenseAmount || 0);
+                      if (e.extendedProps.category === c.name) {
+                        const fields = e.extendedProps.metadata?.customFields;
+                        if (fields && c.fields) {
+                          c.fields.forEach((f: any) => {
+                            if (f.type === 'money' && fields[f.id]?.type === 'expense') catExp += Number(fields[f.id].amount || 0);
+                            if (f.type === 'money_expense') catExp += Number(fields[f.id] || 0);
+                          });
+                        }
+                      }
+                    });
+                    totalExpense += catExp;
+                    return { name: c.name, color: c.color, value: catExp };
+                  }).filter((c: any) => c.value > 0).sort((a: any, b: any) => b.value - a.value);
+
+                  const renderPie = (title: string, data: any[], total: number, isIncome: boolean) => {
+                    if (data.length === 0) return null;
+                    let currentDeg = 0;
+                    const gradientStops = data.map((c: any) => {
+                      const perc = (c.value / total) * 100;
+                      const stop = `${c.color} ${currentDeg}deg, ${c.color} ${currentDeg + perc * 3.6}deg`;
+                      currentDeg += perc * 3.6;
+                      return stop;
+                    }).join(', ');
+                    return (
+                      <div className="card-box" style={{ padding: '20px', marginBottom: '16px' }}>
+                        <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '900' }}>{title} <span style={{fontSize:'1rem', color: isIncome ? '#10b981' : '#ef4444'}}>¥{total.toLocaleString()}</span></h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <div style={{ width: '180px', height: '180px', borderRadius: '50%', background: `conic-gradient(${gradientStops})`, boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginBottom: '24px' }} />
+                          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {data.map((c: any) => (
+                              <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', padding: '10px 12px', borderRadius: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: c.color }} />
+                                  <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>{c.name}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{Math.round((c.value / total) * 100)}%</span>
+                                  <span style={{ fontWeight: '900', fontSize: '1rem', color: 'var(--text-main)' }}>¥{c.value.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <>
+                      {totalIncome === 0 && totalExpense === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900' }}>収支データがありません</div>}
+                      {renderPie('収入の割合', catIncomes, totalIncome, true)}
+                      {renderPie('支出の割合', catExpenses, totalExpense, false)}
+                    </>
+                  );
+                }
+
+                return categories.filter((c: any) => c.name === analyticsCat).map((cat: any) => {
+                  if (!cat.fields || cat.fields.length === 0) return null;
+                  const catEvents = targetEvents.filter((e: any) => e.extendedProps.category === cat.name);
+
+                  if (catEvents.length === 0) {
+                    return <div key={cat.name} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900' }}><div>記録データがありません。</div></div>;
+                  }
+
+                  return (
+                    <div key={cat.name} className="card-box" style={{ borderLeft: `6px solid ${cat.color}`, padding: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '900' }}>{cat.name} の記録 <span style={{fontSize:'0.8rem', color:'var(--text-sub)'}}>({analyticsSpan === 'month' ? `${analyticsMonth}月` : `${analyticsYear}年`})</span></h3>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px', background: 'var(--input-bg)', padding: '8px 12px', borderRadius: '12px' }}>
+                        {cat.fields.map((f: any) => (
+                          <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={visibleDashboardFields[f.id] !== false} onChange={e => setVisibleDashboardFields({...visibleDashboardFields, [f.id]: e.target.checked})} style={{ cursor: 'pointer' }} />
+                            {f.name}
+                          </label>
+                        ))}
+                      </div>
+
+                      {analyticsSpan === 'month' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {cat.fields.map((f:any) => {
+                            if (visibleDashboardFields[f.id] === false) return null;
+                            let content;
+
+                            if (f.type === 'number') {
+                              const total = catEvents.reduce((sum: number, e: any) => sum + (Number(e.extendedProps.metadata?.customFields?.[f.id]) || 0), 0);
+                              content = <div style={{ fontSize: '1.4rem', color: cat.color, fontWeight: '900' }}>{total.toLocaleString()}<span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginLeft: '4px' }}>{f.unit}</span></div>;
+                            } else if (f.type === 'wage') {
+                              const currentCatEvents = targetEvents.filter((e: any) => e.extendedProps.category === cat.name);
+                              const totalH = currentCatEvents.reduce((sum: number, e: any) => sum + (Number(e.extendedProps.metadata?.customFields?.[f.id]?.hours) || 0), 0);
+                              const totalWage = currentCatEvents.reduce((sum: number, e: any) => {
+                                const d = e.extendedProps.metadata?.customFields?.[f.id];
+                                if (!d) return sum;
+                                if (d.calculatedWage !== undefined) return sum + Number(d.calculatedWage);
+                                const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
+                                return sum + ((Number(d.hours) || 0) * Number(fallbackWage));
+                              }, 0);
+
+                              const currentCatExpense = currentCatEvents.reduce((sum: number, e: any) => {
+                                if (e.extendedProps.metadata?.customFields?.isExpenseSet) {
+                                  return sum + Number(e.extendedProps.metadata.customFields.standardExpenseAmount || 0);
+                                }
+                                return sum;
+                              }, 0);
+
+                              content = (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                    <span style={{ fontSize: '1.5rem', fontWeight: '900', color: cat.color }}>
+                                      ¥{Math.round(totalWage).toLocaleString()}
+                                    </span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                                      ({totalH}時間)
+                                    </span>
+                                  </div>
+                                  {currentCatExpense > 0 && (
+                                    <div style={{ paddingTop: '8px', borderTop: '1px dashed var(--border-color)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                      <span style={{ color: 'var(--text-sub)' }}>シフト時の支出・経費</span>
+                                      <span style={{ color: '#ef4444' }}>-¥{currentCatExpense.toLocaleString()}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            } else if (f.type === 'money') {
+                              let inc = 0, exp = 0;
+                              catEvents.forEach((e: any) => {
+                                const d = e.extendedProps.metadata?.customFields?.[f.id];
+                                if(d) { if(d.type==='income') inc+=Number(d.amount)||0; else exp+=Number(d.amount)||0; }
+                              });
+                              content = <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', fontSize: '1.2rem' }}><span style={{color:'#10b981', fontWeight:'900'}}>+{inc.toLocaleString()}</span> <span style={{color:'#ef4444', fontWeight:'900'}}>-{exp.toLocaleString()}</span></div>;
+                            } else if (f.type === 'score') {
+                              let w = 0, l = 0, d = 0;
+                              catEvents.forEach((e: any) => {
+                                const r = e.extendedProps.metadata?.customFields?.[f.id]?.res;
+                                if(r==='win') w++; else if(r==='lose') l++; else if(r==='draw') d++;
+                              });
+                              const totalGames = w + l + d;
+                              const winRate = totalGames > 0 ? Math.round((w / totalGames) * 100) : 0;
+                              
+                              content = (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                    <div style={{ fontSize: '1.8rem', color: cat.color, fontWeight: '900', letterSpacing: '1px' }}>
+                                      <span style={{ color: '#10b981' }}>{w}勝</span> <span style={{ color: '#ef4444' }}>{l}敗</span> <span style={{ color: '#94a3b8' }}>{d}分</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>勝率</span>
+                                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>{winRate}%</span>
+                                    </div>
+                                  </div>
+                                  <div style={{ width: '100%', height: '12px', borderRadius: '6px', display: 'flex', overflow: 'hidden', background: 'var(--border-color)' }}>
+                                    {w > 0 && <div style={{ width: `${(w/totalGames)*100}%`, background: '#10b981' }} title="勝ち" />}
+                                    {d > 0 && <div style={{ width: `${(d/totalGames)*100}%`, background: '#94a3b8' }} title="引き分け" />}
+                                    {l > 0 && <div style={{ width: `${(l/totalGames)*100}%`, background: '#ef4444' }} title="負け" />}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={f.id} style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold', marginBottom: '8px' }}>{f.name}</div>
+                                {content}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        // 年間表示
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {cat.fields.map((f:any) => {
+                            if (visibleDashboardFields[f.id] === false) return null;
+
+                            if (f.type === 'score') {
+                              let w = 0, l = 0, d = 0;
+                              catEvents.forEach((e: any) => {
+                                const r = e.extendedProps.metadata?.customFields?.[f.id]?.res;
+                                if(r==='win') w++; else if(r==='lose') l++; else if(r==='draw') d++;
+                              });
+                              return (
+                                <div key={f.id} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '12px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid var(--border-color)' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '5px' }}>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{f.name}</span>
+                                    <span style={{ fontSize: '1.3rem', fontWeight: '900', color: cat.color }}>{w}勝 {l}敗 {d}分</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            const monthlyData = Array.from({length: 12}, (_, i: number) => {
+                              const mStr = `${analyticsYear}-${String(i+1).padStart(2,'0')}`;
+                              return catEvents.filter((e: any) => e.start.startsWith(mStr)).reduce((sum: number, e: any) => {
+                                const dat = e.extendedProps.metadata?.customFields?.[f.id];
+                                if(!dat) return sum;
+                                if(f.type === 'number') return sum + Number(dat);
+                                if(f.type === 'wage') return sum + (dat.calculatedWage !== undefined ? Number(dat.calculatedWage) : (Number(dat.hours) * Number(dat.wage || f.wage || 0)));
+                                if(f.type === 'money') return sum + (dat.type==='income' ? Number(dat.amount) : -Number(dat.amount));
+                                return sum;
+                              }, 0);
+                            });
+
+                            const maxVal = Math.max(...monthlyData.map(Math.abs), 1);
+                            const totalYear = monthlyData.reduce((a: number, b: number) => a+b, 0);
+                            const unit = f.type === 'wage' || f.type === 'money' ? '円' : f.unit;
+
+                            return (
+                              <div key={f.id} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '12px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid var(--border-color)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: '900', color: 'var(--text-sub)' }}>{f.name}</span>
+                                  <span style={{ fontSize: '1.3rem', fontWeight: '900', color: cat.color }}>{totalYear.toLocaleString()}<span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginLeft: '4px' }}>{unit}/年</span></span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'flex-end', height: '120px', gap: '4px', borderBottom: '2px solid var(--border-color)', paddingBottom: '4px' }}>
+                                  {monthlyData.map((val: number, idx: number) => (
+                                    <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+                                      <div style={{ fontSize: '0.55rem', color: 'var(--text-sub)', fontWeight: '900', whiteSpace: 'nowrap', opacity: val !== 0 ? 1 : 0, transition: 'all 0.2s' }}>{val !== 0 ? (val >= 10000 ? Math.floor(val/1000)+'k' : val) : ''}</div>
+                                      <div style={{ width: '100%', height: `${(Math.abs(val)/maxVal)*80}px`, background: val >= 0 ? cat.color : '#ef4444', borderRadius: '6px 6px 0 0', minHeight: val !== 0 ? '6px' : '0', transition: 'height 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)', boxShadow: val !== 0 ? `0 4px 10px ${val >= 0 ? cat.color : '#ef4444'}40` : 'none' }} />
+                                      <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', marginTop: '6px', fontWeight: '900' }}>{idx+1}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🤝 立替・貸し借り管理 モーダル */}
+      {isAdvanceModalOpen && (() => {
+        const unsettledAdvances = events.flatMap(e => {
+          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
+
+        const settledAdvances = events.flatMap(e => {
+          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.isSettled);
+
+        return (
+          <div className="modal-overlay" onClick={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+              
+              <div style={{ flexShrink: 0 }}>
+                <ModalHeader title="立替・貸し借り管理" onClose={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} />
+              </div>
+              
+              {viewingPartner ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                    <button onClick={() => setViewingPartner(null)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>← 戻る</button>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--theme)' }}>{viewingPartner} さんとの履歴</h3>
+                  </div>
+                  {(() => {
+                    const partnerHistory = events.flatMap(e => {
+                      const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                      return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                    }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.payee === viewingPartner)
+                      .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
+
+                    const lentTotal = partnerHistory.filter(e => e.type === 'advance' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
+                    const borrowedTotal = partnerHistory.filter(e => e.type === 'borrow' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
+                    const diff = lentTotal - borrowedTotal;
+
+                    return (
+                      <>
+                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                          <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の貸し</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#ef4444' }}>¥{lentTotal.toLocaleString()}</div>
+                          </div>
+                          <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #10b981', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の借り</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#10b981' }}>¥{borrowedTotal.toLocaleString()}</div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center', fontSize: '0.9rem', fontWeight: 'bold', margin: '4px 0 8px 0', color: 'var(--text-main)', flexShrink: 0 }}>
+                            {diff > 0 ? `👉 あなたが ¥${diff.toLocaleString()} 受け取ります` : diff < 0 ? `👈 あなたが ¥${Math.abs(diff).toLocaleString()} 支払います` : '🎉 精算完了しています'}
+                        </div>
+                        <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+                          {partnerHistory.length === 0 ? <div style={{textAlign:'center', fontSize:'0.8rem', color:'var(--text-sub)', marginTop:'20px'}}>履歴がありません</div> : partnerHistory.map((adv: any, i: number) => (
+                              <div key={i} style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, opacity: adv.isSettled ? 0.6 : 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textDecoration: adv.isSettled ? 'line-through' : 'none' }}>
+                                    {adv.type === 'advance' ? '貸した' : '借りた'} <span style={{fontSize:'0.75rem', fontWeight:'normal'}}>({adv.eventTitle})</span>
+                                  </div>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate}</div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                  <div style={{ fontSize: '1rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>¥{Number(adv.amount).toLocaleString()}</div>
+                                  {adv.isSettled && <span style={{ fontSize: '0.6rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', fontWeight: 'bold' }}>精算済</span>}
+                                </div>
+                              </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
+                    <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'unsettled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'unsettled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'unsettled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>未精算 ({unsettledAdvances.length})</button>
+                    <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'settled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'settled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'settled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>精算済 ({settledAdvances.length})</button>
+                    <button onClick={() => setAdvanceTab('partners')} className={advanceTab === 'partners' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'partners' ? themeColor : 'var(--input-bg)', color: advanceTab === 'partners' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'partners' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>相手リスト</button>
+                  </div>
+
+                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
+                    {advanceTab === 'unsettled' && (
+                      unsettledAdvances.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                          <Handshake size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5, color: 'var(--theme)' }} />
+                          <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>現在、未精算の立替記録はありません。</p>
+                          <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>※カレンダーの「予定を追加」画面の<br/>「支出・立替を記録する」から<br/>立て替えた金額を登録するとここに表示されます。</p>
+                        </div>
+                      ) : (
+                        unsettledAdvances.map((adv: any, i: number) => (
+                          <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                                  {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                              </div>
+                              <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
+                                ¥{Number(adv.amount).toLocaleString()}
+                              </div>
+                            </div>
+                            <button onClick={async () => {
+                                if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
+                                  const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                                  if (targetEvent) {
+                                    const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                      ex.id === adv.id ? { ...ex, isSettled: true } : ex
+                                    );
+                                    await supabase.from('events').update({
+                                      metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
+                                    }).eq('id', adv.eventId);
+                                    
+                                    const today = toLocalYYYYMMDD(new Date());
+                                    await supabase.from('events').insert([{
+                                      title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
+                                      start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
+                                      metadata: {
+                                        isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
+                                        customFields: {
+                                          isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
+                                          isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
+                                          paymentMethod: 'cash'
+                                        }
+                                      }
+                                    }]);
+                                    alert('精算を完了として記録しました！');
+                                    window.location.reload(); 
+                                  }
+                                }
+                              }}
+                              className="btn-pop" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                              <CheckCircle size={16} /> 精算を完了する
+                            </button>
+                          </div>
+                        ))
+                      )
+                    )}
+
+                    {advanceTab === 'settled' && (
+                      settledAdvances.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold', fontSize: '0.85rem' }}>精算済みの記録はありません</div>
+                      ) : (
+                        settledAdvances.map((adv: any, i: number) => (
+                          <div key={i} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-sub)', textDecoration: 'line-through' }}>
+                                {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
+                              </span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                            </div>
+                            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>
+                              ¥{Number(adv.amount).toLocaleString()}
+                            </div>
+                          </div>
+                        ))
+                      )
+                    )}
+
+                    {advanceTab === 'partners' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input type="text" className="pop-input" placeholder="よく立て替える相手の名前を追加" value={newPayeeName} onChange={e => setNewPayeeName(e.target.value)} style={{ flex: 1, fontSize: '0.85rem' }} />
+                          <button onClick={() => {
+                            if (newPayeeName.trim() && !customPayees.includes(newPayeeName.trim())) {
+                              setCustomPayees([...customPayees, newPayeeName.trim()]);
+                              setNewPayeeName('');
+                            }
+                          }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>追加</button>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px' }}>登録済みの相手リスト</span>
+                          {customPayees.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>登録されている相手はいません</div>
+                          ) : (
+                            customPayees.map((p, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                <div style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setViewingPartner(p)}>
+                                  <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{p}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--theme)', fontWeight: 'bold', background: 'var(--input-bg)', padding: '4px 8px', borderRadius: '8px' }}>履歴を見る 👉</span>
+                                </div>
+                                <button onClick={() => setCustomPayees(customPayees.filter(name => name !== p))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       {/* 🤝 立替・貸し借り管理 モーダル */}
       {isAdvanceModalOpen && (() => {
         const unsettledAdvances = events.flatMap(e => {

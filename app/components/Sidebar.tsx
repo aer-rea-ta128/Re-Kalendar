@@ -509,7 +509,68 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* トラベル・マップ機能 */}
+      {/* 📊 ジャンル別の予定・履歴 モーダル */}
+      {isCategoryHistoryOpen && (() => {
+        const now = new Date().getTime();
+        const sortedEvents = events
+          .filter((e: any) => historyCategory === 'すべて' || e.extendedProps?.category === historyCategory)
+          .filter((e: any) => {
+             const eTime = new Date(e.start).getTime();
+             return historyTimeFilter === 'past' ? eTime < now : eTime >= now;
+          })
+          .sort((a: any, b: any) => {
+             const tA = new Date(a.start).getTime();
+             const tB = new Date(b.start).getTime();
+             return historyTimeFilter === 'past' ? tB - tA : tA - tB;
+          });
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsCategoryHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '70vh', justifyContent: 'flex-start' }}>
+              
+              <div style={{ flexShrink: 0 }}>
+                <ModalHeader title="ジャンル別の履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
+              </div>
+              
+              {/* 過去/未来タブ */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
+                <button onClick={() => setHistoryTimeFilter('past')} className={historyTimeFilter === 'past' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: historyTimeFilter === 'past' ? themeColor : 'var(--input-bg)', color: historyTimeFilter === 'past' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: historyTimeFilter === 'past' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>過去の履歴</button>
+                <button onClick={() => setHistoryTimeFilter('future')} className={historyTimeFilter === 'future' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: historyTimeFilter === 'future' ? themeColor : 'var(--input-bg)', color: historyTimeFilter === 'future' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: historyTimeFilter === 'future' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>今後の予定</button>
+              </div>
+
+              {/* ジャンル選択スライダー */}
+              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', paddingBottom: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                <button onClick={() => setHistoryCategory('すべて')} style={{ background: historyCategory === 'すべて' ? themeColor : 'var(--input-bg)', color: historyCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>すべて</button>
+                {categories.map((c: any) => (
+                  <button key={c.name} onClick={() => setHistoryCategory(c.name)} style={{ background: historyCategory === c.name ? c.color : 'var(--input-bg)', color: historyCategory === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
+                ))}
+              </div>
+              
+              {/* スクロールする履歴リスト */}
+              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
+                {sortedEvents.length === 0 ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontSize: '0.85rem', fontWeight: 'bold' }}>予定・履歴がありません</div> : sortedEvents.map((e: any) => {
+                  const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                  const dateStr = e.start.split('T')[0].replace(/-/g, '/');
+                  const memo = e.extendedProps?.metadata?.memo;
+                  const rating = e.extendedProps?.metadata?.rating;
+                  return (
+                    <div key={e.id} onClick={() => { setIsCategoryHistoryOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', borderLeft: `6px solid ${cColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', lineHeight: 1.3 }}>{e.title}</div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{dateStr}</div>
+                      </div>
+                      {memo && <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', background: 'var(--input-bg)', padding: '8px', borderRadius: '8px', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}>{memo}</div>}
+                      {rating > 0 && <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{'★'.repeat(rating)}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 🗺 トラベル・マップ モーダル */}
       {isTravelMapOpen && (() => {
         const PREF_GRID = [
           [null, null, null, null, null, null, null, null, null, null, null, '北海道'],
@@ -593,10 +654,9 @@ export default function Sidebar({
                 <button onClick={() => setMapZoom(z => Math.min(3, z + 0.2))} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>+</button>
               </div>
 
-              {/* マップ本体（はみ出したら縦にも横にもスライド可能） */}
+              {/* マップ本体（枠だけがズームし、文字サイズは固定） */}
               <div className="hide-scrollbar" ref={mapContainerRef} style={{ flex: 1, overflow: 'auto', paddingRight: '4px', background: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '16px', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.02)' }}>
                 
-                {/* 👇 修正：widthや文字サイズを直接動かすことで、スライド判定(overflow)を確実に発動させる */}
                 <div style={{ 
                   width: `${Math.max(100, mapZoom * 100)}%`, 
                   minWidth: `${320 * mapZoom}px`, 
@@ -618,7 +678,7 @@ export default function Sidebar({
                             background: s.bg,
                             color: s.color,
                             border: s.border,
-                            fontSize: `${0.65 * mapZoom}rem`, // 文字もズームに合わせて拡大
+                            fontSize: '0.75rem', // 👈 【修正】ズームの計算式を消し、常に一定の大きさに固定しました
                             fontWeight: '900',
                             cursor: 'pointer',
                             display: 'flex',
@@ -776,62 +836,6 @@ export default function Sidebar({
           </div>
         </div>
       )}
-
-      {isCategoryHistoryOpen && (() => {
-        const now = new Date().getTime();
-        
-        // 👇 修正：過去と未来でフィルタリングし、ソート順を最適化する
-        const sortedEvents = events
-          .filter((e: any) => historyCategory === 'すべて' || e.extendedProps?.category === historyCategory)
-          .filter((e: any) => {
-             const eTime = new Date(e.start).getTime();
-             return historyTimeFilter === 'past' ? eTime < now : eTime >= now;
-          })
-          .sort((a: any, b: any) => {
-             const tA = new Date(a.start).getTime();
-             const tB = new Date(b.start).getTime();
-             // 過去は「最近のものから順に（降順）」、未来は「近いものから順に（昇順）」
-             return historyTimeFilter === 'past' ? tB - tA : tA - tB;
-          });
-
-        return (
-          <div className="modal-overlay" onClick={() => setIsCategoryHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '80vh' }}>              <ModalHeader title="ジャンル別の予定・履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
-              
-              {/* 👇 追加：過去 / 未来 の切り替えタブ */}
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
-                <button onClick={() => setHistoryTimeFilter('past')} className={historyTimeFilter === 'past' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>過去の履歴</button>
-                <button onClick={() => setHistoryTimeFilter('future')} className={historyTimeFilter === 'future' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>今後の予定</button>
-              </div>
-
-              {/* 👇 修正：flexShrink: 0 を付与してボタンが縦に潰れないようにする */}
-              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '8px', flexShrink: 0 }}>
-                <button onClick={() => setHistoryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer', background: historyCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: historyCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
-                {categories.map((c: any) => ( <button key={c.name} onClick={() => setHistoryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer', background: historyCategory === c.name ? c.color : 'var(--input-bg)', color: historyCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>{c.name}</button> ))}
-              </div>
-              
-              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
-                {sortedEvents.length === 0 ? <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-sub)', fontSize: '0.85rem' }}>予定がありません</div> : sortedEvents.map((e: any) => {
-                  const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
-                  const dateStr = e.start.split('T')[0].replace(/-/g, '/');
-                  const memo = e.extendedProps?.metadata?.memo;
-                  const rating = e.extendedProps?.metadata?.rating;
-                  return (
-                    <div key={e.id} onClick={() => { setIsCategoryHistoryOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', borderLeft: `6px solid ${cColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer', flexShrink: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', lineHeight: 1.3 }}>{e.title}</div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{dateStr}</div>
-                      </div>
-                      {memo && <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', background: 'var(--input-bg)', padding: '8px', borderRadius: '8px', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2, overflow: 'hidden' }}>{memo}</div>}
-                      {rating > 0 && <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{'★'.repeat(rating)}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </>
   );
 }
