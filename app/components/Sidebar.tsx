@@ -471,20 +471,66 @@ export default function Sidebar({
         const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
         const tYear = String(new Date().getFullYear());
         
-        const ledgerHistory = events.filter((e: any) => {
+        // 👇 修正：予定に紐づくすべての支出（複数ある場合も）を個別の履歴として取り出す処理
+        const allTransactions: any[] = [];
+        events.forEach((e: any) => {
+          const f = e.extendedProps?.metadata?.customFields || {};
           const cat = e.extendedProps?.category;
-          const f = e.extendedProps?.metadata?.customFields;
-          return cat === '収支記録' || f?.isExpenseSet || f?.isIncomeSet || f?.standardExpenseAmount || f?.standardIncomeAmount;
-        }).filter((e: any) => {
-          if (historySpan === 'month') return e.start && e.start.startsWith(tMonth);
-          if (historySpan === 'year') return e.start && e.start.startsWith(tYear);
-          return true;
-        }).sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+          const dateStr = e.start.split('T')[0].replace(/-/g, '/');
 
-        const filteredHistory = ledgerHistory.filter((e: any) => {
-          const isIncome = e.extendedProps?.metadata?.customFields?.isIncomeSet;
-          if (financeTypeFilter === 'income') return isIncome;
-          if (financeTypeFilter === 'expense') return !isIncome;
+          if (f.expenses && f.expenses.length > 0) {
+            // カレンダーの予定に紐づいた複数の支出・立替を1つずつ抽出
+            f.expenses.forEach((ex: any) => {
+              if (!ex.amount) return;
+              const isInc = ex.type === 'income' || ex.type === 'borrow';
+              allTransactions.push({
+                id: `${e.id}-${ex.id}`,
+                eventId: e.id,
+                title: ex.description || e.title || cat || '予定',
+                dateStr: dateStr,
+                dateObj: new Date(e.start),
+                isIncome: isInc,
+                amount: Number(ex.amount),
+                method: ex.method || 'cash',
+                type: ex.type,
+                payee: ex.payee,
+                event: e
+              });
+            });
+          } else if (f.isExpenseSet || f.isIncomeSet || cat === '収支記録') {
+            // 旧バージョンのデータや、単発の収支記録用のフォールバック
+            const isInc = f.isIncomeSet;
+            const amt = isInc ? f.standardIncomeAmount : f.standardExpenseAmount;
+            if (amt) {
+              allTransactions.push({
+                id: e.id,
+                eventId: e.id,
+                title: e.title || cat || '収支記録',
+                dateStr: dateStr,
+                dateObj: new Date(e.start),
+                isIncome: isInc,
+                amount: Number(amt),
+                method: f.paymentMethod || 'cash',
+                type: isInc ? 'income' : 'expense',
+                event: e
+              });
+            }
+          }
+        });
+
+        // 抽出した履歴を日付でソートし、月・年で絞り込み
+        const ledgerHistory = allTransactions
+          .filter(t => {
+            if (historySpan === 'month') return t.dateStr.startsWith(tMonth.replace(/-/g, '/'));
+            if (historySpan === 'year') return t.dateStr.startsWith(tYear);
+            return true;
+          })
+          .sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
+
+        // 収入・支出のタブ切り替え
+        const filteredHistory = ledgerHistory.filter(t => {
+          if (financeTypeFilter === 'income') return t.isIncome;
+          if (financeTypeFilter === 'expense') return !t.isIncome;
           return true;
         });
 
@@ -501,40 +547,34 @@ export default function Sidebar({
                 {filteredHistory.length === 0 ? (
                   <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-sub)', padding: '24px' }}>記録がありません</div>
                 ) : (
-                  filteredHistory.map((e: any) => {
-                    const isIncome = e.extendedProps?.metadata?.customFields?.isIncomeSet;
-                    const amount = isIncome 
-                      ? e.extendedProps?.metadata?.customFields?.standardIncomeAmount 
-                      : e.extendedProps?.metadata?.customFields?.standardExpenseAmount;
-                    const dateStr = e.start.split('T')[0].replace(/-/g, '/');
-                    const method = e.extendedProps?.metadata?.customFields?.paymentMethod || 'cash';
-                    
-                    // 👇 絵文字を排除しスマートアイコンでの描画に統一
+                  filteredHistory.map((t: any) => {
+                    // 👇 修正：上で抽出した t のデータを使って描画する
                     let MethodIcon = Banknote;
                     let methodText = '現金';
-                    if (!isIncome) {
-                      if (method === 'credit') { MethodIcon = CreditCard; methodText = 'クレカ'; }
-                      else if (method === 'paypay') { MethodIcon = Smartphone; methodText = 'スマホ決済'; }
-                      else if (method === 'ic') { MethodIcon = Train; methodText = '交通系IC'; }
-                      else if (method === 'reimburse') { MethodIcon = Repeat; methodText = '立替'; }
+                    if (!t.isIncome) {
+                      if (t.method === 'credit') { MethodIcon = CreditCard; methodText = 'クレカ'; }
+                      else if (t.method === 'paypay') { MethodIcon = Smartphone; methodText = 'スマホ決済'; }
+                      else if (t.method === 'ic') { MethodIcon = Train; methodText = '交通系IC'; }
+                      else if (t.method === 'reimburse' || t.type === 'advance') { MethodIcon = Handshake; methodText = '立替'; }
                     } else {
-                      if (method === 'bank') { MethodIcon = Landmark; methodText = '振込'; }
-                      else if (method === 'paypay') { MethodIcon = Smartphone; methodText = '電子マネー'; }
+                      if (t.method === 'bank') { MethodIcon = Landmark; methodText = '振込'; }
+                      else if (t.method === 'paypay') { MethodIcon = Smartphone; methodText = '電子マネー'; }
+                      else if (t.type === 'borrow') { MethodIcon = Handshake; methodText = '借り'; }
                     }
 
                     return (
-                      <div key={e.id} onClick={() => { setIsFinanceHistoryOpen(false); setIsSidebarOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                      <div key={t.id} onClick={() => { setIsFinanceHistoryOpen(false); setIsSidebarOpen(false); handleEventClick({ event: t.event }); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
                         <div style={{ overflow: 'hidden' }}>
-                          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{e.title}</div>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{t.title}</div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '6px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Clock size={12} /> {dateStr}
+                            <Clock size={12} /> {t.dateStr}
                             <span style={{ marginLeft: '4px', background: 'var(--input-bg)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <MethodIcon size={10} /> {methodText}
                             </span>
                           </div>
                         </div>
-                        <div style={{ fontWeight: '900', color: isIncome ? '#10b981' : '#ef4444', fontSize: '1.2rem', flexShrink: 0 }}>
-                          {isIncome ? '+' : '-'}¥{Number(amount || 0).toLocaleString()}
+                        <div style={{ fontWeight: '900', color: t.isIncome ? '#10b981' : '#ef4444', fontSize: '1.2rem', flexShrink: 0 }}>
+                          {t.isIncome ? '+' : '-'}¥{t.amount.toLocaleString()}
                         </div>
                       </div>
                     );
