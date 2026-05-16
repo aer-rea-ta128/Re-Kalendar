@@ -74,8 +74,8 @@ export default function SmartLifeOS() {
       const diffX = touchEndX.current - touchStartX.current;
       const diffY = touchEndY.current - touchStartY.current;
       
-      // 左右のスワイプ（日付・週の移動）のみ処理。上下は通常スクロールに任せる。
       if (Math.abs(diffX) > Math.abs(diffY)) {
+        // 左右のスワイプ（前日・翌日の移動）
         if (diffX > 50) {
           let startRelativeX = touchStartX.current;
           const container = document.querySelector('.fixed-mobile-frame');
@@ -85,13 +85,25 @@ export default function SmartLifeOS() {
         } else if (diffX < -50) {
           calendarRef.current?.getApi().next();
         }
+      } else {
+        // 👇 追加：上下のスワイプ（日表示の時に、前週・次週へジャンプ！）
+        if (viewType === 'timeGridDay') {
+          if (diffY > 50) {
+            // 下スワイプ：前の週へ
+            const api = calendarRef.current?.getApi();
+            if (api) { const d = api.getDate(); d.setDate(d.getDate() - 7); api.gotoDate(d); }
+          } else if (diffY < -50) {
+            // 上スワイプ：次の週へ
+            const api = calendarRef.current?.getApi();
+            if (api) { const d = api.getDate(); d.setDate(d.getDate() + 7); api.gotoDate(d); }
+          }
+        }
       }
     }
     touchStartX.current = null; touchEndX.current = null;
     touchStartY.current = null; touchEndY.current = null;
     setTimeout(() => { isSwipingRef.current = false; }, 100);
   };
-  // 👆==== ここまで追加 ====👆
 
   // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
@@ -932,7 +944,6 @@ export default function SmartLifeOS() {
     setRating(props.metadata?.rating || 0);
     setIsPinned(props.metadata?.isPinned || false);
     setIsStocked(props.metadata?.isStocked || false);
-    // 挿入するコード
     setIsTentative(props.metadata?.isTentative || false);
     setExpandedBlocks([]); // 👈 支出、集合出発、交通機関のすべてのメニューを閉じた状態で開く
 
@@ -1432,7 +1443,6 @@ export default function SmartLifeOS() {
       }
     }
 
-    // 挿入するコード
     if (extendedProps.isTransitEvent) {
       if (viewType === 'dayGridMonth') return null;
       const startObj = new Date(start);
@@ -2739,8 +2749,18 @@ useEffect(() => {
                                 }
                             }
 
-                            const sMin = new Date(e.start).getHours() * 60 + new Date(e.start).getMinutes();
-                            const eMin = new Date(e.end || new Date(e.start).getTime() + 3600000).getHours() * 60 + new Date(e.end || new Date(e.start).getTime() + 3600000).getMinutes();
+                            // 👇 修正：日またぎを考慮して、描画対象の日の0:00を基準に分数を計算する
+                            const sDate = new Date(e.start);
+                            const eDate = e.end ? new Date(e.end) : new Date(sDate.getTime() + 3600000);
+                            
+                            let sMin = (sDate.getTime() - targetDateObj.getTime()) / 60000;
+                            let eMin = (eDate.getTime() - targetDateObj.getTime()) / 60000;
+                            
+                            // 描画対象の1日（0〜1440分）にクリップしてはみ出し・逆転を防ぐ
+                            if (sMin < 0) sMin = 0;
+                            if (eMin > 1440) eMin = 1440;
+                            if (eMin < sMin) eMin = sMin; // 安全策
+
                             const CMain = 2 * Math.PI * 50;
                             elements.push(
                               <circle key={`main-${idx}`} cx="80" cy="80" r="50" fill="none" stroke={cColor} strokeWidth="24" strokeDasharray={`${((eMin-sMin)/1440)*CMain} ${CMain}`} strokeDashoffset={-(sMin/1440)*CMain} opacity="0.95" />
@@ -2781,7 +2801,13 @@ useEffect(() => {
                   </div>
 
                   {/* 👇 リスト表示：バッジを統合して1つのカードに */}
-                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' }} className="hide-scrollbar">
+                  <div 
+                    style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '20px' }} 
+                    className="hide-scrollbar"
+                    onTouchStart={e => e.stopPropagation()} // 👈 追加：スクロール操作をスワイプと混同させない
+                    onTouchMove={e => e.stopPropagation()}  // 👈 追加
+                    onTouchEnd={e => e.stopPropagation()}   // 👈 追加
+                  >
                     
                     {allDayEvents.map((e: any) => {
                       const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
@@ -2796,7 +2822,6 @@ useEffect(() => {
                       );
                     })}
 
-                    // 挿入するコード
                     {dayEvents.length === 0 && allDayEvents.length === 0 ? (
                       <div style={{ textAlign: 'center', color: 'var(--text-sub)', padding: '40px 20px', fontWeight: 'bold', fontSize: '0.95rem' }}>この日の予定はありません</div>
                     ) : (
