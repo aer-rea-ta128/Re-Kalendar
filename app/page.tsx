@@ -75,17 +75,17 @@ export default function SmartLifeOS() {
       const diffY = touchEndY.current - touchStartY.current;
       
       if (Math.abs(diffX) > Math.abs(diffY)) {
-        // 左右のスワイプ（前日・翌日の移動）
-        if (diffX > 50) {
-          let startRelativeX = touchStartX.current;
-          const container = document.querySelector('.fixed-mobile-frame');
-          if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
-          if (startRelativeX < 40) setIsSidebarOpen(true);
-          else calendarRef.current?.getApi().prev();
-        } else if (diffX < -50) {
-          calendarRef.current?.getApi().next();
-        }
-      } else {
+        // 👇 修正：左右スワイプの感度を 50 -> 35 に下げて反応しやすくする
+        if (diffX > 35) {
+          let startRelativeX = touchStartX.current;
+          const container = document.querySelector('.fixed-mobile-frame');
+          if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
+          if (startRelativeX < 40) setIsSidebarOpen(true);
+          else calendarRef.current?.getApi().prev();
+        } else if (diffX < -35) {
+          calendarRef.current?.getApi().next();
+        }
+      } else {
         // 👇 追加：上下のスワイプ（日表示の時に、前週・次週へジャンプ！）
         if (viewType === 'timeGridDay') {
           if (diffY > 50) {

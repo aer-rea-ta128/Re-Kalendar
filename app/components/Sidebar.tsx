@@ -97,7 +97,8 @@ export default function Sidebar({
   const [editUserName, setEditUserName] = useState('');
   const [isCategoryHistoryOpen, setIsCategoryHistoryOpen] = useState(false);
   const [historyCategory, setHistoryCategory] = useState('すべて');
-  const [viewingPartner, setViewingPartner] = useState<string | null>(null); // 👈 追加
+  const [historyTimeFilter, setHistoryTimeFilter] = useState<'past' | 'future'>('past'); 
+  const [viewingPartner, setViewingPartner] = useState<string | null>(null); 
 
   const [isTravelMapOpen, setIsTravelMapOpen] = useState(false);
   const [visitedPrefs, setVisitedPrefs] = useState<Record<string, number>>(() => {
@@ -604,15 +605,39 @@ export default function Sidebar({
       )}
 
       {isCategoryHistoryOpen && (() => {
-        const sortedEvents = events.filter((e: any) => historyCategory === 'すべて' || e.extendedProps?.category === historyCategory).sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime());
+        const now = new Date().getTime();
+        
+        // 👇 修正：過去と未来でフィルタリングし、ソート順を最適化する
+        const sortedEvents = events
+          .filter((e: any) => historyCategory === 'すべて' || e.extendedProps?.category === historyCategory)
+          .filter((e: any) => {
+             const eTime = new Date(e.start).getTime();
+             return historyTimeFilter === 'past' ? eTime < now : eTime >= now;
+          })
+          .sort((a: any, b: any) => {
+             const tA = new Date(a.start).getTime();
+             const tB = new Date(b.start).getTime();
+             // 過去は「最近のものから順に（降順）」、未来は「近いものから順に（昇順）」
+             return historyTimeFilter === 'past' ? tB - tA : tA - tB;
+          });
+
         return (
           <div className="modal-overlay" onClick={() => setIsCategoryHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-              <ModalHeader title="ジャンル別の履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
-              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '4px' }}>
-                <button onClick={() => setHistoryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: historyCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: historyCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
-                {categories.map((c: any) => ( <button key={c.name} onClick={() => setHistoryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: historyCategory === c.name ? c.color : 'var(--input-bg)', color: historyCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>{c.name}</button> ))}
+              <ModalHeader title="ジャンル別の予定・履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
+              
+              {/* 👇 追加：過去 / 未来 の切り替えタブ */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
+                <button onClick={() => setHistoryTimeFilter('past')} className={historyTimeFilter === 'past' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>過去の履歴</button>
+                <button onClick={() => setHistoryTimeFilter('future')} className={historyTimeFilter === 'future' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.8rem', borderRadius: '12px' }}>今後の予定</button>
               </div>
+
+              {/* 👇 修正：flexShrink: 0 を付与してボタンが縦に潰れないようにする */}
+              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '8px', flexShrink: 0 }}>
+                <button onClick={() => setHistoryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer', background: historyCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: historyCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
+                {categories.map((c: any) => ( <button key={c.name} onClick={() => setHistoryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer', background: historyCategory === c.name ? c.color : 'var(--input-bg)', color: historyCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>{c.name}</button> ))}
+              </div>
+              
               <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
                 {sortedEvents.length === 0 ? <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-sub)', fontSize: '0.85rem' }}>予定がありません</div> : sortedEvents.map((e: any) => {
                   const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
@@ -620,7 +645,7 @@ export default function Sidebar({
                   const memo = e.extendedProps?.metadata?.memo;
                   const rating = e.extendedProps?.metadata?.rating;
                   return (
-                    <div key={e.id} onClick={() => { setIsCategoryHistoryOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', borderLeft: `6px solid ${cColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
+                    <div key={e.id} onClick={() => { setIsCategoryHistoryOpen(false); handleEventClick({ event: e }); }} style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', borderLeft: `6px solid ${cColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer', flexShrink: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)', lineHeight: 1.3 }}>{e.title}</div>
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{dateStr}</div>
