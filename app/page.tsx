@@ -1425,7 +1425,7 @@ export default function SmartLifeOS() {
       return <div style={{ display: 'none' }}></div>;
     }
 
-    // 👇 修正：月毎カレンダーの表示モード（ドット・写真）を【最優先】で処理する
+    // 月毎カレンダーの表示モード（ドット・写真）を【最優先】で処理する
     if (viewType === 'dayGridMonth' && displayMode !== 'normal') {
       if (displayMode === 'dot') {
         return (
@@ -1437,8 +1437,11 @@ export default function SmartLifeOS() {
       if (displayMode === 'photo') {
         if (hasPhoto) {
           return (
-            <div className={highlightClass} style={{ width: '100%', height: '40px', padding: '2px', display: 'flex', justifyContent: 'center' }}>
-              <img src={metadata.photoUrls[0]} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }} alt="event" />
+            // 👇 修正：最大3枚まで横に綺麗に並べて表示する
+            <div className={highlightClass} style={{ width: '100%', height: '40px', padding: '2px', display: 'flex', gap: '2px', overflow: 'hidden' }}>
+              {metadata.photoUrls.slice(0, 3).map((url: string, i: number) => (
+                <img key={i} src={url} style={{ flex: 1, minWidth: 0, height: '100%', objectFit: 'cover', borderRadius: '4px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} alt="event" />
+              ))}
             </div>
           );
         }
@@ -1925,120 +1928,116 @@ export default function SmartLifeOS() {
     return evts;
   });
     
-    const displayEvents = [...events, ...anniversaryEvents, ...routineEvents].flatMap((e: any) => {
-    const metadata = e.extendedProps?.metadata || {};
-    const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
-    const results = [];
+    // 👇 修正：...subEvents を追加し、月カレンダーでのブロック表示を制御する
+    const displayEvents = [...events, ...anniversaryEvents, ...routineEvents, ...subEvents].flatMap((e: any) => {
+      const metadata = e.extendedProps?.metadata || {};
+      const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+      const results = [];
 
-    // 出発・集合ブロックの生成
-    if (metadata.isGathering && metadata.departureTime) {
-      const [dh, dm] = metadata.departureTime.split(':').map(Number);
-      const [gh, gm] = (metadata.gatheringTime || "12:00").split(':').map(Number);
-      const wTime = parseInt(metadata.walkTime || walkTime || '0', 10);
-      
-      const moveStart = new Date(e.start);
-      moveStart.setHours(dh, dm, 0);
-      if (metadata.departureType !== 'home') moveStart.setMinutes(moveStart.getMinutes() - wTime);
-      
-      const moveEnd = new Date(e.start);
-      moveEnd.setHours(gh, gm, 0);
+      // 出発・集合ブロックの生成
+      if (metadata.isGathering && metadata.departureTime) {
+        const [dh, dm] = metadata.departureTime.split(':').map(Number);
+        const [gh, gm] = (metadata.gatheringTime || "12:00").split(':').map(Number);
+        const wTime = parseInt(metadata.walkTime || walkTime || '0', 10);
+        
+        const moveStart = new Date(e.start);
+        moveStart.setHours(dh, dm, 0);
+        if (metadata.departureType !== 'home') moveStart.setMinutes(moveStart.getMinutes() - wTime);
+        
+        const moveEnd = new Date(e.start);
+        moveEnd.setHours(gh, gm, 0);
 
-      results.push({
-        id: `${e.id}-travel`,
+        results.push({
+          id: `${e.id}-travel`,
+          groupId: e.id, 
+          title: `${moveStart.getHours()}:${String(moveStart.getMinutes()).padStart(2,'0')} → ${metadata.gatheringTime}`,
+          start: moveStart.toISOString(),
+          end: moveEnd.toISOString(),
+          allDay: false,
+          backgroundColor: 'transparent',
+          borderColor: cColor,
+          extendedProps: { isTransitEvent: true, cColor, transitType: metadata.departureType }
+        });
+      }
+
+      // 交通機関（往復）ブロックの生成
+      if (metadata.customFields?.isTransit) {
+        if (metadata.customFields.transitDepTime && metadata.customFields.transitArrTime) {
+          const [dh, dm] = metadata.customFields.transitDepTime.split(':').map(Number);
+          const [ah, am] = metadata.customFields.transitArrTime.split(':').map(Number);
+          
+          const tStart = new Date(e.start);
+          tStart.setHours(dh, dm, 0);
+          
+          const tEnd = new Date(e.start);
+          tEnd.setHours(ah, am, 0);
+          if (tEnd < tStart) tEnd.setDate(tEnd.getDate() + 1);
+
+          results.push({
+            id: `${e.id}-transit-out`,
+            groupId: e.id, 
+            title: `行き`,
+            start: tStart.toISOString(),
+            end: tEnd.toISOString(),
+            allDay: false,
+            backgroundColor: 'transparent',
+            borderColor: cColor,
+            extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.transitType }
+          });
+        }
+
+        if (metadata.customFields.hasReturnTransit && metadata.customFields.returnTransitDepTime && metadata.customFields.returnTransitArrTime) {
+          const [dh, dm] = metadata.customFields.returnTransitDepTime.split(':').map(Number);
+          const [ah, am] = metadata.customFields.returnTransitArrTime.split(':').map(Number);
+          
+          const retBase = e.end ? new Date(e.end) : new Date(e.start);
+          if (e.allDay && e.end) retBase.setDate(retBase.getDate() - 1); 
+          
+          const retStart = new Date(retBase);
+          retStart.setHours(dh, dm, 0);
+          
+          const retEnd = new Date(retBase);
+          retEnd.setHours(ah, am, 0);
+          if (retEnd < retStart) retEnd.setDate(retEnd.getDate() + 1);
+
+          results.push({
+            id: `${e.id}-transit-ret`,
+            groupId: e.id, 
+            title: `帰り`,
+            start: retStart.toISOString(),
+            end: retEnd.toISOString(),
+            allDay: false,
+            backgroundColor: 'transparent',
+            borderColor: cColor,
+            extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.returnTransitType }
+          });
+        }
+      }
+
+      results.push({ 
+        ...e, 
         groupId: e.id, 
-        title: `${moveStart.getHours()}:${String(moveStart.getMinutes()).padStart(2,'0')} → ${metadata.gatheringTime}`,
-        start: moveStart.toISOString(),
-        end: moveEnd.toISOString(),
-        allDay: false,
-        backgroundColor: 'transparent',
-        borderColor: cColor,
-        extendedProps: { isTransitEvent: true, cColor, transitType: metadata.departureType }
+        extendedProps: { ...e.extendedProps, originalStart: e.start } 
       });
-    }
-
-    // 👇 追加：交通機関（往復）ブロックの生成
-    if (metadata.customFields?.isTransit) {
-      if (metadata.customFields.transitDepTime && metadata.customFields.transitArrTime) {
-        const [dh, dm] = metadata.customFields.transitDepTime.split(':').map(Number);
-        const [ah, am] = metadata.customFields.transitArrTime.split(':').map(Number);
-        
-        const tStart = new Date(e.start);
-        tStart.setHours(dh, dm, 0);
-        
-        const tEnd = new Date(e.start);
-        tEnd.setHours(ah, am, 0);
-        if (tEnd < tStart) tEnd.setDate(tEnd.getDate() + 1);
-
-        results.push({
-          id: `${e.id}-transit-out`,
-          groupId: e.id, 
-          title: `行き`,
-          start: tStart.toISOString(),
-          end: tEnd.toISOString(),
-          allDay: false,
-          backgroundColor: 'transparent',
-          borderColor: cColor,
-          extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.transitType }
-        });
-      }
-
-      if (metadata.customFields.hasReturnTransit && metadata.customFields.returnTransitDepTime && metadata.customFields.returnTransitArrTime) {
-        const [dh, dm] = metadata.customFields.returnTransitDepTime.split(':').map(Number);
-        const [ah, am] = metadata.customFields.returnTransitArrTime.split(':').map(Number);
-        
-        // 復路は予定の終了日を基準にする
-        const retBase = e.end ? new Date(e.end) : new Date(e.start);
-        if (e.allDay && e.end) retBase.setDate(retBase.getDate() - 1); 
-        
-        const retStart = new Date(retBase);
-        retStart.setHours(dh, dm, 0);
-        
-        const retEnd = new Date(retBase);
-        retEnd.setHours(ah, am, 0);
-        if (retEnd < retStart) retEnd.setDate(retEnd.getDate() + 1);
-
-        results.push({
-          id: `${e.id}-transit-ret`,
-          groupId: e.id, 
-          title: `帰り`,
-          start: retStart.toISOString(),
-          end: retEnd.toISOString(),
-          allDay: false,
-          backgroundColor: 'transparent',
-          borderColor: cColor,
-          extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.returnTransitType }
-        });
-      }
-    }
-
-    results.push({ 
-      ...e, 
-      groupId: e.id, 
-      extendedProps: { ...e.extendedProps, originalStart: e.start } 
-    });
-    return results;
-  }).filter((e: any) => {
-    if (e.extendedProps?.metadata?.isStocked) return false;
-    // 👇 月表示の時は移動枠を消して隙間を詰める！
-    if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
-    // 👇 単発の収支記録（金額だけの独立データ）をカレンダーのマス目から非表示にする
-    if (e.extendedProps?.metadata?.isPureFinance) return false;
-    
-    // 👇 月毎カレンダーでは、サブスクや支払いをブロックとして表示しない！
-    if (viewType === 'dayGridMonth') {
-      const isSub = String(e.id).startsWith('sub-');
-      const isRoutineExpense = e.extendedProps?.isRoutine && e.extendedProps?.metadata?.routineType === 'expense';
-      const isManualPayment = e.extendedProps?.metadata?.customFields?.isExpenseSet && (e.title?.includes('支払') || e.title?.includes('引落'));
-      if (isSub || isRoutineExpense || isManualPayment) return false;
+      return results;
+    }).filter((e: any) => {
+      if (e.extendedProps?.metadata?.isStocked) return false;
+      if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
+      if (e.extendedProps?.metadata?.isPureFinance) return false;
       
-      // 👇 追加：月毎カレンダーでジャンルが選択されている場合、それ以外の予定を隠す
-      if (calendarCategoryFilter !== 'すべて' && e.extendedProps?.category !== calendarCategoryFilter) {
-        return false;
+      if (viewType === 'dayGridMonth') {
+        // 👇 修正：ルーティン（給料など）やサブスクは、枠線ブロックとして表示させない！
+        const isSub = String(e.id).startsWith('sub-');
+        const isRoutine = e.extendedProps?.isRoutine;
+        if (isSub || isRoutine) return false;
+        
+        if (calendarCategoryFilter !== 'すべて' && e.extendedProps?.category !== calendarCategoryFilter) {
+          return false;
+        }
       }
-    }
-    
-    return true;
-  });
+      
+      return true;
+    });
 
   const currentCategoryObj = categories.find((c: any) => c.name === categoryName);
   const currentMonthStr = `${currentYear}-${currentMonthNum.padStart(2, '0')}`;
@@ -2972,12 +2971,17 @@ useEffect(() => {
               select={handleSelect} 
               eventClick={handleEventClick}
               
+              // 👇 追加：タップした瞬間に確実に新規予定画面を開く！
+              dateClick={(info: any) => {
+                if (isSwipingRef.current) return;
+                handleSelect({ start: info.date, end: new Date(info.date.getTime() + 86400000), allDay: info.allDay });
+              }}
               // 👇 追加：予定をドラッグ＆ドロップで移動・時間変更できるようにする
-              // 月毎カレンダーではドラッグ移動を無効化する
-              editable={viewType !== 'dayGridMonth'}
-              eventStartEditable={viewType !== 'dayGridMonth'}
-              eventDurationEditable={viewType !== 'dayGridMonth'}
-              eventDrop={async (info) => {
+              // 月毎カレンダーではドラッグ移動を無効化する
+              editable={viewType !== 'dayGridMonth'}
+              eventStartEditable={viewType !== 'dayGridMonth'}
+              eventDurationEditable={viewType !== 'dayGridMonth'}
+              eventDrop={async (info) => {
                 // 移動させた予定の新しい日時をSupabaseに保存する処理
                 const { event, oldEvent } = info;
                 const dbId = event.id.replace('-travel', ''); // 移動枠を動かした時対策
@@ -3056,23 +3060,24 @@ useEffect(() => {
               dayCellContent={(arg: any) => {
                 if (arg.view.type === 'dayGridMonth') {
                   const dStr = toLocalYYYYMMDD(arg.date);
-                  // 👇 修正：サブスクを除外し、通常の支払いとルーティン支払いのみで判定
-                  const paymentEvent = [...events, ...routineEvents].find((e: any) => {
-                    const isRoutineExpense = e.extendedProps?.isRoutine && e.extendedProps?.metadata?.routineType === 'expense';
-                    const isManualPayment = e.extendedProps?.metadata?.customFields?.isExpenseSet && (e.title?.includes('支払') || e.title?.includes('引落'));
-                    return (isRoutineExpense || isManualPayment) && e.start?.startsWith(dStr);
+                  // 👇 修正：ルーティン（給料など）やサブスクがある日を探す
+                  const monthlyEvent = [...routineEvents, ...subEvents].find((e: any) => {
+                    return e.start?.startsWith(dStr);
                   });
+
+                  // イベントがあれば背景を薄い色にし、文字色を濃くする
+                  const bgColor = monthlyEvent ? hexToRgba(monthlyEvent.backgroundColor || monthlyEvent.extendedProps?.metadata?.customColor || 'var(--theme)', 0.2) : 'transparent';
+                  const txtColor = monthlyEvent ? (monthlyEvent.backgroundColor || monthlyEvent.extendedProps?.metadata?.customColor || 'var(--theme)') : 'inherit';
 
                   return (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-                      {/* 👇 修正：相対位置のコンテナで数字を囲む */}
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span>{arg.date.getDate()}</span>
-                        {paymentEvent && (() => {
-                          const cColor = paymentEvent.extendedProps?.cColor || paymentEvent.extendedProps?.metadata?.customColor || paymentEvent.backgroundColor || 'var(--theme)';
-                          // 👇 修正：ドットを absolute（絶対配置）にして、数字の右側に浮かせて配置する
-                          return <div style={{ position: 'absolute', left: '100%', marginLeft: '3px', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: cColor, marginTop: '2px', boxShadow: `0 1px 3px ${hexToRgba(cColor, 0.4)}` }} title={paymentEvent.title} />;
-                        })()}
+                      <div style={{ 
+                        position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: '24px', height: '24px', borderRadius: '50%',
+                        backgroundColor: bgColor,
+                        color: txtColor
+                      }}>
+                        <span style={{ fontWeight: monthlyEvent ? '900' : 'normal' }}>{arg.date.getDate()}</span>
                       </div>
                     </div>
                   );
