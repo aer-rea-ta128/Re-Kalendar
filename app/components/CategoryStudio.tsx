@@ -296,7 +296,8 @@ export default function CategoryStudio({
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                    <div style={{ color: 'var(--text-sub)', display: 'flex', alignItems: 'center', cursor: 'grab' }}>
+                    {/* 👇 修正：ここに className="drag-handle" を追加して、ここだけを掴めるようにする */}
+                    <div className="drag-handle" style={{ color: 'var(--text-sub)', display: 'flex', alignItems: 'center', cursor: 'grab', padding: '4px' }}>
                       <GripVertical size={18} />
                     </div>
                     

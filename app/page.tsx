@@ -380,19 +380,20 @@ export default function SmartLifeOS() {
   }, []);
 
   useEffect(() => {
-    if (!isDataLoaded) return;
-    localStorage.setItem('os_categories', JSON.stringify(categories));
-    localStorage.setItem('os_themeColor', JSON.stringify(themeColor)); // 👈 これを追加
-    localStorage.setItem('os_userColors', JSON.stringify(userColors));
-    localStorage.setItem('os_subs', JSON.stringify(subs));
-    localStorage.setItem('os_anniversaries', JSON.stringify(anniversaries));
-    localStorage.setItem('os_routines', JSON.stringify(monthlyRoutines));
-    localStorage.setItem('os_home', JSON.stringify(homeLocation));
-    localStorage.setItem('os_station', JSON.stringify(nearestStation));
-    localStorage.setItem('os_walkTime', JSON.stringify(walkTime));
-    localStorage.setItem('os_startPointType', JSON.stringify(startPointType));
-    localStorage.setItem('os_customPayees', JSON.stringify(customPayees));
-  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor]); // 👈 配列の最後に themeColor を追加
+    if (!isDataLoaded) return;
+    localStorage.setItem('os_categories', JSON.stringify(categories));
+    localStorage.setItem('os_themeColor', JSON.stringify(themeColor));
+    localStorage.setItem('os_userColors', JSON.stringify(userColors));
+    localStorage.setItem('os_subs', JSON.stringify(subs));
+    localStorage.setItem('os_anniversaries', JSON.stringify(anniversaries));
+    localStorage.setItem('os_routines', JSON.stringify(monthlyRoutines));
+    localStorage.setItem('os_home', JSON.stringify(homeLocation));
+    localStorage.setItem('os_station', JSON.stringify(nearestStation));
+    localStorage.setItem('os_walkTime', JSON.stringify(walkTime));
+    localStorage.setItem('os_startPointType', JSON.stringify(startPointType));
+    localStorage.setItem('os_customPayees', JSON.stringify(customPayees));
+  // 👇 修正：subs と customPayees を監視対象に追加し、データ消失を防ぐ！
+  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees]);
 
   const activePresets: string[] = [...INITIAL_PRESETS, ...userColors];
 
@@ -482,9 +483,13 @@ export default function SmartLifeOS() {
     let draggable: any = null;
     if (draggableRef.current) {
       draggable = new Draggable(draggableRef.current, {
-        itemSelector: '.drag-event-item',
+        // 👇 修正：handleを削除し、itemSelector に掴む要素（.drag-handle）を直接指定する
+        itemSelector: '.drag-handle', 
         eventData: function(eventEl) {
-          return { title: eventEl.innerText, duration: '01:00' };
+          // 👇 修正：掴んだ要素の「親（全体を囲む箱）」を探して、そこからテキストを取得する
+          const parentEl = eventEl.closest('.drag-event-item') as HTMLElement;
+          const title = parentEl ? parentEl.innerText : eventEl.innerText;
+          return { title: title.replace(/\n/g, '').trim(), duration: '01:00' };
         }
       });
     }
@@ -853,19 +858,22 @@ export default function SmartLifeOS() {
         const s = info.start as Date; const e = info.end || new Date(s.getTime() + 60 * 60 * 1000);
         setStartH(String(s.getHours()).padStart(2, '0')); setStartM(String(s.getMinutes()).padStart(2, '0')); 
         setEndH(String(e.getHours()).padStart(2, '0')); setEndM(String(e.getMinutes()).padStart(2, '0'));
-      }
-      setClipboardEvent(null); // ペースト完了したら空にする
-      setIsModalOpen(true);
-      return;
-    }
+      }
+      setClipboardEvent(null); // ペースト完了したら空にする
+      setIsModalOpen(true);
+      return;
+    }
 
-    setMode('create'); setStartDate(toLocalYYYYMMDD(info.start));
-    const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1); setEndDate(toLocalYYYYMMDD(adjEnd));
-    setTitle(''); setLocation(''); setIsGathering(false); setGatheringTime(''); setDepartureTime(''); setDepartureType(startPointType === 'station' ? 'train' : 'home'); setSelectedDays([]);
-    
-    // 👇 修正：カレンダーのマスをタップして追加する際も、すべての設定とバーの開閉を確実にリセットする
-    setCustomFieldsData({});
-    setExpandedBlocks([]);
+    setMode('create'); setStartDate(toLocalYYYYMMDD(info.start));
+    const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1); setEndDate(toLocalYYYYMMDD(adjEnd));
+    
+    // 👇 修正：ジャンル・色・写真・メモなども確実にリセットする
+    setTitle(''); setLocation(''); setIsGathering(false); setGatheringTime(''); setDepartureTime(''); setDepartureType(startPointType === 'station' ? 'train' : 'home'); setSelectedDays([]);
+    setCategoryName(''); setEventColor(''); setMemo(''); setPhotoUrls([]); setRating(0); setIsPinned(false); setIsTentative(false);
+    
+    // 👇 修正：カレンダーのマスをタップして追加する際も、すべての設定とバーの開閉を確実にリセットする
+    setCustomFieldsData({});
+    setExpandedBlocks([]);
     
     if (info.allDay) {
       const nowH = new Date().getHours(); setStartH(String(nowH).padStart(2, '0')); setStartM('00'); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0')); setEndM('00');
@@ -1222,7 +1230,6 @@ export default function SmartLifeOS() {
     const [isOpen, setIsOpen] = useState(false);
     const selectorRef = useRef<HTMLDivElement>(null);
 
-    // 外側をクリックした時に閉じる処理
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent | TouchEvent) => {
         if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) setIsOpen(false);
@@ -1248,10 +1255,11 @@ export default function SmartLifeOS() {
     
     return (
       <div ref={selectorRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ width: '100%', height: '100%', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)', minHeight: 'unset' }}>
+        {/* 👇 修正：border を 2px に統一し、Chevron アイコンが潰れないように flexShrink: 0 を付与 */}
+        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ width: '100%', height: '100%', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '2px solid var(--border-color)', background: 'var(--input-bg)', minHeight: 'unset' }}>
           <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
-          {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
+          {isOpen ? <ChevronUp size={14} color="var(--text-sub)" style={{ flexShrink: 0 }} /> : <ChevronDown size={14} color="var(--text-sub)" style={{ flexShrink: 0 }} />}
         </div>
         {isOpen && (
           <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', minWidth: '140px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '160px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -1271,44 +1279,46 @@ export default function SmartLifeOS() {
   };
 
   const PaymentMethodSelector = ({ value, onChange, isIncome }: { value: string, onChange: (val: string) => void, isIncome: boolean }) => {
-                      const [isOpen, setIsOpen] = useState(false);
-                      const selectorRef = useRef<HTMLDivElement>(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const selectorRef = useRef<HTMLDivElement>(null);
 
-                      useEffect(() => {
-                        const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-                          if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) setIsOpen(false);
-                        };
-                        if (isOpen) {
-                          document.addEventListener('mousedown', handleClickOutside);
-                          document.addEventListener('touchstart', handleClickOutside);
-                        }
-                        return () => {
-                          document.removeEventListener('mousedown', handleClickOutside);
-                          document.removeEventListener('touchstart', handleClickOutside);
-                        };
-                      }, [isOpen]);
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+        if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) setIsOpen(false);
+      };
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+      }
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+      };
+    }, [isOpen]);
 
-                      const methods = isIncome 
-                        ? [
-                            { id: 'bank', label: '振込', icon: Landmark, color: 'var(--theme)' },
-                            { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
-                            { id: 'paypay', label: '電子マネー', icon: Smartphone, color: 'var(--theme)' }
-                          ]
-                        : [
-                            { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
-                            { id: 'credit', label: 'クレカ', icon: CreditCard, color: 'var(--theme)' },
-                            { id: 'paypay', label: 'スマホ', icon: Smartphone, color: 'var(--theme)' },
-                            { id: 'ic', label: '交通IC', icon: Train, color: 'var(--theme)' }
-                          ];
-                      const current = methods.find(m => m.id === value) || methods[0];
-                      const Icon = current.icon;
+    const methods = isIncome 
+      ? [
+          { id: 'bank', label: '振込', icon: Landmark, color: 'var(--theme)' },
+          { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
+          { id: 'paypay', label: '電子マネー', icon: Smartphone, color: 'var(--theme)' }
+        ]
+      : [
+          { id: 'cash', label: '現金', icon: Banknote, color: 'var(--theme)' },
+          { id: 'credit', label: 'クレカ', icon: CreditCard, color: 'var(--theme)' },
+          { id: 'paypay', label: 'スマホ決済', icon: Smartphone, color: 'var(--theme)' },
+          { id: 'ic', label: '交通IC', icon: Train, color: 'var(--theme)' },
+          { id: 'reimburse', label: '立替', icon: Handshake, color: 'var(--theme)' }
+        ];
+    const current = methods.find(m => m.id === value) || methods[0];
+    const Icon = current.icon;
 
-                      return (
-                        <div style={{ position: 'relative', flex: 1, minWidth: '100px' }}>
-                          <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '1px solid var(--border-color)', background: 'var(--input-bg)' }}>
-                            <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
+    return (
+      <div ref={selectorRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+        {/* 👇 修正：border を 2px に統一 */}
+        <div onClick={() => setIsOpen(!isOpen)} className="pop-input" style={{ width: '100%', height: '100%', fontSize: '0.75rem', padding: '0 8px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', border: isOpen ? '2px solid var(--theme)' : '2px solid var(--border-color)', background: 'var(--input-bg)', minHeight: 'unset' }}>
+          <Icon size={14} color={current.color} style={{ flexShrink: 0 }} />
           <span style={{ flex: 1, fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{current.label}</span>
-          {isOpen ? <ChevronUp size={14} color="var(--text-sub)" /> : <ChevronDown size={14} color="var(--text-sub)" />}
+          {isOpen ? <ChevronUp size={14} color="var(--text-sub)" style={{ flexShrink: 0 }} /> : <ChevronDown size={14} color="var(--text-sub)" style={{ flexShrink: 0 }} />}
         </div>
         {isOpen && (
           <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', minWidth: '120px', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '160px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -1326,6 +1336,7 @@ export default function SmartLifeOS() {
       </div>
     );
   };
+
   const PayeeComboInput = ({ value, onChange, pastPayees }: { value: string, onChange: (val: string) => void, pastPayees: string[] }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -1346,7 +1357,8 @@ export default function SmartLifeOS() {
 
     return (
       <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-        <div className="pop-input" style={{ width: '100%', height: '100%', padding: '0 8px', display: 'flex', alignItems: 'center', cursor: 'text', position: 'relative', gap: '4px', minHeight: 'unset' }}>
+        {/* 👇 修正：border を 2px に統一 */}
+        <div className="pop-input" style={{ width: '100%', height: '100%', padding: '0 8px', display: 'flex', alignItems: 'center', cursor: 'text', position: 'relative', gap: '4px', minHeight: 'unset', border: isOpen ? '2px solid var(--theme)' : '2px solid var(--border-color)' }}>
           <input 
             type="text" 
             style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: '0.8rem', color: 'var(--text-main)', width: '100%', minWidth: 0, height: '100%' }} 
@@ -1356,7 +1368,7 @@ export default function SmartLifeOS() {
             onFocus={() => setIsOpen(true)}
           />
           {pastPayees.length > 0 && (
-            <div onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} style={{ cursor: 'pointer', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', padding: '4px' }}>
+            <div onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} style={{ cursor: 'pointer', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', padding: '4px', flexShrink: 0 }}>
               <ChevronDown size={14} />
             </div>
           )}
@@ -1365,12 +1377,7 @@ export default function SmartLifeOS() {
         {isOpen && pastPayees.length > 0 && (
           <div className="hide-scrollbar" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', background: 'var(--card-bg)', border: '1px solid var(--theme)', borderRadius: '12px', marginTop: '4px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', zIndex: 100, overflowY: 'auto', maxHeight: '160px', padding: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {pastPayees.map((p, i) => (
-              <div 
-                key={i} 
-                onClick={() => { onChange(p); setIsOpen(false); }} 
-                style={{ padding: '8px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-main)', borderRadius: '8px', transition: 'background 0.2s' }}
-                className="hover-bg-glass"
-              >
+              <div key={i} onClick={() => { onChange(p); setIsOpen(false); }} style={{ padding: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-main)', borderRadius: '8px', transition: 'background 0.2s' }} className="hover-bg-glass">
                 {p}
               </div>
             ))}
@@ -2475,11 +2482,17 @@ useEffect(() => {
                 const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
                 setMode('create'); setStartDate(today); setEndDate(today);
                 setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsAllDayBackground(false); setIsModalOpen(true); setIsTentative(false);
+                
+                // 👇 修正：ジャンル・色・写真・メモなども確実にリセットする
+                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsAllDayBackground(false); setIsTentative(false);
+                setCategoryName(''); setEventColor(''); setRating(0); setIsPinned(false);
+                
                 // 👇 修正：以前開いていたメニューを確実にすべて閉じてリセットする
                 setCustomFieldsData({});
                 setIsGathering(false);
                 setExpandedBlocks([]);
+                
+                setIsModalOpen(true);
               }}
               style={{ background: 'var(--theme)', color: '#fff', fontSize: '2rem', fontWeight: 'bold', width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '4px', lineHeight: 0, flexShrink: 0 }}
             >
@@ -2489,14 +2502,28 @@ useEffect(() => {
 
           {/* 中央：年月表示（絶対位置でど真ん中に固定！） */}
           <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', justifyContent: 'center' }}>
-            <div onClick={() => setIsDatePickerOpen(!isDatePickerOpen)} style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '6px 16px', gap: '12px', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '32px', cursor: 'pointer', boxShadow: `0 0 15px var(--theme-shadow), inset 0 0 8px var(--theme-shadow)` }}>
+            <div style={{ position: 'relative', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: '6px 16px', gap: '12px', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '32px', cursor: 'pointer', boxShadow: `0 0 15px var(--theme-shadow), inset 0 0 8px var(--theme-shadow)` }}>
+              
+              {/* 👇 修正：iOSでも確実にカレンダーピッカーが開くように type="date" に変更し、日にちは01で固定 */}
+              <input 
+                type="date" 
+                value={`${currentYear}-${String(currentMonthNum).padStart(2, '0')}-01`} 
+                onChange={(e) => { 
+                  if (e.target.value) {
+                    const [y, m] = e.target.value.split('-');
+                    handleYearMonthChange(y, m);
+                  }
+                }} 
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} 
+              />
+
               <button onClick={(e) => { 
                 e.stopPropagation(); 
                 const api = calendarRef.current?.getApi();
                 if (viewType === 'timeGridDay' && api) {
                   const d = api.getDate(); d.setMonth(d.getMonth() - 1); api.gotoDate(d);
                 } else { api?.prev(); }
-              }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>◀</button>
+              }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0, position: 'relative', zIndex: 20 }}>◀</button>
               
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 2px', whiteSpace: 'nowrap' }}>
                 <span style={{ fontSize: '0.65rem', color: 'var(--theme)', fontWeight: '900', letterSpacing: '1px', marginBottom: '-2px', textShadow: `0 0 5px var(--theme-shadow)` }}>{currentYear}</span>
@@ -2509,7 +2536,7 @@ useEffect(() => {
                 if (viewType === 'timeGridDay' && api) {
                   const d = api.getDate(); d.setMonth(d.getMonth() + 1); api.gotoDate(d);
                 } else { api?.next(); }
-              }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0 }}>▶</button>
+              }} style={{ border: 'none', background: 'transparent', color: 'var(--theme)', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', padding: 0, position: 'relative', zIndex: 20 }}>▶</button>
             </div>
           </div>
 
@@ -3136,6 +3163,9 @@ useEffect(() => {
           setMemo={setMemo}
           setPhotoUrls={setPhotoUrls}
           setIsStocked={setIsStocked}
+          setIsTentative={setIsTentative}
+          setRating={setRating}
+          setIsPinned={setIsPinned}
           setIsModalOpen={setIsModalOpen}
           setCategoryName={setCategoryName}
           setIsAllDayBackground={setIsAllDayBackground}
@@ -3420,19 +3450,20 @@ useEffect(() => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '10px 0' }}>
                   
                   {/* サマリーカード（月額・年額の自動計算） */}
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {/* 👇 修正：flexWrap を nowrap にし、はみ出さずに1行で収まるように調整 */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap', width: '100%' }}>
                     {(() => {
                       const monthlyTotal = subs.filter(s => s.cycle === 'monthly').reduce((acc, s) => acc + Number(s.amount), 0);
                       const yearlyTotal = subs.filter(s => s.cycle === 'yearly').reduce((acc, s) => acc + Number(s.amount), 0) + (monthlyTotal * 12);
                       return (
                         <>
-                          <div style={{ flex: 1, minWidth: '200px', background: 'var(--card-bg)', border: `1px solid ${themeColor}`, borderRadius: '16px', padding: '20px', boxShadow: `0 4px 15px ${themeColor}15` }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>月額の支払い (月会費)</div>
-                            <div style={{ fontSize: '2rem', fontWeight: '900', color: themeColor }}>¥{monthlyTotal.toLocaleString()}</div>
+                          <div style={{ flex: 1, minWidth: 0, background: 'var(--card-bg)', border: `1px solid ${themeColor}`, borderRadius: '12px', padding: '12px', boxShadow: `0 4px 15px ${themeColor}15`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px', whiteSpace: 'nowrap' }}>月額の支払い</div>
+                            <div style={{ fontSize: '1.3rem', fontWeight: '900', color: themeColor }}>¥{monthlyTotal.toLocaleString()}</div>
                           </div>
-                          <div style={{ flex: 1, minWidth: '200px', background: 'var(--card-bg)', border: `1px solid ${themeColor}`, borderRadius: '16px', padding: '20px', boxShadow: `0 4px 15px ${themeColor}15` }}>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px' }}>年額の支払い (年会費 + 月額×12)</div>
-                            <div style={{ fontSize: '2rem', fontWeight: '900', color: themeColor }}>¥{yearlyTotal.toLocaleString()}</div>
+                          <div style={{ flex: 1, minWidth: 0, background: 'var(--card-bg)', border: `1px solid ${themeColor}`, borderRadius: '12px', padding: '12px', boxShadow: `0 4px 15px ${themeColor}15`, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px', whiteSpace: 'nowrap' }}>年間の支払い</div>
+                            <div style={{ fontSize: '1.3rem', fontWeight: '900', color: themeColor }}>¥{yearlyTotal.toLocaleString()}</div>
                           </div>
                         </>
                       );
@@ -3441,18 +3472,20 @@ useEffect(() => {
 
                   <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
                     {/* 左側：登録済みリスト */}
-                    <div style={{ flex: 1.5, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ flex: 1.5, minWidth: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)' }}>登録済みのサービス</span>
                       <div style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }} className="hide-scrollbar">
                         {subs.map((sub, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                            <div>
-                              <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '4px' }}>{sub.name}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{sub.cycle === 'monthly' ? `毎月 ${sub.date}日` : `毎年 ${sub.date.replace('-', '月')}日`}支払{sub.category ? ` / ${sub.category}` : ''}</div>
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                            {/* 👇 修正：文字が長すぎても突き破らないように minWidth: 0 と textOverflow を設定 */}
+                            <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
+                              <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub.name}</div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub.cycle === 'monthly' ? `毎月 ${sub.date}日` : `毎年 ${sub.date.replace('-', '月')}日`}支払{sub.category ? ` / ${sub.category}` : ''}</div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                              <span style={{ fontWeight: '900', color: '#ef4444', fontSize: '1.1rem' }}>¥{Number(sub.amount).toLocaleString()}</span>
-                              <button onClick={() => setSubs(subs.filter((_, i) => i !== idx))} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16}/></button>
+                            {/* 👇 修正：金額エリアの幅を固定し、はみ出しを防ぐ */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                              <span style={{ fontWeight: '900', color: '#ef4444', fontSize: '1rem' }}>¥{Number(sub.amount).toLocaleString()}</span>
+                              <button onClick={() => setSubs(subs.filter((_, i) => i !== idx))} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16}/></button>
                             </div>
                           </div>
                         ))}
@@ -4216,13 +4249,23 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                               <div style={{ marginTop: '12px', cursor: 'default' }}>
                                 <textarea className="pop-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="思い出メモ..." rows={2} style={{ background: 'var(--input-bg)' }} />
                                 
-                                {/* 👇 修正：許可されている場合のみ写真UIを表示する */}
                                 {showPhotoUI && (
                                   <div style={{ marginTop: '12px' }}>
                                     <label className="form-label" style={{ color: 'var(--theme)' }}>思い出の写真</label>
-                                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto' }}>
-                                      {photoUrls.map((url, i) => <img key={i} src={url} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />)}
-                                      <label style={{ width: '60px', height: '60px', borderRadius: '8px', border: '2px dashed var(--theme)', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                    <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+                                      {photoUrls.map((url, i) => (
+                                        // 👇 修正：画像の上に「×」ボタンを追加して削除できるようにする
+                                        <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
+                                          <img src={url} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />
+                                          <button 
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPhotoUrls(photoUrls.filter((_, idx) => idx !== i)); }} 
+                                            style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '14px', lineHeight: 1, paddingBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      ))}
+                                      <label style={{ width: '60px', height: '60px', borderRadius: '8px', border: '2px dashed var(--theme)', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem', flexShrink: 0 }}>
                                         +<input type="file" multiple onChange={handlePhotoUpload} style={{ display: 'none' }} />
                                       </label>
                                     </div>
@@ -4329,7 +4372,7 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
               <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
                 <button onClick={() => setAnalyticsSpan('month')} className={analyticsSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', background: analyticsSpan === 'month' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'month' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'month' ? '#fff' : 'var(--text-main)' }}>月間</button>
                 <button onClick={() => setAnalyticsSpan('year')} className={analyticsSpan === 'year' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', background: analyticsSpan === 'year' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'year' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'year' ? '#fff' : 'var(--text-main)' }}>年間</button>
-                <button onClick={() => setAnalyticsSpan('pie')} className={analyticsSpan === 'pie' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', background: analyticsSpan === 'pie' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'pie' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'pie' ? '#fff' : 'var(--text-main)' }}>円グラフ</button>
+                <button onClick={() => setAnalyticsSpan('pie')} className={analyticsSpan === 'pie' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize:'0.85rem', background: analyticsSpan === 'pie' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'pie' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'pie' ? '#fff' : 'var(--text-main)' }}>円グラフ</button>
               </div>
 
               {analyticsSpan !== 'pie' && (

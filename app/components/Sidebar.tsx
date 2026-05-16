@@ -45,6 +45,9 @@ interface SidebarProps {
   setMemo: React.Dispatch<React.SetStateAction<string>>;
   setPhotoUrls: React.Dispatch<React.SetStateAction<string[]>>;
   setIsStocked: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsTentative: React.Dispatch<React.SetStateAction<boolean>>;
+  setRating: React.Dispatch<React.SetStateAction<number>>;
+  setIsPinned: React.Dispatch<React.SetStateAction<boolean>>;
   setIsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setCategoryName: React.Dispatch<React.SetStateAction<string>>;
   setIsAllDayBackground: React.Dispatch<React.SetStateAction<boolean>>;
@@ -82,7 +85,8 @@ export default function Sidebar({
   events, categories, targetType, setTargetType, targetValue, setTargetValue,
   currentMonthEvents, currentYearEvents, quickTemplates, setQuickTemplates,
   setMode, setStartDate, setEndDate, setStartH, setStartM, setEndH, setEndM,
-  setTitle, setLocation, setMemo, setPhotoUrls, setIsStocked, setIsModalOpen,
+  setTitle, setLocation, setMemo, setPhotoUrls, setIsStocked,
+  setIsTentative, setRating, setIsPinned, setIsModalOpen,
   setCategoryName, setIsAllDayBackground, setEventColor,
   setIsAnalyticsModalOpen, setIsGalleryOpen, setIsCategoryModalOpen,
   setIsRoutineModalOpen, setIsAnniversaryModalOpen, syncWithCloud, handleEventClick,
@@ -174,7 +178,9 @@ export default function Sidebar({
       const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
       setMode('create'); setStartDate(today); setEndDate(today);
       setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
+      // 👇 修正：ジャンル・色・写真・ピン留めなどを確実に完全リセットする
       setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); 
+      setCategoryName(''); setEventColor(''); setIsAllDayBackground(false); setIsTentative(false); setRating(0); setIsPinned(false);
       setCustomFieldsData({}); setIsModalOpen(true); setIsSidebarOpen(false);
     }
     else if (id === 'finance_single') {
@@ -502,7 +508,20 @@ export default function Sidebar({
       )}
 
       {/* 以下、独立モーダル群 */}
-      {isTravelMapOpen && (() => { return <div style={{display:'none'}}>Map</div>; })()}
+      {/* 👇 修正：消えていたトラベル・マップのモーダルを復元（開発中プレースホルダー） */}
+      {isTravelMapOpen && (
+        <div className="modal-overlay" onClick={() => setIsTravelMapOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            <ModalHeader title="トラベル・マップ" onClose={() => setIsTravelMapOpen(false)} />
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)' }}>
+              <Globe size={48} style={{ margin: '0 auto 16px auto', color: 'var(--theme)', opacity: 0.8 }} />
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>開発中の機能です</h3>
+              <p style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>ここに日本地図が表示され、訪れた都道府県を塗りつぶして記録できる機能が追加される予定です。</p>
+            </div>
+            <button onClick={() => setIsTravelMapOpen(false)} className="btn-pop" style={{ width: '100%', padding: '12px', borderRadius: '16px', fontSize: '0.9rem' }}>閉じる</button>
+          </div>
+        </div>
+      )}
 
       {isFinanceHistoryOpen && (() => {
         const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -658,8 +677,7 @@ export default function Sidebar({
 
         return (
           <div className="modal-overlay" onClick={() => setIsCategoryHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-              <ModalHeader title="ジャンル別の予定・履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '80vh' }}>              <ModalHeader title="ジャンル別の予定・履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
               
               {/* 👇 追加：過去 / 未来 の切り替えタブ */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
