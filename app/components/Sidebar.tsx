@@ -116,6 +116,8 @@ export default function Sidebar({
   const [financeTypeFilter, setFinanceTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [isFinanceHistoryOpen, setIsFinanceHistoryOpen] = useState(false);
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
+  const [mapZoom, setMapZoom] = useState(1);
+  const mapContainerRef = React.useRef<HTMLDivElement>(null);
 
   const [incomeCalcBasis, setIncomeCalcBasis] = useState<'wage' | 'payday'>(() => {
     if (typeof window === 'undefined') return 'wage';
@@ -507,11 +509,8 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* トラベル・マップ機能の復元 ＆ ズーム機能追加 */}
+      {/* トラベル・マップ機能 */}
       {isTravelMapOpen && (() => {
-        // 👇 ズーム状態を管理するステート
-        const [mapZoom, setMapZoom] = useState(1);
-
         const PREF_GRID = [
           [null, null, null, null, null, null, null, null, null, null, null, '北海道'],
           [null, null, null, null, null, null, null, null, null, null, null, '青森'],
@@ -544,10 +543,23 @@ export default function Sidebar({
 
         const totalVisited = Object.values(visitedPrefs).filter(v => v > 0).length;
 
+        // 👇 追加：ズームを1に戻し、スライド位置を左上(0,0)にリセットする関数
+        const handleResetZoom = () => {
+          setMapZoom(1);
+          setTimeout(() => {
+            if (mapContainerRef.current) {
+              mapContainerRef.current.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+            }
+          }, 50);
+        };
+
         return (
           <div className="modal-overlay" onClick={() => setIsTravelMapOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '70vh' }}>
-              <ModalHeader title="トラベル・マップ" onClose={() => setIsTravelMapOpen(false)} />
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '80vh' }}>
+              
+              <div style={{ flexShrink: 0 }}>
+                <ModalHeader title="トラベル・マップ" onClose={() => setIsTravelMapOpen(false)} />
+              </div>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px', flexShrink: 0 }}>
                 <div style={{ display: 'flex', gap: '8px', fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
@@ -561,15 +573,38 @@ export default function Sidebar({
                 </div>
               </div>
 
-              {/* 👇 追加：ズームイン・アウトボタン */}
+              {/* ズームイン・アウト ＆ リセットボタン */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '8px', flexShrink: 0 }}>
-                <button onClick={() => setMapZoom(z => Math.max(0.5, z - 0.2))} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>-</button>
-                <button onClick={() => setMapZoom(z => Math.min(3, z + 0.2))} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>+</button>
+                {/* 👇 修正：最小値を「1」に設定し、1以下の時はボタンを薄くして押せなくしました */}
+                <button 
+                  onClick={() => setMapZoom(z => Math.max(1, z - 0.2))} 
+                  disabled={mapZoom <= 1}
+                  style={{ 
+                    width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', 
+                    background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
+                    cursor: mapZoom <= 1 ? 'not-allowed' : 'pointer', // 1以下の時は禁止カーソル
+                    opacity: mapZoom <= 1 ? 0.4 : 1                   // 1以下の時は半透明にする
+                  }}
+                >
+                  -
+                </button>
+                <button onClick={handleResetZoom} style={{ height: '36px', padding: '0 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>中央に戻す</button>
+                <button onClick={() => setMapZoom(z => Math.min(3, z + 0.2))} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>+</button>
               </div>
 
-              <div className="hide-scrollbar" style={{ flex: 1, overflow: 'auto', paddingRight: '4px', background: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '16px', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.02)' }}>
-                {/* 👇 修正：scale を適用し、起点を左上に設定することでズームに対応 */}
-                <div style={{ width: '100%', minWidth: '320px', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '4px', transform: `scale(${mapZoom})`, transformOrigin: 'top left', transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+              {/* マップ本体（はみ出したら縦にも横にもスライド可能） */}
+              <div className="hide-scrollbar" ref={mapContainerRef} style={{ flex: 1, overflow: 'auto', paddingRight: '4px', background: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '16px', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.02)' }}>
+                
+                {/* 👇 修正：widthや文字サイズを直接動かすことで、スライド判定(overflow)を確実に発動させる */}
+                <div style={{ 
+                  width: `${Math.max(100, mapZoom * 100)}%`, 
+                  minWidth: `${320 * mapZoom}px`, 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(12, 1fr)', 
+                  gap: `${4 * mapZoom}px`, 
+                  transition: 'width 0.2s, min-width 0.2s, gap 0.2s' 
+                }}>
                   {PREF_GRID.map((row, rowIndex) => 
                     row.map((p, colIndex) => {
                       if (!p) return <div key={`${rowIndex}-${colIndex}`} style={{ aspectRatio: '1' }} />;
@@ -583,15 +618,15 @@ export default function Sidebar({
                             background: s.bg,
                             color: s.color,
                             border: s.border,
-                            fontSize: '0.65rem',
+                            fontSize: `${0.65 * mapZoom}rem`, // 文字もズームに合わせて拡大
                             fontWeight: '900',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            transition: 'all 0.2s',
+                            transition: 'background 0.2s, color 0.2s',
                             padding: 0,
-                            borderRadius: '4px'
+                            borderRadius: `${4 * mapZoom}px`
                           }}
                         >
                           {getShortName(p)}
@@ -600,6 +635,7 @@ export default function Sidebar({
                     })
                   )}
                 </div>
+
               </div>
             </div>
           </div>
