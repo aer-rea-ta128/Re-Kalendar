@@ -439,13 +439,48 @@ export default function Sidebar({
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Star size={16} fill="var(--theme)" /> クイックアクションのカスタマイズ
                 </span>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {/* 👇 修正：grid を使用し、左右 50%/50% で固定。横スクロールを完全に禁止 */}
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '8px', 
+                  width: '100%',
+                  overflow: 'hidden' 
+                }}>
                   {MENU_ACTIONS.map(item => {
                     const isFav = favoriteItems.includes(item.id);
                     return (
-                      <button key={item.id} onClick={() => setFavoriteItems(prev => isFav ? prev.filter(i => i !== item.id) : [...prev, item.id])} style={{ padding: '10px 8px', fontSize: '0.75rem', background: isFav ? 'var(--theme)' : 'var(--input-bg)', color: isFav ? '#fff' : 'var(--text-main)', borderRadius: '10px', border: `1px solid ${isFav ? 'var(--theme)' : 'var(--border-color)'}`, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', cursor: 'pointer' }}>
-                        <item.icon size={14} color={isFav ? '#fff' : item.color} />
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
+                      <button 
+                        key={item.id} 
+                        onClick={() => setFavoriteItems(prev => isFav ? prev.filter(i => i !== item.id) : [...prev, item.id])} 
+                        style={{ 
+                          width: '100%',
+                          minWidth: 0, // 👈 修正：中身が長くてもボタンを突き破らないように設定
+                          padding: '10px 4px', 
+                          fontSize: '0.7rem', 
+                          background: isFav ? 'var(--theme)' : 'var(--input-bg)', 
+                          color: isFav ? '#fff' : 'var(--text-main)', 
+                          borderRadius: '10px', 
+                          border: `1px solid ${isFav ? 'var(--theme)' : 'var(--border-color)'}`, 
+                          fontWeight: 'bold', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          transition: 'all 0.2s', 
+                          cursor: 'pointer',
+                          overflow: 'hidden' // 👈 修正：はみ出した文字を隠す
+                        }}
+                      >
+                        <item.icon size={14} color={isFav ? '#fff' : item.color} style={{ flexShrink: 0 }} />
+                        <span style={{ 
+                          whiteSpace: 'nowrap', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', // 👈 修正：長い文字は「...」にする
+                          flex: 1,
+                          textAlign: 'left'
+                        }}>
+                          {item.label}
+                        </span>
                       </button>
                     );
                   })}
