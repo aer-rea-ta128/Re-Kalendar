@@ -97,6 +97,7 @@ export default function Sidebar({
   const [editUserName, setEditUserName] = useState('');
   const [isCategoryHistoryOpen, setIsCategoryHistoryOpen] = useState(false);
   const [historyCategory, setHistoryCategory] = useState('すべて');
+  const [viewingPartner, setViewingPartner] = useState<string | null>(null); // 👈 追加
 
   const [isTravelMapOpen, setIsTravelMapOpen] = useState(false);
   const [visitedPrefs, setVisitedPrefs] = useState<Record<string, number>>(() => {

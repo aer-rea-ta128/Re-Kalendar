@@ -2921,10 +2921,11 @@ useEffect(() => {
               eventClick={handleEventClick}
               
               // 👇 追加：予定をドラッグ＆ドロップで移動・時間変更できるようにする
-              editable={true}
-              eventStartEditable={true}
-              eventDurationEditable={true}
-              eventDrop={async (info) => {
+              // 月毎カレンダーではドラッグ移動を無効化する
+              editable={viewType !== 'dayGridMonth'}
+              eventStartEditable={viewType !== 'dayGridMonth'}
+              eventDurationEditable={viewType !== 'dayGridMonth'}
+              eventDrop={async (info) => {
                 // 移動させた予定の新しい日時をSupabaseに保存する処理
                 const { event, oldEvent } = info;
                 const dbId = event.id.replace('-travel', ''); // 移動枠を動かした時対策
@@ -3776,57 +3777,63 @@ useEffect(() => {
 
                             // 👇 修正：過去の予定から抽出した名前に、手動で登録したカスタムリストを合流させる！
                             const dynamicPayees = events.flatMap(e => e.extendedProps?.metadata?.customFields?.expenses?.map((ex: any) => ex.payee));
-                            const pastPayees = Array.from(new Set([...customPayees, ...dynamicPayees])).filter(Boolean);
+                            // 👇 修正：サイドバーで登録したリストのみを使用する
+                            const pastPayees = customPayees;
 
-                            return (
-                              <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px' }}>
-                                {expensesList.map((exp: any, index: number) => {
-                                  const isIncome = exp.type === 'income' || exp.type === 'borrow';
-                                  const isAdvanceOrBorrow = exp.type === 'advance' || exp.type === 'borrow';
+                            return (
+                              <div style={{ padding: '0 16px 16px 16px', borderTop: '1px dashed var(--border-color)', marginTop: '4px', paddingTop: '16px' }}>
+                                {expensesList.map((exp: any, index: number) => {
+                                  const isIncome = exp.type === 'income' || exp.type === 'borrow';
+                                  const isAdvanceOrBorrow = exp.type === 'advance' || exp.type === 'borrow';
 
-                                  return (
-                                    <div key={exp.id} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: index < expensesList.length - 1 ? '1px dashed var(--border-color)' : 'none' }}>
-                                      
-                                      {/* 1行目: 支出タイプ(比率2) ＆ (相手 or 支払い方法(比率1)) ＆ 削除ボタン */}
-                                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', width: '100%' }}>
-                                        <div style={{ flex: 2, minWidth: 0 }}>
-                                          <ExpenseTypeSelector value={exp.type} onChange={(val) => updateExpense(exp.id, 'type', val)} />
-                                        </div>
-                                        
-                                        <div style={{ flex: 1, height: '100%', minWidth: 0, position: 'relative' }}>
-                                          {isAdvanceOrBorrow ? (
-                                            /* 👇 修正：不安定な datalist を廃止し、スマートな PayeeComboInput を使用 */
-                                            <PayeeComboInput value={exp.payee || ''} onChange={(val) => updateExpense(exp.id, 'payee', val)} pastPayees={pastPayees} />
-                                          ) : (
-                                            <PaymentMethodSelector value={exp.method || 'cash'} onChange={(val: string) => updateExpense(exp.id, 'method', val)} isIncome={isIncome} />
-                                          )}
-                                        </div>
-                                        
-                                        {expensesList.length > 1 && (
-                                          <button onClick={(e) => { e.preventDefault(); removeExpense(exp.id); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', display: 'flex', alignItems: 'center', padding: '0 4px', cursor: 'pointer', flexShrink: 0 }}>
-                                            <Trash2 size={18} />
-                                          </button>
-                                        )}
-                                      </div>
+                                  return (
+                                    <div key={exp.id} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: index < expensesList.length - 1 ? '1px dashed var(--border-color)' : 'none', position: 'relative', zIndex: 50 - index }}>
+                                      
+                                      {/* 1行目: 支出タイプ ＆ 支払い方法 ＆ 削除ボタン */}
+                                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', height: '36px', width: '100%' }}>
+                                        <div style={{ flex: 2, minWidth: 0 }}>
+                                          <ExpenseTypeSelector value={exp.type} onChange={(val) => updateExpense(exp.id, 'type', val)} />
+                                        </div>
+                                        <div style={{ flex: 1, height: '100%', minWidth: 0, position: 'relative' }}>
+                                          <PaymentMethodSelector value={exp.method || 'cash'} onChange={(val: string) => updateExpense(exp.id, 'method', val)} isIncome={isIncome} />
+                                        </div>
+                                        {expensesList.length > 1 && (
+                                          <button onClick={(e) => { e.preventDefault(); removeExpense(exp.id); }} style={{ background: 'transparent', border: 'none', color: '#ef4444', display: 'flex', alignItems: 'center', padding: '0 4px', cursor: 'pointer', flexShrink: 0 }}>
+                                            <Trash2 size={18} />
+                                          </button>
+                                        )}
+                                      </div>
 
-                                      {/* 2行目: 内容 ＆ 金額 */}
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                                        <div style={{ flex: 1, position: 'relative' }}>
-                                          <input type="text" className="pop-input" style={{ width: '100%', fontSize: '0.8rem', padding: '0 8px' }} placeholder="内容 (任意)" value={exp.description || (!isAdvanceOrBorrow ? exp.payee : '')} onChange={e => {
-                                            updateExpense(exp.id, 'description', e.target.value);
-                                            if (!isAdvanceOrBorrow) updateExpense(exp.id, 'payee', e.target.value);
-                                          }} />
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '110px' }}>
-                                          <input type="number" className="pop-input no-spin" style={{ width: '100%', textAlign: 'right', fontSize: '1.1rem', fontWeight: 'bold', color: isIncome ? '#10b981' : '#ef4444', padding: '0 8px' }} placeholder="0" value={exp.amount} onChange={e => updateExpense(exp.id, 'amount', e.target.value)} />
-                                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
-                                        </div>
-                                      </div>
-
-                                    </div>
-                                  );
-                                })}
+                                      {/* 2行目以降: 立替かどうかで分岐してレイアウトを変更 */}
+                                      {isAdvanceOrBorrow ? (
+                                        <>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '36px', width: '100%', marginBottom: '8px' }}>
+                                            <div style={{ flex: 1, height: '100%', position: 'relative' }}>
+                                              <PayeeComboInput value={exp.payee || ''} onChange={(val) => updateExpense(exp.id, 'payee', val)} pastPayees={pastPayees} />
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '110px', height: '100%' }}>
+                                              <input type="number" className="pop-input no-spin" style={{ width: '100%', height: '100%', textAlign: 'right', fontSize: '1.1rem', fontWeight: 'bold', color: isIncome ? '#10b981' : '#ef4444', padding: '0 8px' }} placeholder="0" value={exp.amount} onChange={e => updateExpense(exp.id, 'amount', e.target.value)} />
+                                              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
+                                            </div>
+                                          </div>
+                                          <div style={{ width: '100%', height: '36px' }}>
+                                            <input type="text" className="pop-input" style={{ width: '100%', height: '100%', fontSize: '0.8rem', padding: '0 8px' }} placeholder="内容 (任意)" value={exp.description || ''} onChange={e => updateExpense(exp.id, 'description', e.target.value)} />
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '36px', width: '100%' }}>
+                                          <div style={{ flex: 1, height: '100%', position: 'relative' }}>
+                                            <input type="text" className="pop-input" style={{ width: '100%', height: '100%', fontSize: '0.8rem', padding: '0 8px' }} placeholder="内容 (任意)" value={exp.description || ''} onChange={e => updateExpense(exp.id, 'description', e.target.value)} />
+                                          </div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '110px', height: '100%' }}>
+                                            <input type="number" className="pop-input no-spin" style={{ width: '100%', height: '100%', textAlign: 'right', fontSize: '1.1rem', fontWeight: 'bold', color: isIncome ? '#10b981' : '#ef4444', padding: '0 8px' }} placeholder="0" value={exp.amount} onChange={e => updateExpense(exp.id, 'amount', e.target.value)} />
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                                 <button onClick={(e) => { e.preventDefault(); addExpense(); }} className="btn-secondary" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '4px' }}>
                                   ＋ 別の支出・立替を追加
                                 </button>
@@ -4719,13 +4726,11 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
       )}
       {/* 🤝 立替・貸し借り管理 モーダル */}
       {isAdvanceModalOpen && (() => {
-        // 未精算のリスト
         const unsettledAdvances = events.flatMap(e => {
           const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
           return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
         }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
 
-        // 精算済みのリスト
         const settledAdvances = events.flatMap(e => {
           const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
           return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
@@ -4791,7 +4796,6 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                 </div>
               ) : (
                 <>
-                  {/* タブ切り替えボタン */}
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
                     <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>未精算 ({unsettledAdvances.length})</button>
                     <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>精算済 ({settledAdvances.length})</button>
@@ -4799,8 +4803,6 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                   </div>
 
                   <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
-                    
-                    {/* 👇 タブ：未精算 */}
                     {advanceTab === 'unsettled' && (
                       unsettledAdvances.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold' }}>
@@ -4860,7 +4862,6 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                       )
                     )}
 
-                    {/* 👇 タブ：精算済履歴 */}
                     {advanceTab === 'settled' && (
                       settledAdvances.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold', fontSize: '0.85rem' }}>精算済みの記録はありません</div>
@@ -4881,7 +4882,6 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                       )
                     )}
 
-                    {/* 👇 タブ：相手リスト管理 */}
                     {advanceTab === 'partners' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
