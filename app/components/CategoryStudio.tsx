@@ -264,7 +264,7 @@ export default function CategoryStudio({
                 </div>
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1 }}>
                     
                     <div 
                       className="drag-handle" 

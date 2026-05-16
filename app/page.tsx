@@ -3204,8 +3204,7 @@ useEffect(() => {
               <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
               
               {/* 👇 追加：ジャンル絞り込みボタン */}
-              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '16px', paddingBottom: '4px' }}>
-                <button onClick={() => setGalleryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: galleryCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
+              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', paddingRight: '4px', alignContent: 'start' }}>                <button onClick={() => setGalleryCategory('すべて')} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: galleryCategory === 'すべて' ? 'var(--theme)' : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: 'none' }}>すべて</button>
                 {categories.map((c: any) => (
                   <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer', background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: 'none' }}>
                     {c.name}
@@ -4356,36 +4355,40 @@ useEffect(() => {
 
         {/* 振り返りダッシュボード */}
         {isAnalyticsModalOpen && (
-          <div className="modal-overlay" onClick={() => setIsAnalyticsModalOpen(false)}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px' }}>
+          <div className="modal-overlay" onClick={() => setIsAnalyticsModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
               <ModalHeader title="ダッシュボード" onClose={() => setIsAnalyticsModalOpen(false)} />
 
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                <select className="pop-input" value={analyticsYear} onChange={e => setAnalyticsYear(e.target.value)} style={{ flex: 1 }}>
+              {/* 年・月選択エリア */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
+                <select className="pop-input" value={analyticsYear} onChange={e => setAnalyticsYear(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
                   {Array.from({length: 21}, (_, i: number) => currentY - 10 + i).map((y: number) => <option key={y} value={String(y)}>{y}年</option>)}
                 </select>
                 {(analyticsSpan === 'month' || analyticsSpan === 'pie') && (
-                  <select className="pop-input" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} style={{ width: '90px' }}>
+                  <select className="pop-input" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
                     {Array.from({length: 12}, (_, i: number) => i + 1).map((m: number) => <option key={m} value={String(m).padStart(2, '0')}>{m}月</option>)}
                   </select>
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                <button onClick={() => setAnalyticsSpan('month')} className={analyticsSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', background: analyticsSpan === 'month' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'month' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'month' ? '#fff' : 'var(--text-main)' }}>月間</button>
-                <button onClick={() => setAnalyticsSpan('year')} className={analyticsSpan === 'year' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', background: analyticsSpan === 'year' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'year' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'year' ? '#fff' : 'var(--text-main)' }}>年間</button>
-                <button onClick={() => setAnalyticsSpan('pie')} className={analyticsSpan === 'pie' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize:'0.85rem', background: analyticsSpan === 'pie' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'pie' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'pie' ? '#fff' : 'var(--text-main)' }}>円グラフ</button>
+              {/* 切替ボタンエリア */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexShrink: 0 }}>
+                <button onClick={() => setAnalyticsSpan('month')} className={analyticsSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: analyticsSpan === 'month' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'month' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'month' ? '#fff' : 'var(--text-main)' }}>月間</button>
+                <button onClick={() => setAnalyticsSpan('year')} className={analyticsSpan === 'year' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: analyticsSpan === 'year' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'year' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'year' ? '#fff' : 'var(--text-main)' }}>年間</button>
+                <button onClick={() => setAnalyticsSpan('pie')} className={analyticsSpan === 'pie' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', background: analyticsSpan === 'pie' ? themeColor : 'var(--input-bg)', boxShadow: analyticsSpan === 'pie' ? `0 6px 20px ${themeColor}60` : 'none', color: analyticsSpan === 'pie' ? '#fff' : 'var(--text-main)' }}>円グラフ</button>
               </div>
 
+              {/* カテゴリチップ */}
               {analyticsSpan !== 'pie' && (
-                <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '20px', paddingBottom: '8px' }}>
+                <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', paddingBottom: '8px', flexShrink: 0 }}>
                   {categories.filter((c: any) => c.fields && c.fields.length > 0).map((c: any) => (
                     <button key={c.name} onClick={() => setAnalyticsCat(c.name)} style={{ background: analyticsCat === c.name ? c.color : 'var(--input-bg)', color: analyticsCat === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', whiteSpace: 'nowrap', cursor: 'pointer', boxShadow: analyticsCat === c.name ? `0 6px 15px ${c.color}50` : '0 2px 5px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}>{c.name}</button>
                   ))}
                 </div>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '45vh', overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
+              {/* コンテンツエリア（ここが伸びてスクロールする） */}
+              <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
                 {(() => {
                   const targetMonthStr = `${analyticsYear}-${analyticsMonth}`;
                   const targetEvents = analyticsSpan === 'month' || analyticsSpan === 'pie'
@@ -4406,12 +4409,12 @@ useEffect(() => {
                               if (f.type === 'money' && fields[f.id]?.type === 'income') catInc += Number(fields[f.id].amount || 0);
                               if (f.type === 'money_income') catInc += Number(fields[f.id] || 0);
                               if (f.type === 'wage' && !f.excludeFromTotal) {
-                              if (fields[f.id]?.calculatedWage !== undefined) catInc += Number(fields[f.id].calculatedWage);
-                              else {
-                                const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
-                                catInc += Number(fields[f.id]?.hours || 0) * Number(fallbackWage);
+                                if (fields[f.id]?.calculatedWage !== undefined) catInc += Number(fields[f.id].calculatedWage);
+                                else {
+                                  const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
+                                  catInc += Number(fields[f.id]?.hours || 0) * Number(fallbackWage);
+                                }
                               }
-                            }
                             });
                           }
                         }
