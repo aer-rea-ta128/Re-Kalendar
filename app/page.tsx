@@ -4051,24 +4051,25 @@ useEffect(() => {
 
                     const showPhotoUI = currentCategoryObj?.allowPhoto || photoUrls.length > 0;
                     const BlockRecords = showRecords && (
-                      <div key="records" className="card-box" style={{ background: isDarkMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.7)', border: '1px solid rgba(253, 230, 138, 0.5)', marginBottom: '16px' }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: '900', color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                          <FileText size={16} /> 事後の記録（振り返り）
-                        </label>
-
-                        {currentCategoryObj?.fields?.map((f:any) => {
-                          const handleWageTimeChange = (type: 'start'|'end', val: string) => {
-                            const current = customFieldsData[f.id] || { start: '', end: '', hours: 0 };
-                            const newData = { ...current, [type]: val };
-                            if (newData.start && newData.end) {
-                              const [sh, sm] = newData.start.split(':').map(Number);
-                              const [eh, em] = newData.end.split(':').map(Number);
-                              let diffMin = (eh * 60 + em) - (sh * 60 + sm);
-                              if (diffMin < 0) diffMin += 24 * 60;
-                              newData.hours = diffMin / 60;
-                            }
-                            handleCustomFieldChange(f.id, newData);
-                          };
+                      // 👇 修正：<details>タグを使って折りたたみ式に変更
+                      <details key="records" className="card-box" style={{ background: isDarkMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.7)', border: '1px solid rgba(253, 230, 138, 0.5)', marginBottom: '16px', padding: '16px' }}>
+                        <summary style={{ fontSize: '0.85rem', fontWeight: '900', color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', outline: 'none', listStyle: 'none' }}>
+                          <FileText size={16} /> 事後の記録（振り返り）を追加
+                        </summary>
+                        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {currentCategoryObj?.fields?.map((f:any) => {
+                            const handleWageTimeChange = (type: 'start'|'end', val: string) => {
+                              const current = customFieldsData[f.id] || { start: '', end: '', hours: 0 };
+                              const newData = { ...current, [type]: val };
+                              if (newData.start && newData.end) {
+                                const [sh, sm] = newData.start.split(':').map(Number);
+                                const [eh, em] = newData.end.split(':').map(Number);
+                                let diffMin = (eh * 60 + em) - (sh * 60 + sm);
+                                if (diffMin < 0) diffMin += 24 * 60;
+                                newData.hours = diffMin / 60;
+                              }
+                              handleCustomFieldChange(f.id, newData);
+                            };
 
                           return (
                             <div key={f.id} style={{ marginBottom: '12px', background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -4090,8 +4091,8 @@ useEffect(() => {
                                 
                                 let resultBadge = null;
                                 if (result === 'win') resultBadge = <span style={{ background: '#10b981', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Sparkles size={20} /> WIN</span>;
-else if (result === 'lose') resultBadge = <span style={{ background: '#ef4444', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(239,68,68,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><ChevronDown size={20} /> LOSE</span>;
-else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Circle size={20} /> DRAW</span>;
+                                else if (result === 'lose') resultBadge = <span style={{ background: '#ef4444', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(239,68,68,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><ChevronDown size={20} /> LOSE</span>;
+                                else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Circle size={20} /> DRAW</span>;
 
                                 return (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', background: 'var(--bg-main)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)` }}>
@@ -4190,31 +4191,31 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                                         }
 
                                         let breakStartIdx = Math.floor((stayMinutes - breakTime) / 2);
-        for (let i = 0; i < breakTime; i++) {
-          minuteWages[breakStartIdx + i] = 0;
-        }
+                                        for (let i = 0; i < breakTime; i++) {
+                                          minuteWages[breakStartIdx + i] = 0;
+                                        }
 
-        // 👇 ここから追加：同じ日の「前の予定」の労働時間を引っ張ってくる
-        let pastWorkMinutes = 0;
-        events.forEach((ev: any) => {
-          if (ev.id === selectedId) return; // 自分自身は除外
-          const evDate = toLocalYYYYMMDD(new Date(ev.start));
-          if (evDate === startDate && ev.extendedProps?.category === categoryName) {
-            const evStartObj = new Date(ev.start);
-            const evStartMin = evStartObj.getHours() * 60 + evStartObj.getMinutes();
-            // 今から保存する予定よりも「開始時間が早い」ものを合算
-            if (evStartMin < workStart) {
-              const prevHours = ev.extendedProps?.metadata?.customFields?.[f.id]?.hours || 0;
-              pastWorkMinutes += Math.round(Number(prevHours) * 60);
-            }
-          }
-        });
+                                        // 👇 ここから追加：同じ日の「前の予定」の労働時間を引っ張ってくる
+                                        let pastWorkMinutes = 0;
+                                        events.forEach((ev: any) => {
+                                          if (ev.id === selectedId) return; // 自分自身は除外
+                                          const evDate = toLocalYYYYMMDD(new Date(ev.start));
+                                          if (evDate === startDate && ev.extendedProps?.category === categoryName) {
+                                            const evStartObj = new Date(ev.start);
+                                            const evStartMin = evStartObj.getHours() * 60 + evStartObj.getMinutes();
+                                            // 今から保存する予定よりも「開始時間が早い」ものを合算
+                                            if (evStartMin < workStart) {
+                                              const prevHours = ev.extendedProps?.metadata?.customFields?.[f.id]?.hours || 0;
+                                              pastWorkMinutes += Math.round(Number(prevHours) * 60);
+                                            }
+                                          }
+                                        });
 
-        let totalWage = 0;
-        // 👇 0ではなく、前の予定で働いた時間を「下駄」として履かせる
-        let actualWorkCount = pastWorkMinutes;
-        const applyOvertime = customFieldsData[f.id]?.overtimePremium !== false;
-        const applyNight = customFieldsData[f.id]?.nightPremium !== false;
+                                        let totalWage = 0;
+                                        // 👇 0ではなく、前の予定で働いた時間を「下駄」として履かせる
+                                        let actualWorkCount = pastWorkMinutes;
+                                        const applyOvertime = customFieldsData[f.id]?.overtimePremium !== false;
+                                        const applyNight = customFieldsData[f.id]?.nightPremium !== false;
 
                                         for (let i = 0; i < stayMinutes; i++) {
                                           let currentMin = (workStart + i) % 1440;
@@ -4276,6 +4277,7 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
                           );
                         })()}
                       </div>
+                    </details>
                     );
 
                     const BlockBulk = mode === 'create' && (
@@ -4831,7 +4833,8 @@ else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', 
 
         return (
           <div className="modal-overlay" onClick={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            {/* 👇 修正：maxHeight: '90vh' を height: '80vh' に変更し、高さを完全に固定する */}
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '80vh', display: 'flex', flexDirection: 'column' }}>
               <ModalHeader title="立替・貸し借り管理" onClose={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} />
               
               {/* 👇 追加：相手別の履歴画面 */}

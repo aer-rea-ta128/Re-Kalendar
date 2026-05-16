@@ -507,21 +507,97 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* 以下、独立モーダル群 */}
-      {/* 👇 修正：消えていたトラベル・マップのモーダルを復元（開発中プレースホルダー） */}
-      {isTravelMapOpen && (
-        <div className="modal-overlay" onClick={() => setIsTravelMapOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-            <ModalHeader title="トラベル・マップ" onClose={() => setIsTravelMapOpen(false)} />
-            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)' }}>
-              <Globe size={48} style={{ margin: '0 auto 16px auto', color: 'var(--theme)', opacity: 0.8 }} />
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>開発中の機能です</h3>
-              <p style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>ここに日本地図が表示され、訪れた都道府県を塗りつぶして記録できる機能が追加される予定です。</p>
+      {/* トラベル・マップ機能の復元 */}
+      {isTravelMapOpen && (() => {
+        // 👇 12列×13行のグリッドで日本地図を表現する配列
+        const PREF_GRID = [
+          [null, null, null, null, null, null, null, null, null, null, null, '北海道'],
+          [null, null, null, null, null, null, null, null, null, null, null, '青森'],
+          [null, null, null, null, null, null, null, null, null, null, '秋田', '岩手'],
+          [null, null, null, null, null, null, null, null, null, null, '山形', '宮城'],
+          [null, null, null, null, null, null, null, null, '石川', '新潟', '福島', null],
+          [null, null, null, null, null, null, null, '福井', '富山', '群馬', '栃木', '茨城'],
+          ['山口', '島根', '鳥取', '兵庫', '京都', '滋賀', '岐阜', '長野', '山梨', '埼玉', '千葉', null],
+          [null, '広島', '岡山', '大阪', '奈良', '三重', '愛知', '静岡', '神奈川', '東京', null, null],
+          [null, null, null, null, '和歌山', null, null, null, null, null, null, null],
+          ['長崎', '佐賀', '福岡', '愛媛', '香川', null, null, null, null, null, null, null],
+          [null, '熊本', '大分', '高知', '徳島', null, null, null, null, null, null, null],
+          [null, '鹿児島', '宮崎', null, null, null, null, null, null, null, null, null],
+          ['沖縄', null, null, null, null, null, null, null, null, null, null, null]
+        ];
+
+        const getShortName = (name: string) => name[0];
+
+        const togglePref = (name: string) => {
+          // 0:未訪問, 1:昔, 2:近年, 3:直近 の4段階でローテーションする
+          setVisitedPrefs(prev => ({ ...prev, [name]: ((prev[name] || 0) + 1) % 4 }));
+        };
+
+        const getPrefStyle = (name: string) => {
+          const status = visitedPrefs[name] || 0;
+          if (status === 1) return { bg: hexToRgba(themeColor, 0.15), color: themeColor, border: `1px solid ${themeColor}` };
+          if (status === 2) return { bg: hexToRgba(themeColor, 0.5), color: '#fff', border: `1px solid ${themeColor}` };
+          if (status === 3) return { bg: themeColor, color: '#fff', border: `1px solid ${themeColor}` };
+          return { bg: 'var(--input-bg)', color: 'var(--text-sub)', border: '1px solid var(--border-color)' };
+        };
+
+        const totalVisited = Object.values(visitedPrefs).filter(v => v > 0).length;
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsTravelMapOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '70vh' }}>
+              <ModalHeader title="トラベル・マップ" onClose={() => setIsTravelMapOpen(false)} />
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '8px', fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><div style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'var(--input-bg)', border: '1px solid var(--border-color)' }}/>未</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><div style={{ width: '10px', height: '10px', borderRadius: '3px', background: hexToRgba(themeColor, 0.15), border: `1px solid ${themeColor}` }}/>昔</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><div style={{ width: '10px', height: '10px', borderRadius: '3px', background: hexToRgba(themeColor, 0.5), border: `1px solid ${themeColor}` }}/>近年</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><div style={{ width: '10px', height: '10px', borderRadius: '3px', background: themeColor, border: `1px solid ${themeColor}` }}/>直近</div>
+                </div>
+                <div style={{ fontSize: '1.2rem', fontWeight: '900', color: themeColor }}>
+                  {totalVisited}<span style={{ fontSize: '0.7rem', color: 'var(--text-sub)', marginLeft: '2px' }}>/47</span>
+                </div>
+              </div>
+
+              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingRight: '4px', background: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '16px', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.02)' }}>
+                {/* 👇 グリッドレイアウトによる日本地図 */}
+                <div style={{ width: '100%', maxWidth: '340px', display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '4px' }}>
+                  {PREF_GRID.map((row, rowIndex) => 
+                    row.map((p, colIndex) => {
+                      if (!p) return <div key={`${rowIndex}-${colIndex}`} style={{ aspectRatio: '1' }} />;
+                      const s = getPrefStyle(p);
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => togglePref(p)}
+                          style={{
+                            aspectRatio: '1',
+                            background: s.bg,
+                            color: s.color,
+                            border: s.border,
+                            fontSize: '0.65rem',
+                            fontWeight: '900',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s',
+                            padding: 0,
+                            borderRadius: '4px'
+                          }}
+                        >
+                          {getShortName(p)}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
-            <button onClick={() => setIsTravelMapOpen(false)} className="btn-pop" style={{ width: '100%', padding: '12px', borderRadius: '16px', fontSize: '0.9rem' }}>閉じる</button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {isFinanceHistoryOpen && (() => {
         const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;

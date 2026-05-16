@@ -44,17 +44,17 @@ export default function CategoryStudio({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState(themeColor);
   const [newCategoryAllowPhoto, setNewCategoryAllowPhoto] = useState(false);
-  const [newCategoryShowInDashboard, setNewCategoryShowInDashboard] = useState(true); // 👈 追加
+  const [newCategoryShowInDashboard, setNewCategoryShowInDashboard] = useState(true);
 
   const [editCatAllowPhoto, setEditCatAllowPhoto] = useState(false);
-  const [editCatShowInDashboard, setEditCatShowInDashboard] = useState(true); // 👈 追加
+  const [editCatShowInDashboard, setEditCatShowInDashboard] = useState(true);
 
   const [aiTemplatePrompt, setAiTemplatePrompt] = useState('');
   const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
 
-  // 👇 開閉状態の管理と、ドラッグ中のアイテムを保持するRef
   const [expandedCats, setExpandedCats] = useState<string[]>([]);
   const dragItem = useRef<number | null>(null);
+  const [dragEnabledIdx, setDragEnabledIdx] = useState<number | null>(null);
 
   if (!isOpen) return null;
 
@@ -98,11 +98,10 @@ export default function CategoryStudio({
     setCategories([...categories, { name: newCategoryName.trim(), color: newCategoryColor, allowPhoto: newCategoryAllowPhoto, hideFromDashboard: !newCategoryShowInDashboard, fields: [] }]);
     setNewCategoryName('');
     setNewCategoryAllowPhoto(false);
-    setNewCategoryShowInDashboard(true); // 👈 追加
+    setNewCategoryShowInDashboard(true);
   };
 
   const addFieldToCategory = (catName: string) => {
-    // 👇 修正：スコアの場合も、固定の名前（'試合結果'など）を自動でセットする
     const finalName = newFieldType === 'wage' ? '給与(時給計算)' : (newFieldType === 'score' ? '試合結果' : newFieldName.trim());
     if(!finalName && newFieldType !== 'wage' && newFieldType !== 'score') return;
     setCategories((cats: any[]) => cats.map((c: any) => {
@@ -188,15 +187,14 @@ export default function CategoryStudio({
         
         {/* AI生成とインポート */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-          <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.1) 100%)', border: '1px solid #8b5cf6', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 15px rgba(139,92,246,0.1)', minWidth: 0 }}>
+          <div style={{ flex: 1, background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.1) 100%)', border: '1px solid #8b5cf6', borderRadius: '16px', padding: '16px', boxShadow: '0 4px 15px rgba(139,92,246,0.1)', minWidth: 0, opacity: 0.7 }}>
             <span style={{ fontSize: '0.75rem', fontWeight: '900', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px', whiteSpace: 'nowrap' }}>
               <Sparkles size={14} fill="#8b5cf6" /> AIでオリジナルを生成
+              <span style={{ background: '#8b5cf6', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontSize: '0.6rem', marginLeft: '4px' }}>開発中</span>
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <input type="text" className="pop-input" placeholder="例: 推しのライブ遠征" value={aiTemplatePrompt} onChange={e => setAiTemplatePrompt(e.target.value)} style={{ flex: 1, fontSize: '0.8rem', background: 'var(--card-bg)', height: '36px', width: '100%', borderRadius: '12px', border: '2px solid var(--border-color)', padding: '0 14px' }} />
-              <button onClick={handleGenerateTemplate} disabled={isGeneratingTemplate} style={{ padding: '0 16px', fontSize: '0.8rem', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: isGeneratingTemplate ? 0.7 : 1, cursor: 'pointer' }}>
-                {isGeneratingTemplate ? '生成中...' : '生成'}
-              </button>
+              <input type="text" className="pop-input" placeholder="現在ご利用いただけません" disabled style={{ flex: 1, fontSize: '0.8rem', background: 'var(--card-bg)', height: '36px', width: '100%', borderRadius: '12px', border: '2px solid var(--border-color)', padding: '0 14px', opacity: 0.7 }} />
+              <button disabled style={{ padding: '0 16px', fontSize: '0.8rem', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 'bold', whiteSpace: 'nowrap', opacity: 0.5, cursor: 'not-allowed' }}>生成</button>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -215,8 +213,8 @@ export default function CategoryStudio({
             return (
             <div 
               key={c.name} 
-              data-index={catIndex} // 👈 タッチ操作用の目印として追加
-              draggable
+              data-index={catIndex}
+              draggable={dragEnabledIdx === catIndex}
               onDragStart={(e) => {
                 dragItem.current = catIndex;
                 e.currentTarget.style.opacity = '0.5';
@@ -227,45 +225,17 @@ export default function CategoryStudio({
                   const dragged = newCats.splice(dragItem.current, 1)[0];
                   newCats.splice(catIndex, 0, dragged);
                   dragItem.current = catIndex;
-                  // 即時反映
                   setCategories(newCats);
                 }
               }}
               onDragEnd={(e) => {
                 dragItem.current = null;
                 e.currentTarget.style.opacity = '1';
-                // 並べ替えが確定したタイミングでローカルストレージにも保存する
+                setDragEnabledIdx(null);
                 localStorage.setItem('os_categories', JSON.stringify(categories));
               }}
               onDragOver={(e) => e.preventDefault()}
-              // 👇 スマホ（タッチ）用の処理を追加
-              onTouchStart={(e) => {
-                dragItem.current = catIndex;
-                e.currentTarget.style.opacity = '0.5';
-              }}
-              onTouchMove={(e) => {
-                if (dragItem.current === null) return;
-                const touch = e.touches[0];
-                const target = document.elementFromPoint(touch.clientX, touch.clientY);
-                const dropTarget = target?.closest('[data-index]');
-                if (dropTarget) {
-                  const hoverIndex = parseInt(dropTarget.getAttribute('data-index') || '-1', 10);
-                  if (hoverIndex !== -1 && hoverIndex !== dragItem.current) {
-                    const newCats = [...categories];
-                    const dragged = newCats.splice(dragItem.current, 1)[0];
-                    newCats.splice(hoverIndex, 0, dragged);
-                    dragItem.current = hoverIndex;
-                    setCategories(newCats);
-                  }
-                }
-              }}
-              onTouchEnd={(e) => {
-                dragItem.current = null;
-                e.currentTarget.style.opacity = '1';
-                localStorage.setItem('os_categories', JSON.stringify(categories));
-              }}
-              // 👇 touchAction: 'none' を追加して画面のスクロールを防止
-              style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)', cursor: 'grab', touchAction: 'none' }}
+              style={{ padding: '12px', marginBottom: '12px', borderLeft: `6px solid ${c.color}`, background: 'var(--card-bg)', borderRadius: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}
             >
               
               {/* ジャンル名と色の編集 */}
@@ -274,7 +244,6 @@ export default function CategoryStudio({
                   <input value={editCatNameInput} onChange={e => setEditCatNameInput(e.target.value)} style={{ height: '32px', marginBottom: '8px', width: '100%', padding: '0 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)' }} />
                   <ColorSelector value={editCatColorInput} onChange={setEditCatColorInput} />
                   
-                  {/* 👇 追加：写真・画像を許可するチェックボックス */}
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
                     <input type="checkbox" checked={editCatAllowPhoto} onChange={e => setEditCatAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
                     写真・画像を記録する
@@ -287,8 +256,8 @@ export default function CategoryStudio({
                   <div style={{ display: 'flex', gap: '4px', marginTop: '12px' }}>
                     <button onClick={() => {
                       if (!editCatNameInput.trim()) return;
-                      // 👇 修正：allowPhoto も一緒に更新する
-                      setCategories((cats: any[]) => cats.map((cat: any) => cat.name === c.name ? { ...cat, name: editCatNameInput, color: editCatColorInput, allowPhoto: editCatAllowPhoto, hideFromDashboard: !editCatShowInDashboard } : cat));                      setEditingCategoryNameOrigin(null);
+                      setCategories((cats: any[]) => cats.map((cat: any) => cat.name === c.name ? { ...cat, name: editCatNameInput, color: editCatColorInput, allowPhoto: editCatAllowPhoto, hideFromDashboard: !editCatShowInDashboard } : cat));
+                      setEditingCategoryNameOrigin(null);
                     }} style={{ flex: 1, padding: '6px', background: themeColor, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>保存</button>
                     <button onClick={() => setEditingCategoryNameOrigin(null)} style={{ flex: 1, padding: '6px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer' }}>取消</button>
                   </div>
@@ -296,8 +265,40 @@ export default function CategoryStudio({
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                    {/* 👇 修正：ここに className="drag-handle" を追加して、ここだけを掴めるようにする */}
-                    <div className="drag-handle" style={{ color: 'var(--text-sub)', display: 'flex', alignItems: 'center', cursor: 'grab', padding: '4px' }}>
+                    
+                    <div 
+                      className="drag-handle" 
+                      style={{ color: 'var(--text-sub)', display: 'flex', alignItems: 'center', cursor: 'grab', padding: '12px 12px 12px 0' }}
+                      onMouseEnter={() => setDragEnabledIdx(catIndex)}
+                      onMouseLeave={() => setDragEnabledIdx(null)}
+                      onTouchStart={(e) => {
+                        dragItem.current = catIndex;
+                        const parent = e.currentTarget.closest('[data-index]') as HTMLElement;
+                        if (parent) parent.style.opacity = '0.5';
+                      }}
+                      onTouchMove={(e) => {
+                        if (dragItem.current === null) return;
+                        const touch = e.touches[0];
+                        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                        const dropTarget = target?.closest('[data-index]');
+                        if (dropTarget) {
+                          const hoverIndex = parseInt(dropTarget.getAttribute('data-index') || '-1', 10);
+                          if (hoverIndex !== -1 && hoverIndex !== dragItem.current) {
+                            const newCats = [...categories];
+                            const dragged = newCats.splice(dragItem.current, 1)[0];
+                            newCats.splice(hoverIndex, 0, dragged);
+                            dragItem.current = hoverIndex;
+                            setCategories(newCats);
+                          }
+                        }
+                      }}
+                      onTouchEnd={(e) => {
+                        dragItem.current = null;
+                        const parent = e.currentTarget.closest('[data-index]') as HTMLElement;
+                        if (parent) parent.style.opacity = '1';
+                        localStorage.setItem('os_categories', JSON.stringify(categories));
+                      }}
+                    >
                       <GripVertical size={18} />
                     </div>
                     
@@ -312,14 +313,14 @@ export default function CategoryStudio({
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', marginLeft: '8px' }}>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      {/* 👇 修正：編集ボタンを押した時に、現在の写真許可状態（allowPhoto）を読み込む */}
-                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setEditCatAllowPhoto(c.allowPhoto || false); setEditCatShowInDashboard(c.hideFromDashboard !== true); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>                      <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
+                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setEditCatAllowPhoto(c.allowPhoto || false); setEditCatShowInDashboard(c.hideFromDashboard !== true); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
+                      <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
                     </div>
                   </div>
                 </div>
               )}
               
-              {/* フィールド一覧 (開いている時のみ) */}
+              {/* フィールド一覧 */}
               {isExpanded && (
                 <div style={{ marginTop: '12px', background: 'var(--input-bg)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                   <span style={{ fontSize: '0.75rem', fontWeight: '900', color: 'var(--text-sub)', display: 'block', marginBottom: '8px' }}>記録パーツ</span>
@@ -371,7 +372,6 @@ export default function CategoryStudio({
                       <span style={{ fontSize: '0.9rem', fontWeight: '900', color: 'var(--text-main)', marginBottom: '12px', display: 'block' }}>記録パーツを追加</span>
                       <select value={newFieldType} onChange={e => setNewFieldType(e.target.value)} style={{ width: '100%', height: '40px', fontSize: '0.8rem', padding: '0 12px', background: 'var(--input-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', color: 'var(--text-main)' }}>
                         {FIELD_TYPES.map((ft: any) => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
-                        {/* 👇 追加：写真・画像を記録パーツとして追加できるようにする */}
                         <option value="photo">写真・画像</option>
                       </select>
                       {newFieldType !== 'wage' ? (
@@ -418,7 +418,6 @@ export default function CategoryStudio({
           </div>
           <ColorSelector value={newCategoryColor} onChange={setNewCategoryColor} />
           
-          {/* 👇 追加：写真・画像を許可するチェックボックス */}
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
             <input type="checkbox" checked={newCategoryAllowPhoto} onChange={e => setNewCategoryAllowPhoto(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: themeColor }} />
             写真・画像を記録する
