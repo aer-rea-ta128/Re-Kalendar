@@ -139,9 +139,10 @@ export default function SmartLifeOS() {
   const [weeklyTimetables, setWeeklyTimetables] = useState<any[]>(() => loadData('os_timetables', []));
   const [timetableTab, setTimetableTab] = useState<number>(1); // 1:月曜スタート
 
-  // 👇 ここから追加：時間割の期間と例外日
-  const [termStart, setTermStart] = useState<string>(() => loadData('os_termStart', ''));
-  const [termEnd, setTermEnd] = useState<string>(() => loadData('os_termEnd', ''));
+  // 👇 修正：時間割の期間を「複数」登録できるように配列に変更！
+  const [timetableTerms, setTimetableTerms] = useState<any[]>(() => loadData('os_timetableTerms', []));
+  const [newTermStart, setNewTermStart] = useState('');
+  const [newTermEnd, setNewTermEnd] = useState('');
   const [exceptionDays, setExceptionDays] = useState<Record<string, 'class' | 'off'>>(() => loadData('os_exceptionDays', {}));
   // 👆 ここまで
 
@@ -404,10 +405,9 @@ export default function SmartLifeOS() {
     localStorage.setItem('os_startPointType', JSON.stringify(startPointType));
     localStorage.setItem('os_customPayees', JSON.stringify(customPayees));
     localStorage.setItem('os_timetables', JSON.stringify(weeklyTimetables));
-    localStorage.setItem('os_termStart', termStart);
-    localStorage.setItem('os_termEnd', termEnd);
+    localStorage.setItem('os_timetableTerms', JSON.stringify(timetableTerms)); // 👈 変更
     localStorage.setItem('os_exceptionDays', JSON.stringify(exceptionDays));
-  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees, weeklyTimetables, termStart, termEnd, exceptionDays]);
+  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees, weeklyTimetables, timetableTerms, exceptionDays]); // 👈 変更
 
   const activePresets: string[] = [...INITIAL_PRESETS, ...userColors];
 
@@ -1981,9 +1981,15 @@ export default function SmartLifeOS() {
     for (let d = new Date(baseDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
       const dateStr = toLocalYYYYMMDD(d);
       
-      // 🌟 新機能1：学期期間外（春休み・夏休みなど）なら非表示にする
-      if (termStart && dateStr < termStart) continue;
-      if (termEnd && dateStr > termEnd) continue;
+      // 🌟 新機能1：学期期間外（春休み・夏休みなど）なら非表示にする（複数対応！）
+      if (timetableTerms.length > 0) {
+        const isInTerm = timetableTerms.some((term: any) => {
+          const afterStart = !term.start || dateStr >= term.start;
+          const beforeEnd = !term.end || dateStr <= term.end;
+          return afterStart && beforeEnd;
+        });
+        if (!isInTerm) continue;
+      }
 
       // 🌟 新機能2：例外日（休講）なら非表示にする
       const exception = exceptionDays[dateStr];
@@ -3190,23 +3196,7 @@ useEffect(() => {
                   </div>
                 );
               }}
-              dayCellContent={(arg: any) => {
-                if (arg.view.type === 'dayGridMonth') {
-                  const dStr = toLocalYYYYMMDD(arg.date);
-                  const paymentEvent = [...routineEvents, ...subEvents].find((e: any) => e.start?.startsWith(dStr));
-
-                  return (
-                    <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: '100%', height: '100%' }}>
-                      <span>{arg.date.getDate()}</span>
-                      {/* 👇 マスの底辺に、幅80%・高さ3pxの線を配置する */}
-                      {paymentEvent && (
-                        <div style={{ position: 'absolute', bottom: '1px', left: '10%', width: '80%', height: '3px', borderRadius: '3px', background: paymentEvent.backgroundColor || 'var(--theme)', opacity: 0.6 }} />
-                      )}
-                    </div>
-                  );
-                }
-                return '';
-              }}
+              
               datesSet={(arg: any) => {
                 setViewType(arg.view.type); const d = arg.view.currentStart;
                 let y = d.getFullYear(), m = d.getMonth() + 1, day = d.getDate();
@@ -3359,20 +3349,33 @@ useEffect(() => {
                     
                     <div className="card-box" style={{ margin: 0, padding: '16px' }}>
                       <label className="form-label" style={{ color: themeColor, fontSize: '0.9rem' }}>学期・授業期間の設定</label>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginBottom: '12px' }}>指定した期間以外はカレンダーに時間割が表示されなくなります。</p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>開始日</span>
-                          <input type="date" className="pop-input" value={termStart} onChange={e => setTermStart(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem' }} />
-                        </div>
-                        <span style={{ fontWeight: 'bold', color: 'var(--text-sub)', marginTop: '20px' }}>〜</span>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>終了日</span>
-                          <input type="date" className="pop-input" value={termEnd} onChange={e => setTermEnd(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem' }} />
-                        </div>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginBottom: '12px' }}>指定した期間以外はカレンダーに時間割が表示されなくなります。（複数登録可）</p>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                        {timetableTerms.map((term: any) => (
+                          <div key={term.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                              {term.start ? term.start.replace(/-/g, '/') : '未定'} 〜 {term.end ? term.end.replace(/-/g, '/') : '未定'}
+                            </span>
+                            <button onClick={() => setTimetableTerms(timetableTerms.filter((t: any) => t.id !== term.id))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                          </div>
+                        ))}
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                         <button onClick={() => { setTermStart(''); setTermEnd(''); }} className="btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '10px' }}>期間をクリア</button>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--input-bg)', padding: '12px', borderRadius: '12px', border: '1px dashed var(--theme)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', width: '40px' }}>開始日</span>
+                          <input type="date" className="pop-input" value={newTermStart} onChange={e => setNewTermStart(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem', flex: 1 }} />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', width: '40px' }}>終了日</span>
+                          <input type="date" className="pop-input" value={newTermEnd} onChange={e => setNewTermEnd(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem', flex: 1 }} />
+                        </div>
+                        <button onClick={() => {
+                          if (!newTermStart && !newTermEnd) return alert('開始日か終了日を指定してください');
+                          setTimetableTerms([...timetableTerms, { id: Date.now().toString(), start: newTermStart, end: newTermEnd }]);
+                          setNewTermStart(''); setNewTermEnd('');
+                        }} className="btn-pop" style={{ padding: '10px', fontSize: '0.8rem', borderRadius: '10px', marginTop: '4px' }}>＋ 期間を追加</button>
                       </div>
                     </div>
 
