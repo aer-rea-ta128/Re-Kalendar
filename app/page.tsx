@@ -3196,6 +3196,20 @@ useEffect(() => {
                   </div>
                 );
               }}
+
+              // 👇 ここに復活させます！
+              dayCellContent={(arg: any) => {
+                if (arg.view.type === 'dayGridMonth') {
+                  return (
+                    <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: '100%', height: '100%' }}>
+                      {/* 数字だけを中央に表示し、下線は描画しない */}
+                      <span>{arg.date.getDate()}</span>
+                    </div>
+                  );
+                }
+                return ''; // 月カレンダー以外では余計な日付を消す
+              }}
+              // 👆 ここまで
               
               datesSet={(arg: any) => {
                 setViewType(arg.view.type); const d = arg.view.currentStart;
