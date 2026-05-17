@@ -263,10 +263,11 @@ export default function SmartLifeOS() {
   const [routineBonusAmount, setRoutineBonusAmount] = useState('');
   const [newRoutineColor, setNewRoutineColor] = useState('#FECA57');
   const [editRoutineIndex, setEditRoutineIndex] = useState<number | null>(null);
-
+// 👇 追加：ルーティンの周期
+  const [newRoutineCycle, setNewRoutineCycle] = useState<'monthly' | 'weekly' | 'daily'>('monthly');
+  const [newRoutineDayOfWeek, setNewRoutineDayOfWeek] = useState('1'); // 1:月曜
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
-  const [analyticsSpan, setAnalyticsSpan] = useState<'month' | 'year' | 'pie'>('month');
-  const [summarySpan, setSummarySpan] = useState<'month' | 'year'>('month');
+  const [analyticsSpan, setAnalyticsSpan] = useState<'month' | 'year' | 'pie_month' | 'pie_year'>('month');  const [summarySpan, setSummarySpan] = useState<'month' | 'year'>('month');
   const [analyticsCat, setAnalyticsCat] = useState<string>('');
   // ダッシュボードを開いた時、自動的に「今年の今の月」がセットされるように修正
   const [analyticsYear, setAnalyticsYear] = useState(() => String(new Date().getFullYear()));
@@ -580,10 +581,11 @@ export default function SmartLifeOS() {
     setClipboardEvent({
       title, location, categoryName, startH, startM, endH, endM,
       eventColor, isOutline, customFieldsData, photoUrls, memo, rating, isPinned,
-      isAllDayBackground, isMilestone, isGathering, gatheringTime, departureTime, departureType
+      isAllDayBackground, isMilestone, isGathering, gatheringTime, departureTime, departureType,
+      startDate, endDate // 👈 追加：日付も記憶する
     });
     setIsModalOpen(false);
-    alert('予定をコピーしました！\nカレンダーのペーストしたい日付（時間）をタップしてください。');
+    // アラートは廃止し、スマートなバナーを表示します
   };
 
   const handleQuickSave = async (t: any) => {
@@ -661,14 +663,16 @@ export default function SmartLifeOS() {
   const handleAddRoutine = () => {
     if (!newRoutineTitle.trim()) return;
     const dNum = Number(newRoutineDay);
+    const newRoutine = { title: newRoutineTitle.trim(), day: dNum, color: newRoutineColor, type: newRoutineType, cycle: newRoutineCycle, dayOfWeek: Number(newRoutineDayOfWeek) };
+    
     if (editRoutineIndex !== null) {
       const updatedArr = [...monthlyRoutines];
-      updatedArr[editRoutineIndex] = { title: newRoutineTitle.trim(), day: dNum, color: newRoutineColor, type: newRoutineType, adjust: updatedArr[editRoutineIndex].adjust };
+      updatedArr[editRoutineIndex] = { ...newRoutine, adjust: updatedArr[editRoutineIndex].adjust };
       setMonthlyRoutines(updatedArr); setEditRoutineIndex(null);
     } else {
-      setMonthlyRoutines([...monthlyRoutines, { title: newRoutineTitle.trim(), day: dNum, color: newRoutineColor, type: newRoutineType }]);
+      setMonthlyRoutines([...monthlyRoutines, newRoutine]);
     }
-    setNewRoutineTitle(''); setNewRoutineDay('25'); setNewRoutineType('task'); setIsRoutineModalOpen(false);
+    setNewRoutineTitle(''); setNewRoutineDay('25'); setNewRoutineType('task'); setNewRoutineCycle('monthly'); setIsRoutineModalOpen(false);
   };
 
   const handleCompleteRoutine = async () => {
@@ -853,12 +857,18 @@ export default function SmartLifeOS() {
     touchEndX.current = null;
     isSwipingRef.current = false;
 
-    // コピーしている予定があれば、それをペーストして開く
     if (clipboardEvent) {
       setMode('create');
-      setStartDate(toLocalYYYYMMDD(info.start));
-      const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1);
-      setEndDate(toLocalYYYYMMDD(adjEnd));
+      const pasteStart = info.start;
+      setStartDate(toLocalYYYYMMDD(pasteStart));
+      
+      // 👇 修正：元の予定の日数（期間）を計算して終了日に反映する！
+      const origStart = new Date(clipboardEvent.startDate);
+      const origEnd = new Date(clipboardEvent.endDate);
+      const diffDays = Math.round((origEnd.getTime() - origStart.getTime()) / 86400000) || 0;
+      const newEnd = new Date(pasteStart);
+      newEnd.setDate(newEnd.getDate() + diffDays);
+      setEndDate(toLocalYYYYMMDD(newEnd));
       
       setTitle(clipboardEvent.title); setLocation(clipboardEvent.location);
       setCategoryName(clipboardEvent.categoryName); setEventColor(clipboardEvent.eventColor);
@@ -869,11 +879,10 @@ export default function SmartLifeOS() {
       setGatheringTime(clipboardEvent.gatheringTime); setDepartureTime(clipboardEvent.departureTime);
       setDepartureType(clipboardEvent.departureType);
 
-      // 👇 修正：タップした場所に関わらず、コピー元の時間をそのまま適用する！
       setStartH(clipboardEvent.startH); setStartM(clipboardEvent.startM);
       setEndH(clipboardEvent.endH); setEndM(clipboardEvent.endM);
 
-      setClipboardEvent(null); // ペースト完了したら空にする
+      setClipboardEvent(null);
       setIsModalOpen(true);
       return;
     }
@@ -1031,19 +1040,10 @@ export default function SmartLifeOS() {
     }
   };
 
-  const handleCustomFieldChange = async (fId: string, val: any) => {
+  const handleCustomFieldChange = (fId: string, val: any) => {
     const newData = { ...customFieldsData, [fId]: val };
     setCustomFieldsData(newData);
-
-    if (mode === 'detail' && selectedId) {
-      const currentEvent = events.find((e: any) => e.id === selectedId);
-      if (currentEvent) {
-        await supabase.from('events').update({
-          metadata: { ...(currentEvent.extendedProps.metadata || {}), customFields: newData }
-        }).eq('id', selectedId);
-        fetchEvents();
-      }
-    }
+    // 即時のデータベース保存を削除（「保存する」ボタンを押した時に一括で保存されるようになります）
   };
 
   const handleScoreChange = (fId: string, myVal: string, oppVal: string) => {
@@ -1053,6 +1053,10 @@ export default function SmartLifeOS() {
       res = m > o ? 'win' : m < o ? 'lose' : 'draw';
     }
     handleCustomFieldChange(fId, { my: myVal, opp: oppVal, res });
+  };
+
+  const handleRemovePhoto = (indexToRemove: number) => {
+    setPhotoUrls(prev => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1885,40 +1889,47 @@ export default function SmartLifeOS() {
   })));
   
   const routineEvents = monthlyRoutines.flatMap((r: any) => {
-    return Array.from({ length: 12 }, (_, i) => {
-      const m = i + 1;
-      
-      // 👇 修正：その月の最終日を取得し、設定された日付(r.day)がはみ出さないように丸める
-      const lastDayOfMonth = new Date(currentY, m, 0).getDate();
-      const targetDay = r.day > lastDayOfMonth ? lastDayOfMonth : r.day;
-      
-      let dateObj = new Date(currentY, m - 1, targetDay);
-      
-      // 👇 修正：無限ループを防ぎつつ、土日祝を避けて前倒し・後倒しする
-      if (r.adjust === 'prev') {
-        let count = 0;
-        while ((dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) && count < 10) {
-          dateObj.setDate(dateObj.getDate() - 1);
-          count++;
-        }
-      } else if (r.adjust === 'next') {
-        let count = 0;
-        while ((dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) && count < 10) {
-          dateObj.setDate(dateObj.getDate() + 1);
-          count++;
+    const evts = [];
+    const baseDate = new Date(`${currentY - 1}-01-01`);
+    const endDate = new Date(`${currentY + 1}-12-31`);
+
+    if (r.cycle === 'daily') {
+      for (let d = new Date(baseDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        evts.push({
+          id: `routine-${r.title}-${toLocalYYYYMMDD(d)}`, title: `${r.title}`, start: toLocalYYYYMMDD(d), allDay: true,
+          backgroundColor: r.color, borderColor: r.color, display: 'block',
+          extendedProps: { isRoutine: true, category: 'ルーティン', cycle: 'daily', metadata: { routineType: r.type || 'task' } }
+        });
+      }
+    } else if (r.cycle === 'weekly') {
+      for (let d = new Date(baseDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() === Number(r.dayOfWeek)) {
+          evts.push({
+            id: `routine-${r.title}-${toLocalYYYYMMDD(d)}`, title: `${r.title}`, start: toLocalYYYYMMDD(d), allDay: true,
+            backgroundColor: r.color, borderColor: r.color, display: 'block',
+            extendedProps: { isRoutine: true, category: 'ルーティン', cycle: 'weekly', metadata: { routineType: r.type || 'task' } }
+          });
         }
       }
-      return {
-        id: `routine-${r.title}-${currentY}-${m}`,
-        title: `${r.title}`,
-        start: toLocalYYYYMMDD(dateObj),
-        allDay: true,
-        backgroundColor: r.color,
-        borderColor: r.color,
-        display: 'block',
-        extendedProps: { isRoutine: true, category: 'ルーティン', metadata: { routineType: r.type || 'task' } }
-      };
-    });
+    } else {
+      for (let i = 0; i < 12; i++) {
+        const m = i + 1;
+        const lastDayOfMonth = new Date(currentY, m, 0).getDate();
+        const targetDay = r.day > lastDayOfMonth ? lastDayOfMonth : r.day;
+        let dateObj = new Date(currentY, m - 1, targetDay);
+        if (r.adjust === 'prev') {
+          let count = 0; while ((dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) && count < 10) { dateObj.setDate(dateObj.getDate() - 1); count++; }
+        } else if (r.adjust === 'next') {
+          let count = 0; while ((dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) && count < 10) { dateObj.setDate(dateObj.getDate() + 1); count++; }
+        }
+        evts.push({
+          id: `routine-${r.title}-${currentY}-${m}`, title: `${r.title}`, start: toLocalYYYYMMDD(dateObj), allDay: true,
+          backgroundColor: r.color, borderColor: r.color, display: 'block',
+          extendedProps: { isRoutine: true, category: 'ルーティン', cycle: 'monthly', metadata: { routineType: r.type || 'task' } }
+        });
+      }
+    }
+    return evts;
   });
 
   // 👇 追加：サブスクデータから「毎月/毎年の支払いイベント」を自動生成する魔法のロジック
@@ -2157,13 +2168,16 @@ export default function SmartLifeOS() {
   }).filter((e: any) => {
     if (e.extendedProps?.metadata?.isStocked) return false;
     if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
-    if (e.extendedProps?.metadata?.isPureFinance) return false;
+    if (viewType === 'dayGridMonth' && e.extendedProps?.metadata?.isPureFinance) return false;
     
-    // 👇 サブスクは今まで通りカレンダーに表示させない（裏側だけで計算）
+    // 👇 サブスクは月毎・日毎カレンダーどちらでも非表示にする（裏側で計算のみ行う）
     const isSub = String(e.id).startsWith('sub-');
     if (isSub) return false;
 
     if (viewType === 'dayGridMonth') {
+      // 👇 「毎日」「毎週」のルーティンは月カレンダーでは非表示
+      if (e.extendedProps?.isRoutine && e.extendedProps?.cycle !== 'monthly') return false;
+
       if (calendarCategoryFilter !== 'すべて' && e.extendedProps?.category !== calendarCategoryFilter) {
         return false;
       }
@@ -2227,10 +2241,6 @@ useEffect(() => {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
   if (!isMounted || !isDataLoaded) return <div style={{ minHeight: '100vh', background: 'var(--bg-main)' }} />;
-
-  function openAnalyticsModal() {
-    throw new Error('Function not implemented.');
-  }
   if (!activeUserId) {
     return (
       <AuthScreen 
@@ -2607,6 +2617,13 @@ useEffect(() => {
       `}</style>
 
       <div className="fixed-mobile-frame">
+        {/* 👇 追加：コピー中のみ表示されるナビゲーションバナー */}
+        {clipboardEvent && (
+          <div style={{ position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)', background: 'var(--theme)', color: '#fff', padding: '10px 20px', borderRadius: '30px', zIndex: 9999, fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 8px 20px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px', animation: 'fadeInDown 0.3s ease-out' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Star size={16}/> コピー中: ペーストしたい日付をタップ</span>
+            <button onClick={() => setClipboardEvent(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '26px', height: '26px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>×</button>
+          </div>
+        )}
         {/* 👇 修正：中央の年月を完全固定し、ボタン開閉時のカクつきを排除 */}
         <header style={{ padding: '8px 12px 4px 12px', position: 'relative', background: 'linear-gradient(180deg, var(--bg-main) 40%, transparent 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100, pointerEvents: 'auto' }}>
           
@@ -2786,10 +2803,10 @@ useEffect(() => {
                 return targetTime >= sDate.getTime() && targetTime < eDate.getTime();
               });
 
-              // 👇 修正：ルーティン・サブスクの色を抽出し、リストからは除外する
               const monthlyEvent = allDayEvents.find((e: any) => e.extendedProps?.isRoutine || String(e.id).startsWith('sub-'));
               const centerColor = monthlyEvent ? (monthlyEvent.extendedProps?.cColor || monthlyEvent.backgroundColor || 'var(--theme)') : null;
-              const displayAllDayEvents = allDayEvents.filter((e: any) => !e.extendedProps?.isRoutine && !String(e.id).startsWith('sub-'));
+              // 👇 修正：日毎カレンダーのリストには、支払い・ルーティン・サブスクをすべて表示する！
+              const displayAllDayEvents = allDayEvents;
 
               // 予定の重なり（クラスター）を正確に計算するロジック
               const clusters: any[][] = [];
@@ -3549,36 +3566,58 @@ useEffect(() => {
           </div>
         )}
 
-        {/* 毎月のルーティンモーダル */}
+        {/* ルーティンモーダル */}
         {isRoutineModalOpen && (
-          <div className="modal-overlay" onClick={() => setIsRoutineModalOpen(false)}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px' }}>
-              <ModalHeader title="毎月の予定を設定" onClose={() => setIsRoutineModalOpen(false)} />
-              <div style={{ marginBottom: '20px', maxHeight: '180px', overflowY: 'auto' }} className="hide-scrollbar">
-                {monthlyRoutines.map((r: any, idx: number) => renderListItem(`routine-${idx}`, r.color, `毎月${r.day}日 : ${r.title}`, () => { setEditRoutineIndex(idx); setNewRoutineTitle(r.title); setNewRoutineDay(String(r.day)); setNewRoutineColor(r.color); setNewRoutineType(r.type || 'task'); }, () => setMonthlyRoutines(monthlyRoutines.filter((_, i) => i !== idx))))}              </div>
-              <div className="card-box">
-                <label className="form-label">{editRoutineIndex !== null ? '予定を編集' : '新しく追加（毎月表示）'}</label>
-                <select className="pop-input" value={newRoutineType} onChange={e => setNewRoutineType(e.target.value)} style={{ marginBottom: '10px' }}>
-                  <option value="task">チェック式 (達成を記録)</option>
-                  <option value="income">金額入力 (収入・給料など)</option>
-                  <option value="expense">金額入力 (固定費・支払いなど)</option>
-                </select>
-                <input type="text" className="pop-input" style={{ marginBottom: '10px' }} value={newRoutineTitle} onChange={e => setNewRoutineTitle(e.target.value)} placeholder="例：給料日" />
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
-                  <select className="pop-input" value={newRoutineDay} onChange={e => setNewRoutineDay(e.target.value)} style={{ width: '120px', flex: 'none', padding: '14px' }}>
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}日</option>)}
+          <div className="modal-overlay" onClick={() => setIsRoutineModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '80vh' }}>
+              <div style={{ flexShrink: 0 }}>
+                <ModalHeader title="ルーティン設定" onClose={() => setIsRoutineModalOpen(false)} />
+              </div>
+              <div style={{ marginBottom: '20px', flex: 1, overflowY: 'auto' }} className="hide-scrollbar">
+                {monthlyRoutines.map((r: any, idx: number) => {
+                  const label = r.cycle === 'daily' ? '毎日' : r.cycle === 'weekly' ? `毎週 ${DAY_NAMES[r.dayOfWeek]}曜` : `毎月 ${r.day}日`;
+                  return renderListItem(`routine-${idx}`, r.color, `${label} : ${r.title}`, () => { 
+                    setEditRoutineIndex(idx); setNewRoutineTitle(r.title); setNewRoutineDay(String(r.day || 1)); setNewRoutineColor(r.color); setNewRoutineType(r.type || 'task'); setNewRoutineCycle(r.cycle || 'monthly'); setNewRoutineDayOfWeek(String(r.dayOfWeek || 1));
+                  }, () => setMonthlyRoutines(monthlyRoutines.filter((_, i) => i !== idx)));
+                })}
+              </div>
+              <div className="card-box" style={{ flexShrink: 0 }}>
+                <label className="form-label">{editRoutineIndex !== null ? '予定を編集' : '新しくルーティンを追加'}</label>
+                
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <select className="pop-input" value={newRoutineCycle} onChange={e => setNewRoutineCycle(e.target.value as any)} style={{ flex: 1 }}>
+                    <option value="monthly">毎月</option><option value="weekly">毎週</option><option value="daily">毎日</option>
                   </select>
-                  <ColorSelector value={newRoutineColor} onChange={setNewRoutineColor} />
+                  <select className="pop-input" value={newRoutineType} onChange={e => setNewRoutineType(e.target.value)} style={{ flex: 1 }}>
+                    <option value="task">チェック達成</option><option value="income">収入を入力</option><option value="expense">支出を入力</option>
+                  </select>
                 </div>
-                <select className="pop-input" value={(monthlyRoutines[editRoutineIndex || 0]?.adjust) || 'none'} onChange={e => {
-                   if (editRoutineIndex !== null) {
-                     const arr = [...monthlyRoutines]; arr[editRoutineIndex].adjust = e.target.value; setMonthlyRoutines(arr);
-                   }
-                }} style={{ marginBottom: '16px', fontSize: '0.8rem' }}>
-                  <option value="none">土日・祝日でもそのまま表示</option>
-                  <option value="prev">土日・祝日なら「前倒し（金曜等）」にする</option>
-                  <option value="next">土日・祝日なら「後ろ倒し（月曜等）」にする</option>
-                </select>
+                
+                <input type="text" className="pop-input" style={{ marginBottom: '10px' }} value={newRoutineTitle} onChange={e => setNewRoutineTitle(e.target.value)} placeholder="例：給与振込、ジム、ゴミ出し等" />
+                
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
+                  {newRoutineCycle === 'monthly' && (
+                    <select className="pop-input" value={newRoutineDay} onChange={e => setNewRoutineDay(e.target.value)} style={{ width: '100px', flex: 'none' }}>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}日</option>)}
+                    </select>
+                  )}
+                  {newRoutineCycle === 'weekly' && (
+                    <select className="pop-input" value={newRoutineDayOfWeek} onChange={e => setNewRoutineDayOfWeek(e.target.value)} style={{ width: '100px', flex: 'none' }}>
+                      {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}曜日</option>)}
+                    </select>
+                  )}
+                  <div style={{ flex: 1 }}><ColorSelector value={newRoutineColor} onChange={setNewRoutineColor} /></div>
+                </div>
+                
+                {newRoutineCycle === 'monthly' && (
+                  <select className="pop-input" value={(monthlyRoutines[editRoutineIndex || 0]?.adjust) || 'none'} onChange={e => {
+                     if (editRoutineIndex !== null) { const arr = [...monthlyRoutines]; arr[editRoutineIndex].adjust = e.target.value; setMonthlyRoutines(arr); }
+                  }} style={{ marginBottom: '16px', fontSize: '0.8rem' }}>
+                    <option value="none">土日・祝日でもそのまま表示</option>
+                    <option value="prev">土日・祝日なら「前倒し（金曜等）」にする</option>
+                    <option value="next">土日・祝日なら「後ろ倒し（月曜等）」にする</option>
+                  </select>
+                )}
                 <button onClick={handleAddRoutine} className="btn-pop" style={{ width: '100%' }}>{editRoutineIndex !== null ? '更新する' : '追加する'}</button>
               </div>
             </div>
@@ -3596,6 +3635,419 @@ useEffect(() => {
           userColors={userColors}
           setUserColors={setUserColors}
         />
+
+        {/* 👇 ここから振り返りダッシュボードのコードを追加 👇 */}
+                        {/* 📊 振り返りダッシュボード モーダル */}
+                        {isAnalyticsModalOpen && (() => {
+                          const targetPrefix = analyticsSpan.includes('month')
+                            ? `${analyticsYear}-${String(analyticsMonth).padStart(2, '0')}`
+                            : `${analyticsYear}`;
+
+                          const targetEvents = events.filter((e: any) =>
+                            e.start && e.start.startsWith(targetPrefix) && !e.extendedProps?.isAnniversary && !e.extendedProps?.isRoutine && !String(e.id).startsWith('sub-')
+                          );
+
+                          // カテゴリごとの集計
+                          const catCounts: Record<string, number> = {};
+                          targetEvents.forEach((e: any) => {
+                            const cat = e.extendedProps?.category || '未分類';
+                            catCounts[cat] = (catCounts[cat] || 0) + 1;
+                          });
+
+                          const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+
+                          return (
+                            <div className="modal-overlay" onClick={() => setIsAnalyticsModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+                              <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ flexShrink: 0 }}>
+                                  <ModalHeader title="振り返りダッシュボード" onClose={() => setIsAnalyticsModalOpen(false)} />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
+                                  <select className="pop-input" value={analyticsYear} onChange={e => setAnalyticsYear(e.target.value)} style={{ flex: 1, padding: '0 8px', textAlign: 'center' }}>
+                                    {[currentYear, String(Number(currentYear) - 1), String(Number(currentYear) - 2)].map(y => (
+                                      <option key={y} value={y}>{y}年</option>
+                                    ))}
+                                  </select>
+                                  <select className="pop-input" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} style={{ flex: 1, padding: '0 8px', textAlign: 'center' }}>
+                                    {Array.from({length: 12}, (_, i) => String(i + 1).padStart(2, '0')).map(m => (
+                                      <option key={m} value={m}>{m}月</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
+                                  <button onClick={() => setAnalyticsSpan('month')} className={analyticsSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.85rem', borderRadius: '12px' }}>月間</button>
+                                  <button onClick={() => setAnalyticsSpan('year')} className={analyticsSpan === 'year' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '8px', fontSize: '0.85rem', borderRadius: '12px' }}>年間</button>
+                                </div>
+
+                                <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px' }}>
+                                  <div style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--theme)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{analyticsSpan === 'month' ? `${analyticsMonth}月` : `${analyticsYear}年`}の総予定数</span>
+                                    <span style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--theme)' }}>{targetEvents.length} <span style={{ fontSize: '1rem', color: 'var(--text-sub)' }}>件</span></span>
+                                  </div>
+
+                                  <div>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '8px', display: 'block' }}>ジャンル別の内訳</span>
+                                    {sortedCats.length === 0 ? (
+                                      <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem' }}>データがありません</div>
+                                    ) : (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {sortedCats.map(([cat, count]) => {
+                                          const catObj = categories.find((c: any) => c.name === cat);
+                                          const cColor = catObj ? catObj.color : 'var(--theme)';
+                                          const percentage = Math.round((count / targetEvents.length) * 100);
+                                          return (
+                                            <div key={cat} style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: cColor }} />
+                                                  {cat}
+                                                </span>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{count}件 ({percentage}%)</span>
+                                              </div>
+                                              <div style={{ width: '100%', height: '6px', background: 'var(--input-bg)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                <div style={{ width: `${percentage}%`, height: '100%', background: cColor, borderRadius: '3px' }} />
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* 📊 収支グラフ（棒グラフ）モーダル */}
+                        {isFinanceGraphOpen && (() => {
+                          const currentY = parseInt(currentYear || String(new Date().getFullYear()));
+                          const currentM = parseInt(currentMonthNum || String(new Date().getMonth() + 1));
+
+                          let graphData = [];
+                          if (graphSpan === 'month') {
+                            graphData = Array.from({length: 12}, (_, i) => {
+                              const mStr = `${currentY}-${String(i + 1).padStart(2, '0')}`;
+                              const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(mStr));
+                              let inc = 0; let exp = 0;
+                              targetEvts.forEach((e: any) => {
+                                const cf = e.extendedProps?.metadata?.customFields || {};
+                                if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
+                                if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
+                              });
+                              return { label: `${i + 1}月`, inc, exp };
+                            });
+                          } else {
+                            graphData = Array.from({length: 5}, (_, i) => {
+                              let inc = 0; let exp = 0;
+                              const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(`${currentY}-${String(currentM).padStart(2, '0')}`));
+                              targetEvts.forEach((e: any) => {
+                                const dateDay = new Date(e.start).getDate();
+                                const weekNum = Math.ceil(dateDay / 7);
+                                if (weekNum === i + 1 || (i === 4 && weekNum > 5)) {
+                                  const cf = e.extendedProps?.metadata?.customFields || {};
+                                  if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
+                                  if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
+                                }
+                              });
+                              return { label: `第${i + 1}週`, inc, exp };
+                            });
+                          }
+
+                          const maxAmount = Math.max(...graphData.map(d => Math.max(d.inc, d.exp)), 1000);
+
+                          return (
+                            <div className="modal-overlay" onClick={() => setIsFinanceGraphOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+                              <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+                                <ModalHeader title="収支推移グラフ" onClose={() => setIsFinanceGraphOpen(false)} />
+                                
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                                  <button onClick={() => setGraphSpan('month')} className={graphSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>月間推移 ({currentY}年)</button>
+                                  <button onClick={() => setGraphSpan('week')} className={graphSpan === 'week' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>週間推移 ({currentM}月)</button>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981' }} /> 収入</span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }} /> 支出</span>
+                                </div>
+
+                                <div className="hide-scrollbar" style={{ height: '220px', display: 'flex', alignItems: 'flex-end', gap: '12px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '2px solid var(--border-color)' }}>
+                                  {graphData.map((d, idx) => (
+                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end', minWidth: '40px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '100%' }}>
+                                        <div style={{ position: 'relative', width: '14px', height: `${(d.inc / maxAmount) * 100}%`, background: '#10b981', borderRadius: '4px 4px 0 0', minHeight: d.inc > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
+                                          {d.inc > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#10b981', fontWeight: 'bold' }}>{d.inc >= 10000 ? `${Math.floor(d.inc/1000)}k` : d.inc}</span>}
+                                        </div>
+                                        <div style={{ position: 'relative', width: '14px', height: `${(d.exp / maxAmount) * 100}%`, background: '#ef4444', borderRadius: '4px 4px 0 0', minHeight: d.exp > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
+                                          {d.exp > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#ef4444', fontWeight: 'bold' }}>{d.exp >= 10000 ? `${Math.floor(d.exp/1000)}k` : d.exp}</span>}
+                                        </div>
+                                      </div>
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{d.label}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* 🖼 思い出ギャラリー モーダル */}
+                        {isGalleryOpen && (
+                          <div className="modal-overlay" onClick={() => setIsGalleryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+                            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                              
+                              <div style={{ flexShrink: 0 }}>
+                                <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
+                              </div>
+                              
+                              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', flexShrink: 0, paddingBottom: '4px', whiteSpace: 'nowrap' }}>
+                                <button onClick={() => setGalleryCategory('すべて')} style={{ background: galleryCategory === 'すべて' ? themeColor : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>すべて</button>
+                                {categories.filter((c: any) => c.allowPhoto).map((c: any) => (
+                                  <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
+                                ))}
+                              </div>
+
+                              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', paddingRight: '4px', alignContent: 'start' }}>
+                                {events
+                                  .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
+                                  .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
+                                  .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
+                                  .flatMap((e: any) =>
+                                  e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
+                                    <div key={`${e.id}-${index}`} style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+                                      <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
+                                    </div>
+                                  ))
+                                )}
+                                {events.filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0).length === 0 && (
+                                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900', fontSize: '0.9rem' }}>思い出の写真を追加しましょう</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 🤝 立替・貸し借り管理 モーダル */}
+                        {isAdvanceModalOpen && (() => {
+                          const unsettledAdvances = events.flatMap(e => {
+                            const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                            return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                          }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
+
+                          const settledAdvances = events.flatMap(e => {
+                            const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                            return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                          }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.isSettled);
+
+                          return (
+                            <div className="modal-overlay" onClick={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+                              <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                                
+                                <div style={{ flexShrink: 0 }}>
+                                  <ModalHeader title="立替・貸し借り管理" onClose={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} />
+                                </div>
+                                
+                                {viewingPartner ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                                      <button onClick={() => setViewingPartner(null)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>← 戻る</button>
+                                      <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--theme)' }}>{viewingPartner} さんとの履歴</h3>
+                                    </div>
+                                    {(() => {
+                                      const partnerHistory = events.flatMap(e => {
+                                        const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                                        return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                                      }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.payee === viewingPartner)
+                                        .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
+
+                                      const lentTotal = partnerHistory.filter(e => e.type === 'advance' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
+                                      const borrowedTotal = partnerHistory.filter(e => e.type === 'borrow' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
+                                      const diff = lentTotal - borrowedTotal;
+
+                                      return (
+                                        <>
+                                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                                            <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                                              <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の貸し</div>
+                                              <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#ef4444' }}>¥{lentTotal.toLocaleString()}</div>
+                                            </div>
+                                            <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #10b981', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                                              <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の借り</div>
+                                              <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#10b981' }}>¥{borrowedTotal.toLocaleString()}</div>
+                                            </div>
+                                          </div>
+                                          <div style={{ textAlign: 'center', fontSize: '0.9rem', fontWeight: 'bold', margin: '4px 0 8px 0', color: 'var(--text-main)', flexShrink: 0 }}>
+                                              {diff > 0 ? `👉 あなたが ¥${diff.toLocaleString()} 受け取ります` : diff < 0 ? `👈 あなたが ¥${Math.abs(diff).toLocaleString()} 支払います` : '🎉 精算完了しています'}
+                                          </div>
+                                          <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+                                            {partnerHistory.length === 0 ? <div style={{textAlign:'center', fontSize:'0.8rem', color:'var(--text-sub)', marginTop:'20px'}}>履歴がありません</div> : partnerHistory.map((adv: any, i: number) => (
+                                                <div key={i} style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, opacity: adv.isSettled ? 0.6 : 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                  <div>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textDecoration: adv.isSettled ? 'line-through' : 'none' }}>
+                                                      {adv.type === 'advance' ? '貸した' : '借りた'} <span style={{fontSize:'0.75rem', fontWeight:'normal'}}>({adv.eventTitle})</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate}</div>
+                                                  </div>
+                                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                                    <div style={{ fontSize: '1rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>¥{Number(adv.amount).toLocaleString()}</div>
+                                                    {adv.isSettled && <span style={{ fontSize: '0.6rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', fontWeight: 'bold' }}>精算済</span>}
+                                                  </div>
+                                                </div>
+                                            ))}
+                                          </div>
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
+                                      <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'unsettled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'unsettled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'unsettled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>未精算 ({unsettledAdvances.length})</button>
+                                      <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'settled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'settled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'settled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>精算済 ({settledAdvances.length})</button>
+                                      <button onClick={() => setAdvanceTab('partners')} className={advanceTab === 'partners' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'partners' ? themeColor : 'var(--input-bg)', color: advanceTab === 'partners' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'partners' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>相手リスト</button>
+                                    </div>
+
+                                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
+                                      {advanceTab === 'unsettled' && (
+                                        unsettledAdvances.length === 0 ? (
+                                          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                                            <Handshake size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5, color: 'var(--theme)' }} />
+                                            <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>現在、未精算の立替記録はありません。</p>
+                                            <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>※カレンダーの「予定を追加」画面の<br/>「支出・立替を記録する」から<br/>立て替えた金額を登録するとここに表示されます。</p>
+                                          </div>
+                                        ) : (
+                                          unsettledAdvances.map((adv: any, i: number) => (
+                                            <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                  <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                                                    {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
+                                                  </span>
+                                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                                                </div>
+                                                <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
+                                                  ¥{Number(adv.amount).toLocaleString()}
+                                                </div>
+                                              </div>
+                                              <button onClick={async () => {
+                                                  if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
+                                                    const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                                                    if (targetEvent) {
+                                                      const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                                        ex.id === adv.id ? { ...ex, isSettled: true } : ex
+                                                      );
+                                                      await supabase.from('events').update({
+                                                        metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
+                                                      }).eq('id', adv.eventId);
+                                                      
+                                                      const today = toLocalYYYYMMDD(new Date());
+                                                      await supabase.from('events').insert([{
+                                                        title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
+                                                        start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
+                                                        metadata: {
+                                                          isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
+                                                          customFields: {
+                                                            isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
+                                                            isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
+                                                            paymentMethod: 'cash'
+                                                          }
+                                                        }
+                                                      }]);
+                                                      alert('精算を完了として記録しました！');
+                                                      fetchEvents();
+                                                    }
+                                                  }
+                                                }}
+                                                className="btn-pop" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                              >
+                                                <CheckCircle size={16} /> 精算を完了する
+                                              </button>
+                                            </div>
+                                          ))
+                                        )
+                                      )}
+
+                                      {advanceTab === 'settled' && (
+                                        settledAdvances.length === 0 ? (
+                                          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold', fontSize: '0.85rem' }}>精算済みの記録はありません</div>
+                                        ) : (
+                                          settledAdvances.map((adv: any, i: number) => (
+                                            <div key={i} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-sub)', textDecoration: 'line-through' }}>
+                                                  {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
+                                                </span>
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                                              </div>
+                                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                                                <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>
+                                                  ¥{Number(adv.amount).toLocaleString()}
+                                                </div>
+                                                <button onClick={async () => {
+                                                  if (confirm(`この精算済みの記録を未精算に戻しますか？`)) {
+                                                    const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                                                    if (targetEvent) {
+                                                      const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                                        ex.id === adv.id ? { ...ex, isSettled: false } : ex
+                                                      );
+                                                      await supabase.from('events').update({
+                                                        metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
+                                                      }).eq('id', adv.eventId);
+                                                      alert('未精算に戻しました。');
+                                                      fetchEvents();
+                                                    }
+                                                  }
+                                                }} style={{ fontSize: '0.7rem', padding: '4px 8px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-main)', cursor: 'pointer', fontWeight: 'bold' }}>
+                                                  未精算に戻す
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ))
+                                        )
+                                      )}
+
+                                      {advanceTab === 'partners' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                          <div style={{ display: 'flex', gap: '8px' }}>
+                                            <input type="text" className="pop-input" placeholder="よく立て替える相手の名前を追加" value={newPayeeName} onChange={e => setNewPayeeName(e.target.value)} style={{ flex: 1, fontSize: '0.85rem' }} />
+                                            <button onClick={() => {
+                                              if (newPayeeName.trim() && !customPayees.includes(newPayeeName.trim())) {
+                                                setCustomPayees([...customPayees, newPayeeName.trim()]);
+                                                setNewPayeeName('');
+                                              }
+                                            }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>追加</button>
+                                          </div>
+                                          
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px' }}>登録済みの相手リスト</span>
+                                            {customPayees.length === 0 ? (
+                                              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>登録されている相手はいません</div>
+                                            ) : (
+                                              customPayees.map((p, i) => (
+                                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                                  <div style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setViewingPartner(p)}>
+                                                    <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{p}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--theme)', fontWeight: 'bold', background: 'var(--input-bg)', padding: '4px 8px', borderRadius: '8px' }}>履歴を見る 👉</span>
+                                                  </div>
+                                                  <button onClick={() => setCustomPayees(customPayees.filter(name => name !== p))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
+                                                    <Trash2 size={16} />
+                                                  </button>
+                                                </div>
+                                              ))
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
 
         {isModalOpen && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }} onClick={() => setIsModalOpen(false)}>
@@ -4184,6 +4636,333 @@ useEffect(() => {
                           })()}
                         </div>
 
+                        {/* 📊 収支グラフ（棒グラフ）モーダル */}
+                        {isFinanceGraphOpen && (() => {
+                          const currentY = parseInt(currentYear || String(new Date().getFullYear()));
+                          const currentM = parseInt(currentMonthNum || String(new Date().getMonth() + 1));
+
+                          let graphData = [];
+                          if (graphSpan === 'month') {
+                            graphData = Array.from({length: 12}, (_, i) => {
+                              const mStr = `${currentY}-${String(i + 1).padStart(2, '0')}`;
+                              const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(mStr));
+                              let inc = 0; let exp = 0;
+                              targetEvts.forEach((e: any) => {
+                                const cf = e.extendedProps?.metadata?.customFields || {};
+                                if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
+                                if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
+                              });
+                              return { label: `${i + 1}月`, inc, exp };
+                            });
+                          } else {
+                            graphData = Array.from({length: 5}, (_, i) => {
+                              let inc = 0; let exp = 0;
+                              const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(`${currentY}-${String(currentM).padStart(2, '0')}`));
+                              targetEvts.forEach((e: any) => {
+                                const dateDay = new Date(e.start).getDate();
+                                const weekNum = Math.ceil(dateDay / 7);
+                                if (weekNum === i + 1 || (i === 4 && weekNum > 5)) {
+                                  const cf = e.extendedProps?.metadata?.customFields || {};
+                                  if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
+                                  if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
+                                }
+                              });
+                              return { label: `第${i + 1}週`, inc, exp };
+                            });
+                          }
+
+                          const maxAmount = Math.max(...graphData.map(d => Math.max(d.inc, d.exp)), 1000);
+
+                          return (
+                            <div className="modal-overlay" onClick={() => setIsFinanceGraphOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+                              <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+                                <ModalHeader title="収支推移グラフ" onClose={() => setIsFinanceGraphOpen(false)} />
+                                
+                                <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                                  <button onClick={() => setGraphSpan('month')} className={graphSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>月間推移 ({currentY}年)</button>
+                                  <button onClick={() => setGraphSpan('week')} className={graphSpan === 'week' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>週間推移 ({currentM}月)</button>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981' }} /> 収入</span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }} /> 支出</span>
+                                </div>
+
+                                <div className="hide-scrollbar" style={{ height: '220px', display: 'flex', alignItems: 'flex-end', gap: '12px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '2px solid var(--border-color)' }}>
+                                  {graphData.map((d, idx) => (
+                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end', minWidth: '40px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '100%' }}>
+                                        <div style={{ position: 'relative', width: '14px', height: `${(d.inc / maxAmount) * 100}%`, background: '#10b981', borderRadius: '4px 4px 0 0', minHeight: d.inc > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
+                                          {d.inc > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#10b981', fontWeight: 'bold' }}>{d.inc >= 10000 ? `${Math.floor(d.inc/1000)}k` : d.inc}</span>}
+                                        </div>
+                                        <div style={{ position: 'relative', width: '14px', height: `${(d.exp / maxAmount) * 100}%`, background: '#ef4444', borderRadius: '4px 4px 0 0', minHeight: d.exp > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
+                                          {d.exp > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#ef4444', fontWeight: 'bold' }}>{d.exp >= 10000 ? `${Math.floor(d.exp/1000)}k` : d.exp}</span>}
+                                        </div>
+                                      </div>
+                                      <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{d.label}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* 🖼 思い出ギャラリー モーダル */}
+                        {isGalleryOpen && (
+                          <div className="modal-overlay" onClick={() => setIsGalleryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+                            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                              
+                              <div style={{ flexShrink: 0 }}>
+                                <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
+                              </div>
+                              
+                              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', flexShrink: 0, paddingBottom: '4px', whiteSpace: 'nowrap' }}>
+                                <button onClick={() => setGalleryCategory('すべて')} style={{ background: galleryCategory === 'すべて' ? themeColor : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>すべて</button>
+                                {categories.filter((c: any) => c.allowPhoto).map((c: any) => (
+                                  <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
+                                ))}
+                              </div>
+
+                              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', paddingRight: '4px', alignContent: 'start' }}>
+                                {events
+                                  .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
+                                  .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
+                                  .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
+                                  .flatMap((e: any) =>
+                                  e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
+                                    <div key={`${e.id}-${index}`} style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+                                      <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
+                                    </div>
+                                  ))
+                                )}
+                                {events.filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0).length === 0 && (
+                                  <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900', fontSize: '0.9rem' }}>思い出の写真を追加しましょう</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 🤝 立替・貸し借り管理 モーダル */}
+                        {isAdvanceModalOpen && (() => {
+                          const unsettledAdvances = events.flatMap(e => {
+                            const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                            return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                          }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
+
+                          const settledAdvances = events.flatMap(e => {
+                            const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                            return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                          }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.isSettled);
+
+                          return (
+                            <div className="modal-overlay" onClick={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+                              <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                                
+                                <div style={{ flexShrink: 0 }}>
+                                  <ModalHeader title="立替・貸し借り管理" onClose={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} />
+                                </div>
+                                
+                                {viewingPartner ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                                      <button onClick={() => setViewingPartner(null)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>← 戻る</button>
+                                      <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--theme)' }}>{viewingPartner} さんとの履歴</h3>
+                                    </div>
+                                    {(() => {
+                                      const partnerHistory = events.flatMap(e => {
+                                        const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
+                                        return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
+                                      }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.payee === viewingPartner)
+                                        .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
+
+                                      const lentTotal = partnerHistory.filter(e => e.type === 'advance' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
+                                      const borrowedTotal = partnerHistory.filter(e => e.type === 'borrow' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
+                                      const diff = lentTotal - borrowedTotal;
+
+                                      return (
+                                        <>
+                                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                                            <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                                              <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の貸し</div>
+                                              <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#ef4444' }}>¥{lentTotal.toLocaleString()}</div>
+                                            </div>
+                                            <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #10b981', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
+                                              <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の借り</div>
+                                              <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#10b981' }}>¥{borrowedTotal.toLocaleString()}</div>
+                                            </div>
+                                          </div>
+                                          <div style={{ textAlign: 'center', fontSize: '0.9rem', fontWeight: 'bold', margin: '4px 0 8px 0', color: 'var(--text-main)', flexShrink: 0 }}>
+                                              {diff > 0 ? `👉 あなたが ¥${diff.toLocaleString()} 受け取ります` : diff < 0 ? `👈 あなたが ¥${Math.abs(diff).toLocaleString()} 支払います` : '🎉 精算完了しています'}
+                                          </div>
+                                          <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+                                            {partnerHistory.length === 0 ? <div style={{textAlign:'center', fontSize:'0.8rem', color:'var(--text-sub)', marginTop:'20px'}}>履歴がありません</div> : partnerHistory.map((adv: any, i: number) => (
+                                                <div key={i} style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, opacity: adv.isSettled ? 0.6 : 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                  <div>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textDecoration: adv.isSettled ? 'line-through' : 'none' }}>
+                                                      {adv.type === 'advance' ? '貸した' : '借りた'} <span style={{fontSize:'0.75rem', fontWeight:'normal'}}>({adv.eventTitle})</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate}</div>
+                                                  </div>
+                                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                                    <div style={{ fontSize: '1rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>¥{Number(adv.amount).toLocaleString()}</div>
+                                                    {adv.isSettled && <span style={{ fontSize: '0.6rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', fontWeight: 'bold' }}>精算済</span>}
+                                                  </div>
+                                                </div>
+                                            ))}
+                                          </div>
+                                        </>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
+                                      <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'unsettled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'unsettled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'unsettled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>未精算 ({unsettledAdvances.length})</button>
+                                      <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'settled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'settled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'settled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>精算済 ({settledAdvances.length})</button>
+                                      <button onClick={() => setAdvanceTab('partners')} className={advanceTab === 'partners' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'partners' ? themeColor : 'var(--input-bg)', color: advanceTab === 'partners' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'partners' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>相手リスト</button>
+                                    </div>
+
+                                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
+                                      {advanceTab === 'unsettled' && (
+                                        unsettledAdvances.length === 0 ? (
+                                          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                                            <Handshake size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5, color: 'var(--theme)' }} />
+                                            <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>現在、未精算の立替記録はありません。</p>
+                                            <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>※カレンダーの「予定を追加」画面の<br/>「支出・立替を記録する」から<br/>立て替えた金額を登録するとここに表示されます。</p>
+                                          </div>
+                                        ) : (
+                                          unsettledAdvances.map((adv: any, i: number) => (
+                                            <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                  <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                                                    {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
+                                                  </span>
+                                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                                                </div>
+                                                <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
+                                                  ¥{Number(adv.amount).toLocaleString()}
+                                                </div>
+                                              </div>
+                                              <button onClick={async () => {
+                                                  if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
+                                                    const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                                                    if (targetEvent) {
+                                                      const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                                        ex.id === adv.id ? { ...ex, isSettled: true } : ex
+                                                      );
+                                                      await supabase.from('events').update({
+                                                        metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
+                                                      }).eq('id', adv.eventId);
+                                                      
+                                                      const today = toLocalYYYYMMDD(new Date());
+                                                      await supabase.from('events').insert([{
+                                                        title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
+                                                        start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
+                                                        metadata: {
+                                                          isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
+                                                          customFields: {
+                                                            isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
+                                                            isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
+                                                            paymentMethod: 'cash'
+                                                          }
+                                                        }
+                                                      }]);
+                                                      alert('精算を完了として記録しました！');
+                                                      fetchEvents();
+                                                    }
+                                                  }
+                                                }}
+                                                className="btn-pop" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                              >
+                                                <CheckCircle size={16} /> 精算を完了する
+                                              </button>
+                                            </div>
+                                          ))
+                                        )
+                                      )}
+
+                                      {advanceTab === 'settled' && (
+                                        settledAdvances.length === 0 ? (
+                                          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold', fontSize: '0.85rem' }}>精算済みの記録はありません</div>
+                                        ) : (
+                                          settledAdvances.map((adv: any, i: number) => (
+                                            <div key={i} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-sub)', textDecoration: 'line-through' }}>
+                                                  {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
+                                                </span>
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
+                                              </div>
+                                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                                                <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>
+                                                  ¥{Number(adv.amount).toLocaleString()}
+                                                </div>
+                                                <button onClick={async () => {
+                                                  if (confirm(`この精算済みの記録を未精算に戻しますか？`)) {
+                                                    const targetEvent = events.find((e: any) => e.id === adv.eventId);
+                                                    if (targetEvent) {
+                                                      const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
+                                                        ex.id === adv.id ? { ...ex, isSettled: false } : ex
+                                                      );
+                                                      await supabase.from('events').update({
+                                                        metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
+                                                      }).eq('id', adv.eventId);
+                                                      alert('未精算に戻しました。');
+                                                      fetchEvents();
+                                                    }
+                                                  }
+                                                }} style={{ fontSize: '0.7rem', padding: '4px 8px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-main)', cursor: 'pointer', fontWeight: 'bold' }}>
+                                                  未精算に戻す
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ))
+                                        )
+                                      )}
+
+                                      {advanceTab === 'partners' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                          <div style={{ display: 'flex', gap: '8px' }}>
+                                            <input type="text" className="pop-input" placeholder="よく立て替える相手の名前を追加" value={newPayeeName} onChange={e => setNewPayeeName(e.target.value)} style={{ flex: 1, fontSize: '0.85rem' }} />
+                                            <button onClick={() => {
+                                              if (newPayeeName.trim() && !customPayees.includes(newPayeeName.trim())) {
+                                                setCustomPayees([...customPayees, newPayeeName.trim()]);
+                                                setNewPayeeName('');
+                                              }
+                                            }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>追加</button>
+                                          </div>
+                                          
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px' }}>登録済みの相手リスト</span>
+                                            {customPayees.length === 0 ? (
+                                              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>登録されている相手はいません</div>
+                                            ) : (
+                                              customPayees.map((p, i) => (
+                                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                                  <div style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setViewingPartner(p)}>
+                                                    <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{p}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--theme)', fontWeight: 'bold', background: 'var(--input-bg)', padding: '4px 8px', borderRadius: '8px' }}>履歴を見る 👉</span>
+                                                  </div>
+                                                  <button onClick={() => setCustomPayees(customPayees.filter(name => name !== p))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
+                                                    <Trash2 size={16} />
+                                                  </button>
+                                                </div>
+                                              ))
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* 🚩 集合・出発時間を設定（開閉式） */}
                         <div className="card-box" style={{ margin: 0, padding: 0, background: isGathering ? 'var(--input-bg)' : 'transparent', borderStyle: isGathering ? 'solid' : 'dashed', overflow: 'hidden' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
@@ -4517,11 +5296,11 @@ useEffect(() => {
                                         <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
                                           <img src={url} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} alt="memory" />
                                           <button 
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPhotoUrls(photoUrls.filter((_, idx) => idx !== i)); }} 
-                                            style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '14px', lineHeight: 1, paddingBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
-                                          >
-                                            ×
-                                          </button>
+                                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPhotoUrls(photoUrls.filter((_, idx) => idx !== i)); }} 
+                                              style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '6px', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
                                         </div>
                                       ))}
                                       <label style={{ width: '60px', height: '60px', borderRadius: '8px', border: '2px dashed var(--theme)', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem', flexShrink: 0 }}>
@@ -4629,717 +5408,7 @@ useEffect(() => {
           </div>
         </div>
     )}
-
-      {/* 📊 収支グラフ（棒グラフ）モーダル */}
-      {isFinanceGraphOpen && (() => {
-        // 🚨 ここに useState があったら絶対に消してください！🚨
-        const currentY = parseInt(currentYear || String(new Date().getFullYear()));
-        const currentM = parseInt(currentMonthNum || String(new Date().getMonth() + 1));
-
-        let graphData = [];
-        if (graphSpan === 'month') {
-          graphData = Array.from({length: 12}, (_, i) => {
-            const mStr = `${currentY}-${String(i + 1).padStart(2, '0')}`;
-            const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(mStr));
-            let inc = 0; let exp = 0;
-            targetEvts.forEach((e: any) => {
-              const cf = e.extendedProps?.metadata?.customFields || {};
-              if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
-              if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
-            });
-            return { label: `${i + 1}月`, inc, exp };
-          });
-        } else {
-          graphData = Array.from({length: 5}, (_, i) => {
-            let inc = 0; let exp = 0;
-            const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(`${currentY}-${String(currentM).padStart(2, '0')}`));
-            targetEvts.forEach((e: any) => {
-              const dateDay = new Date(e.start).getDate();
-              const weekNum = Math.ceil(dateDay / 7);
-              if (weekNum === i + 1 || (i === 4 && weekNum > 5)) {
-                const cf = e.extendedProps?.metadata?.customFields || {};
-                if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
-                if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
-              }
-            });
-            return { label: `第${i + 1}週`, inc, exp };
-          });
-        }
-
-        const maxAmount = Math.max(...graphData.map(d => Math.max(d.inc, d.exp)), 1000);
-
-        return (
-          <div className="modal-overlay" onClick={() => setIsFinanceGraphOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
-              <ModalHeader title="収支推移グラフ" onClose={() => setIsFinanceGraphOpen(false)} />
-              
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-                <button onClick={() => setGraphSpan('month')} className={graphSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>月間推移 ({currentY}年)</button>
-                <button onClick={() => setGraphSpan('week')} className={graphSpan === 'week' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>週間推移 ({currentM}月)</button>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981' }} /> 収入</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }} /> 支出</span>
-              </div>
-
-              <div className="hide-scrollbar" style={{ height: '220px', display: 'flex', alignItems: 'flex-end', gap: '12px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '2px solid var(--border-color)' }}>
-                {graphData.map((d, idx) => (
-                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end', minWidth: '40px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '100%' }}>
-                      <div style={{ position: 'relative', width: '14px', height: `${(d.inc / maxAmount) * 100}%`, background: '#10b981', borderRadius: '4px 4px 0 0', minHeight: d.inc > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
-                        {d.inc > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#10b981', fontWeight: 'bold' }}>{d.inc >= 10000 ? `${Math.floor(d.inc/1000)}k` : d.inc}</span>}
-                      </div>
-                      <div style={{ position: 'relative', width: '14px', height: `${(d.exp / maxAmount) * 100}%`, background: '#ef4444', borderRadius: '4px 4px 0 0', minHeight: d.exp > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
-                        {d.exp > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#ef4444', fontWeight: 'bold' }}>{d.exp >= 10000 ? `${Math.floor(d.exp/1000)}k` : d.exp}</span>}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{d.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* 📅 日程調整アシスタント モーダル */}
-      {isScheduleAssistantOpen && (
-        <div className="modal-overlay" onClick={() => setIsScheduleAssistantOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <ModalHeader title="日程調整アシスタント" onClose={() => setIsScheduleAssistantOpen(false)} />
-            
-            <div style={{ display: 'flex', background: 'var(--input-bg)', borderRadius: '16px', padding: '6px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
-              <button onClick={() => setAssistMode('send')} style={{ flex: 1, padding: '10px', borderRadius: '12px', background: assistMode === 'send' ? 'var(--theme)' : 'transparent', color: assistMode === 'send' ? '#fff' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', transition: 'all 0.2s', boxShadow: assistMode === 'send' ? `0 4px 10px var(--theme-shadow)` : 'none' }}>空き時間を送る</button>
-              <button onClick={() => setAssistMode('receive')} style={{ flex: 1, padding: '10px', borderRadius: '12px', background: assistMode === 'receive' ? 'var(--theme)' : 'transparent', color: assistMode === 'receive' ? '#fff' : 'var(--text-sub)', fontWeight: 'bold', border: 'none', cursor: 'pointer', transition: 'all 0.2s', boxShadow: assistMode === 'receive' ? `0 4px 10px var(--theme-shadow)` : 'none' }}>日程を受けて返事する</button>
-            </div>
-
-            {assistMode === 'send' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label className="form-label">1. 候補日時（カレンダーをドラッグして追加）</label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                    {assistTimeSlots.map((slot, i) => (
-                      <span key={i} onClick={() => setAssistTimeSlots(assistTimeSlots.filter((_, idx) => idx !== i))} style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', padding: '6px 12px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(245,158,11,0.3)' }}>
-                        {slot} <span style={{ opacity: 0.6 }}>×</span>
-                      </span>
-                    ))}
-                    {assistTimeSlots.length === 0 && (
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>カレンダーの空いている枠をタップ・ドラッグして「💬 候補に追加」を押してください。</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input type="date" className="pop-input" style={{ flex: 1 }} id="manual-assist-date" />
-                    <button onClick={() => {
-                      const el = document.getElementById('manual-assist-date') as HTMLInputElement;
-                      if(el && el.value) {
-                         const d = new Date(el.value);
-                         const slotStr = `${d.getMonth()+1}/${d.getDate()}(${DAY_NAMES[d.getDay()]}) 終日`;
-                         if (!assistTimeSlots.includes(slotStr)) setAssistTimeSlots([...assistTimeSlots, slotStr]);
-                         el.value = '';
-                      }
-                    }} className="btn-secondary" style={{ padding: '10px 16px', borderRadius: '12px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>+ 日付のみ追加</button>
-                  </div>
-                </div>
-                
-                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '16px' }}>
-                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    2. 自動生成テキストをコピー
-                    <button onClick={() => { navigator.clipboard.writeText(generatedText); alert('コピーしました！LINEなどに貼り付けてください。'); }} style={{ background: 'transparent', color: 'var(--theme)', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>📋 コピー</button>
-                  </label>
-                  <textarea className="pop-input" value={generatedText} onChange={e => setGeneratedText(e.target.value)} rows={8} style={{ fontSize: '0.8rem', lineHeight: '1.5', resize: 'vertical', height: '140px' }} />
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: 'bold', lineHeight: '1.5', margin: '0 0 8px 0' }}>
-                    1. 提示された日程をカレンダーで確認する
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input type="date" className="pop-input" id="check-date-input" style={{ flex: 1 }} />
-                    <button onClick={() => {
-                        const el = document.getElementById('check-date-input') as HTMLInputElement;
-                        if(el && el.value) {
-                          setCurrentYear(el.value.split('-')[0]);
-                          setCurrentMonthNum(String(Number(el.value.split('-')[1])));
-                          setCurrentDayNum(String(Number(el.value.split('-')[2])));
-                          calendarRef.current?.getApi().gotoDate(el.value);
-                          calendarRef.current?.getApi().changeView('timeGridDay');
-                          setIsScheduleAssistantOpen(false); // 閉じてカレンダーへジャンプ
-                        }
-                    }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', whiteSpace: 'nowrap', fontSize: '0.8rem' }}>確認する</button>
-                  </div>
-                </div>
-                
-                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '16px' }}>
-                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    2. 返信テキストを作成してコピー
-                    <button onClick={() => { navigator.clipboard.writeText(receiveText); alert('コピーしました！'); }} style={{ background: 'transparent', color: 'var(--theme)', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}>📋 コピー</button>
-                  </label>
-                  <textarea className="pop-input" value={receiveText} onChange={e => setReceiveText(e.target.value)} rows={5} placeholder="例：ご連絡ありがとうございます！では、〇月〇日の14:00〜でよろしくお願いいたします。" style={{ fontSize: '0.8rem', lineHeight: '1.5', resize: 'vertical', height: '100px' }} />
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                    <button onClick={() => setReceiveText("ご連絡ありがとうございます！\nご提示いただいた日程のうち、以下の日時でお願いできますでしょうか。\n\n・〇/〇(曜) 〇:〇〜\n\nよろしくお願いいたします。")} className="btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px' }}>✅ OKの返事</button>
-                    <button onClick={() => setReceiveText("ご連絡ありがとうございます。\nせっかくご提示いただいたのですが、あいにくその日程は予定が入っておりました。\n\n別の日程（〇/〇など）で再調整していただくことは可能でしょうか？\nよろしくお願いいたします。")} className="btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '8px', color: '#ef4444', borderColor: '#fca5a5' }}>❌ NGの返事</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {/* 🖼 思い出ギャラリー モーダル */}
-      {isGalleryOpen && (
-        <div className="modal-overlay" onClick={() => setIsGalleryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-            
-            <div style={{ flexShrink: 0 }}>
-              <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
-            </div>
-            
-            <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', flexShrink: 0, paddingBottom: '4px', whiteSpace: 'nowrap' }}>
-              <button onClick={() => setGalleryCategory('すべて')} style={{ background: galleryCategory === 'すべて' ? themeColor : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>すべて</button>
-              {categories.filter((c: any) => c.allowPhoto).map((c: any) => (
-                <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
-              ))}
-            </div>
-
-            <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', paddingRight: '4px', alignContent: 'start' }}>
-              {events
-                .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
-                .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
-                .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
-                .flatMap((e: any) =>
-                e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
-                  <div key={`${e.id}-${index}`} style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                    <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
-                  </div>
-                ))
-              )}
-              {events.filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0).length === 0 && (
-                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900', fontSize: '0.9rem' }}>思い出の写真を追加しましょう</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 📊 振り返りダッシュボード（収支・円グラフなど） モーダル */}
-      {isAnalyticsModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsAnalyticsModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-            <div style={{ flexShrink: 0 }}>
-              <ModalHeader title="ダッシュボード" onClose={() => setIsAnalyticsModalOpen(false)} />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
-              <select className="pop-input" value={analyticsYear} onChange={e => setAnalyticsYear(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
-                {Array.from({length: 21}, (_, i: number) => currentY - 10 + i).map((y: number) => <option key={y} value={String(y)}>{y}年</option>)}
-              </select>
-              {(analyticsSpan === 'month' || analyticsSpan === 'pie') && (
-                <select className="pop-input" value={analyticsMonth} onChange={e => setAnalyticsMonth(e.target.value)} style={{ width: '100%', height: '40px', minHeight: 'unset' }}>
-                  {Array.from({length: 12}, (_, i: number) => i + 1).map((m: number) => <option key={m} value={String(m).padStart(2, '0')}>{m}月</option>)}
-                </select>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
-              {['month', 'year', 'pie'].map((type: any) => (
-                <button 
-                  key={type}
-                  onClick={() => setAnalyticsSpan(type)} 
-                  className={analyticsSpan === type ? 'btn-pop' : 'btn-secondary'} 
-                  style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: analyticsSpan === type ? themeColor : 'var(--input-bg)', color: analyticsSpan === type ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: type === 'pie' ? '0.8rem' : '0.85rem', fontWeight: 'bold', boxShadow: analyticsSpan === type ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}
-                >
-                  {type === 'month' ? '月間' : type === 'year' ? '年間' : '円グラフ'}
-                </button>
-              ))}
-            </div>
-
-            {analyticsSpan !== 'pie' && (
-              <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', paddingBottom: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                {categories.filter((c: any) => c.fields && c.fields.length > 0).map((c: any) => (
-                  <button key={c.name} onClick={() => setAnalyticsCat(c.name)} style={{ background: analyticsCat === c.name ? c.color : 'var(--input-bg)', color: analyticsCat === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
-                ))}
-              </div>
-            )}
-
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} className="hide-scrollbar">
-              {(() => {
-                const targetMonthStr = `${analyticsYear}-${analyticsMonth}`;
-                const targetEvents = analyticsSpan === 'month' || analyticsSpan === 'pie'
-                  ? displayEvents.filter((e: any) => e.start && e.start.startsWith(targetMonthStr))
-                  : displayEvents.filter((e: any) => e.start && e.start.startsWith(analyticsYear));
-
-                if (analyticsSpan === 'pie') {
-                  let totalIncome = 0;
-                  const catIncomes = categories.map((c: any) => {
-                    let catInc = 0;
-                    targetEvents.forEach((e: any) => {
-                      const incomeCat = e.extendedProps.metadata?.customFields?.incomeCategory || e.extendedProps.category;
-                      if (incomeCat === c.name && e.extendedProps.metadata?.customFields?.isIncomeSet) catInc += Number(e.extendedProps.metadata.customFields.standardIncomeAmount || 0);
-                      if (e.extendedProps.category === c.name) {
-                        const fields = e.extendedProps.metadata?.customFields;
-                        if (fields && c.fields) {
-                          c.fields.forEach((f: any) => {
-                            if (f.type === 'money' && fields[f.id]?.type === 'income') catInc += Number(fields[f.id].amount || 0);
-                            if (f.type === 'money_income') catInc += Number(fields[f.id] || 0);
-                            if (f.type === 'wage' && !f.excludeFromTotal) {
-                              if (fields[f.id]?.calculatedWage !== undefined) catInc += Number(fields[f.id].calculatedWage);
-                              else {
-                                const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
-                                catInc += Number(fields[f.id]?.hours || 0) * Number(fallbackWage);
-                              }
-                            }
-                          });
-                        }
-                      }
-                    });
-                    totalIncome += catInc;
-                    return { name: c.name, color: c.color, value: catInc };
-                  }).filter((c: any) => c.value > 0).sort((a: any, b: any) => b.value - a.value);
-
-                  let totalExpense = 0;
-                  const catExpenses = categories.map((c: any) => {
-                    let catExp = 0;
-                    targetEvents.forEach((e: any) => {
-                      const expenseCat = e.extendedProps.metadata?.customFields?.expenseCategory || e.extendedProps.category;
-                      if (expenseCat === c.name && e.extendedProps.metadata?.customFields?.isExpenseSet) catExp += Number(e.extendedProps.metadata.customFields.standardExpenseAmount || 0);
-                      if (e.extendedProps.category === c.name) {
-                        const fields = e.extendedProps.metadata?.customFields;
-                        if (fields && c.fields) {
-                          c.fields.forEach((f: any) => {
-                            if (f.type === 'money' && fields[f.id]?.type === 'expense') catExp += Number(fields[f.id].amount || 0);
-                            if (f.type === 'money_expense') catExp += Number(fields[f.id] || 0);
-                          });
-                        }
-                      }
-                    });
-                    totalExpense += catExp;
-                    return { name: c.name, color: c.color, value: catExp };
-                  }).filter((c: any) => c.value > 0).sort((a: any, b: any) => b.value - a.value);
-
-                  const renderPie = (title: string, data: any[], total: number, isIncome: boolean) => {
-                    if (data.length === 0) return null;
-                    let currentDeg = 0;
-                    const gradientStops = data.map((c: any) => {
-                      const perc = (c.value / total) * 100;
-                      const stop = `${c.color} ${currentDeg}deg, ${c.color} ${currentDeg + perc * 3.6}deg`;
-                      currentDeg += perc * 3.6;
-                      return stop;
-                    }).join(', ');
-                    return (
-                      <div className="card-box" style={{ padding: '20px', marginBottom: '16px' }}>
-                        <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '900' }}>{title} <span style={{fontSize:'1rem', color: isIncome ? '#10b981' : '#ef4444'}}>¥{total.toLocaleString()}</span></h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                          <div style={{ width: '180px', height: '180px', borderRadius: '50%', background: `conic-gradient(${gradientStops})`, boxShadow: '0 10px 30px rgba(0,0,0,0.1)', marginBottom: '24px' }} />
-                          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {data.map((c: any) => (
-                              <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', padding: '10px 12px', borderRadius: '10px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: c.color }} />
-                                  <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>{c.name}</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{Math.round((c.value / total) * 100)}%</span>
-                                  <span style={{ fontWeight: '900', fontSize: '1rem', color: 'var(--text-main)' }}>¥{c.value.toLocaleString()}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  };
-
-                  return (
-                    <>
-                      {totalIncome === 0 && totalExpense === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900' }}>収支データがありません</div>}
-                      {renderPie('収入の割合', catIncomes, totalIncome, true)}
-                      {renderPie('支出の割合', catExpenses, totalExpense, false)}
-                    </>
-                  );
-                }
-
-                return categories.filter((c: any) => c.name === analyticsCat).map((cat: any) => {
-                  if (!cat.fields || cat.fields.length === 0) return null;
-                  const catEvents = targetEvents.filter((e: any) => e.extendedProps.category === cat.name);
-
-                  if (catEvents.length === 0) {
-                    return <div key={cat.name} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900' }}><div>記録データがありません。</div></div>;
-                  }
-
-                  return (
-                    <div key={cat.name} className="card-box" style={{ borderLeft: `6px solid ${cat.color}`, padding: '20px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '900' }}>{cat.name} の記録 <span style={{fontSize:'0.8rem', color:'var(--text-sub)'}}>({analyticsSpan === 'month' ? `${analyticsMonth}月` : `${analyticsYear}年`})</span></h3>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px', background: 'var(--input-bg)', padding: '8px 12px', borderRadius: '12px' }}>
-                        {cat.fields.map((f: any) => (
-                          <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={visibleDashboardFields[f.id] !== false} onChange={e => setVisibleDashboardFields({...visibleDashboardFields, [f.id]: e.target.checked})} style={{ cursor: 'pointer' }} />
-                            {f.name}
-                          </label>
-                        ))}
-                      </div>
-
-                      {analyticsSpan === 'month' ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          {cat.fields.map((f:any) => {
-                            if (visibleDashboardFields[f.id] === false) return null;
-                            let content;
-
-                            if (f.type === 'number') {
-                              const total = catEvents.reduce((sum: number, e: any) => sum + (Number(e.extendedProps.metadata?.customFields?.[f.id]) || 0), 0);
-                              content = <div style={{ fontSize: '1.4rem', color: cat.color, fontWeight: '900' }}>{total.toLocaleString()}<span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginLeft: '4px' }}>{f.unit}</span></div>;
-                            } else if (f.type === 'wage') {
-                              const currentCatEvents = targetEvents.filter((e: any) => e.extendedProps.category === cat.name);
-                              const totalH = currentCatEvents.reduce((sum: number, e: any) => sum + (Number(e.extendedProps.metadata?.customFields?.[f.id]?.hours) || 0), 0);
-                              const totalWage = currentCatEvents.reduce((sum: number, e: any) => {
-                                const d = e.extendedProps.metadata?.customFields?.[f.id];
-                                if (!d) return sum;
-                                if (d.calculatedWage !== undefined) return sum + Number(d.calculatedWage);
-                                const fallbackWage = f.wageRules && f.wageRules.length > 0 ? f.wageRules[0].wage : 0;
-                                return sum + ((Number(d.hours) || 0) * Number(fallbackWage));
-                              }, 0);
-
-                              const currentCatExpense = currentCatEvents.reduce((sum: number, e: any) => {
-                                if (e.extendedProps.metadata?.customFields?.isExpenseSet) {
-                                  return sum + Number(e.extendedProps.metadata.customFields.standardExpenseAmount || 0);
-                                }
-                                return sum;
-                              }, 0);
-
-                              content = (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                    <span style={{ fontSize: '1.5rem', fontWeight: '900', color: cat.color }}>
-                                      ¥{Math.round(totalWage).toLocaleString()}
-                                    </span>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
-                                      ({totalH}時間)
-                                    </span>
-                                  </div>
-                                  {currentCatExpense > 0 && (
-                                    <div style={{ paddingTop: '8px', borderTop: '1px dashed var(--border-color)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                      <span style={{ color: 'var(--text-sub)' }}>シフト時の支出・経費</span>
-                                      <span style={{ color: '#ef4444' }}>-¥{currentCatExpense.toLocaleString()}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            } else if (f.type === 'money') {
-                              let inc = 0, exp = 0;
-                              catEvents.forEach((e: any) => {
-                                const d = e.extendedProps.metadata?.customFields?.[f.id];
-                                if(d) { if(d.type==='income') inc+=Number(d.amount)||0; else exp+=Number(d.amount)||0; }
-                              });
-                              content = <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', fontSize: '1.2rem' }}><span style={{color:'#10b981', fontWeight:'900'}}>+{inc.toLocaleString()}</span> <span style={{color:'#ef4444', fontWeight:'900'}}>-{exp.toLocaleString()}</span></div>;
-                            } else if (f.type === 'score') {
-                              let w = 0, l = 0, d = 0;
-                              catEvents.forEach((e: any) => {
-                                const r = e.extendedProps.metadata?.customFields?.[f.id]?.res;
-                                if(r==='win') w++; else if(r==='lose') l++; else if(r==='draw') d++;
-                              });
-                              const totalGames = w + l + d;
-                              const winRate = totalGames > 0 ? Math.round((w / totalGames) * 100) : 0;
-                              
-                              content = (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                    <div style={{ fontSize: '1.8rem', color: cat.color, fontWeight: '900', letterSpacing: '1px' }}>
-                                      <span style={{ color: '#10b981' }}>{w}勝</span> <span style={{ color: '#ef4444' }}>{l}敗</span> <span style={{ color: '#94a3b8' }}>{d}分</span>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                      <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>勝率</span>
-                                      <span style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>{winRate}%</span>
-                                    </div>
-                                  </div>
-                                  <div style={{ width: '100%', height: '12px', borderRadius: '6px', display: 'flex', overflow: 'hidden', background: 'var(--border-color)' }}>
-                                    {w > 0 && <div style={{ width: `${(w/totalGames)*100}%`, background: '#10b981' }} title="勝ち" />}
-                                    {d > 0 && <div style={{ width: `${(d/totalGames)*100}%`, background: '#94a3b8' }} title="引き分け" />}
-                                    {l > 0 && <div style={{ width: `${(l/totalGames)*100}%`, background: '#ef4444' }} title="負け" />}
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div key={f.id} style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', fontWeight: 'bold', marginBottom: '8px' }}>{f.name}</div>
-                                {content}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        // 年間表示
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          {cat.fields.map((f:any) => {
-                            if (visibleDashboardFields[f.id] === false) return null;
-
-                            if (f.type === 'score') {
-                              let w = 0, l = 0, d = 0;
-                              catEvents.forEach((e: any) => {
-                                const r = e.extendedProps.metadata?.customFields?.[f.id]?.res;
-                                if(r==='win') w++; else if(r==='lose') l++; else if(r==='draw') d++;
-                              });
-                              return (
-                                <div key={f.id} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '12px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid var(--border-color)' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '5px' }}>
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{f.name}</span>
-                                    <span style={{ fontSize: '1.3rem', fontWeight: '900', color: cat.color }}>{w}勝 {l}敗 {d}分</span>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            const monthlyData = Array.from({length: 12}, (_, i: number) => {
-                              const mStr = `${analyticsYear}-${String(i+1).padStart(2,'0')}`;
-                              return catEvents.filter((e: any) => e.start.startsWith(mStr)).reduce((sum: number, e: any) => {
-                                const dat = e.extendedProps.metadata?.customFields?.[f.id];
-                                if(!dat) return sum;
-                                if(f.type === 'number') return sum + Number(dat);
-                                if(f.type === 'wage') return sum + (dat.calculatedWage !== undefined ? Number(dat.calculatedWage) : (Number(dat.hours) * Number(dat.wage || f.wage || 0)));
-                                if(f.type === 'money') return sum + (dat.type==='income' ? Number(dat.amount) : -Number(dat.amount));
-                                return sum;
-                              }, 0);
-                            });
-
-                            const maxVal = Math.max(...monthlyData.map(Math.abs), 1);
-                            const totalYear = monthlyData.reduce((a: number, b: number) => a+b, 0);
-                            const unit = f.type === 'wage' || f.type === 'money' ? '円' : f.unit;
-
-                            return (
-                              <div key={f.id} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '12px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', border: '1px solid var(--border-color)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px' }}>
-                                  <span style={{ fontSize: '0.9rem', fontWeight: '900', color: 'var(--text-sub)' }}>{f.name}</span>
-                                  <span style={{ fontSize: '1.3rem', fontWeight: '900', color: cat.color }}>{totalYear.toLocaleString()}<span style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginLeft: '4px' }}>{unit}/年</span></span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'flex-end', height: '120px', gap: '4px', borderBottom: '2px solid var(--border-color)', paddingBottom: '4px' }}>
-                                  {monthlyData.map((val: number, idx: number) => (
-                                    <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                                      <div style={{ fontSize: '0.55rem', color: 'var(--text-sub)', fontWeight: '900', whiteSpace: 'nowrap', opacity: val !== 0 ? 1 : 0, transition: 'all 0.2s' }}>{val !== 0 ? (val >= 10000 ? Math.floor(val/1000)+'k' : val) : ''}</div>
-                                      <div style={{ width: '100%', height: `${(Math.abs(val)/maxVal)*80}px`, background: val >= 0 ? cat.color : '#ef4444', borderRadius: '6px 6px 0 0', minHeight: val !== 0 ? '6px' : '0', transition: 'height 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)', boxShadow: val !== 0 ? `0 4px 10px ${val >= 0 ? cat.color : '#ef4444'}40` : 'none' }} />
-                                      <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', marginTop: '6px', fontWeight: '900' }}>{idx+1}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🤝 立替・貸し借り管理 モーダル */}
-      {isAdvanceModalOpen && (() => {
-        const unsettledAdvances = events.flatMap(e => {
-          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
-
-        const settledAdvances = events.flatMap(e => {
-          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.isSettled);
-
-        return (
-          <div className="modal-overlay" onClick={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-              
-              <div style={{ flexShrink: 0 }}>
-                <ModalHeader title="立替・貸し借り管理" onClose={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} />
-              </div>
-              
-              {viewingPartner ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                    <button onClick={() => setViewingPartner(null)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>← 戻る</button>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--theme)' }}>{viewingPartner} さんとの履歴</h3>
-                  </div>
-                  {(() => {
-                    const partnerHistory = events.flatMap(e => {
-                      const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-                      return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-                    }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.payee === viewingPartner)
-                      .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
-
-                    const lentTotal = partnerHistory.filter(e => e.type === 'advance' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
-                    const borrowedTotal = partnerHistory.filter(e => e.type === 'borrow' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
-                    const diff = lentTotal - borrowedTotal;
-
-                    return (
-                      <>
-                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                          <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の貸し</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#ef4444' }}>¥{lentTotal.toLocaleString()}</div>
-                          </div>
-                          <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #10b981', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の借り</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#10b981' }}>¥{borrowedTotal.toLocaleString()}</div>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'center', fontSize: '0.9rem', fontWeight: 'bold', margin: '4px 0 8px 0', color: 'var(--text-main)', flexShrink: 0 }}>
-                            {diff > 0 ? `👉 あなたが ¥${diff.toLocaleString()} 受け取ります` : diff < 0 ? `👈 あなたが ¥${Math.abs(diff).toLocaleString()} 支払います` : '🎉 精算完了しています'}
-                        </div>
-                        <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
-                          {partnerHistory.length === 0 ? <div style={{textAlign:'center', fontSize:'0.8rem', color:'var(--text-sub)', marginTop:'20px'}}>履歴がありません</div> : partnerHistory.map((adv: any, i: number) => (
-                              <div key={i} style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, opacity: adv.isSettled ? 0.6 : 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textDecoration: adv.isSettled ? 'line-through' : 'none' }}>
-                                    {adv.type === 'advance' ? '貸した' : '借りた'} <span style={{fontSize:'0.75rem', fontWeight:'normal'}}>({adv.eventTitle})</span>
-                                  </div>
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate}</div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                                  <div style={{ fontSize: '1rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>¥{Number(adv.amount).toLocaleString()}</div>
-                                  {adv.isSettled && <span style={{ fontSize: '0.6rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', fontWeight: 'bold' }}>精算済</span>}
-                                </div>
-                              </div>
-                          ))}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
-                    <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'unsettled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'unsettled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'unsettled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>未精算 ({unsettledAdvances.length})</button>
-                    <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'settled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'settled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'settled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>精算済 ({settledAdvances.length})</button>
-                    <button onClick={() => setAdvanceTab('partners')} className={advanceTab === 'partners' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'partners' ? themeColor : 'var(--input-bg)', color: advanceTab === 'partners' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'partners' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>相手リスト</button>
-                  </div>
-
-                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
-                    {advanceTab === 'unsettled' && (
-                      unsettledAdvances.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold' }}>
-                          <Handshake size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5, color: 'var(--theme)' }} />
-                          <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>現在、未精算の立替記録はありません。</p>
-                          <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>※カレンダーの「予定を追加」画面の<br/>「支出・立替を記録する」から<br/>立て替えた金額を登録するとここに表示されます。</p>
-                        </div>
-                      ) : (
-                        unsettledAdvances.map((adv: any, i: number) => (
-                          <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
-                                  {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
-                                </span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
-                              </div>
-                              <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
-                                ¥{Number(adv.amount).toLocaleString()}
-                              </div>
-                            </div>
-                            <button onClick={async () => {
-                                if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
-                                  const targetEvent = events.find((e: any) => e.id === adv.eventId);
-                                  if (targetEvent) {
-                                    const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
-                                      ex.id === adv.id ? { ...ex, isSettled: true } : ex
-                                    );
-                                    await supabase.from('events').update({
-                                      metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
-                                    }).eq('id', adv.eventId);
-                                    
-                                    const today = toLocalYYYYMMDD(new Date());
-                                    await supabase.from('events').insert([{
-                                      title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
-                                      start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
-                                      metadata: {
-                                        isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
-                                        customFields: {
-                                          isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
-                                          isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
-                                          paymentMethod: 'cash'
-                                        }
-                                      }
-                                    }]);
-                                    alert('精算を完了として記録しました！');
-                                    window.location.reload(); 
-                                  }
-                                }
-                              }}
-                              className="btn-pop" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                            >
-                              <CheckCircle size={16} /> 精算を完了する
-                            </button>
-                          </div>
-                        ))
-                      )
-                    )}
-
-                    {advanceTab === 'settled' && (
-                      settledAdvances.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold', fontSize: '0.85rem' }}>精算済みの記録はありません</div>
-                      ) : (
-                        settledAdvances.map((adv: any, i: number) => (
-                          <div key={i} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-sub)', textDecoration: 'line-through' }}>
-                                {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
-                              </span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
-                            </div>
-                            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>
-                              ¥{Number(adv.amount).toLocaleString()}
-                            </div>
-                          </div>
-                        ))
-                      )
-                    )}
-
-                    {advanceTab === 'partners' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <input type="text" className="pop-input" placeholder="よく立て替える相手の名前を追加" value={newPayeeName} onChange={e => setNewPayeeName(e.target.value)} style={{ flex: 1, fontSize: '0.85rem' }} />
-                          <button onClick={() => {
-                            if (newPayeeName.trim() && !customPayees.includes(newPayeeName.trim())) {
-                              setCustomPayees([...customPayees, newPayeeName.trim()]);
-                              setNewPayeeName('');
-                            }
-                          }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>追加</button>
-                        </div>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px' }}>登録済みの相手リスト</span>
-                          {customPayees.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>登録されている相手はいません</div>
-                          ) : (
-                            customPayees.map((p, i) => (
-                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                                <div style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setViewingPartner(p)}>
-                                  <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{p}</span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--theme)', fontWeight: 'bold', background: 'var(--input-bg)', padding: '4px 8px', borderRadius: '8px' }}>履歴を見る 👉</span>
-                                </div>
-                                <button onClick={() => setCustomPayees(customPayees.filter(name => name !== p))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-      </div>
+    </div>
   );
 }
+      

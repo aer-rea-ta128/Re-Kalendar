@@ -12,68 +12,41 @@ import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
 import { supabase } from '@/lib/supabase';
 
 interface SidebarProps {
-  isSidebarOpen: boolean;
-  setIsSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setOpenSections: React.Dispatch<React.SetStateAction<string[]>>;
-  themeColor: string;
-  searchQuery: string;
-  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-  handleSearchExecute: () => void;
-  setIsSearchMode: React.Dispatch<React.SetStateAction<boolean>>;
+  isSidebarOpen: boolean; setIsSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setOpenSections: React.Dispatch<React.SetStateAction<string[]>>; themeColor: string;
+  searchQuery: string; setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  handleSearchExecute: () => void; setIsSearchMode: React.Dispatch<React.SetStateAction<boolean>>;
   setIsColorPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  isDarkMode: boolean;
-  setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
-  events: any[];
-  categories: any[];
-  targetType: string;
-  setTargetType: React.Dispatch<React.SetStateAction<string>>;
-  targetValue: string;
-  setTargetValue: React.Dispatch<React.SetStateAction<string>>;
-  currentMonthEvents: any[];
-  currentYearEvents: any[];
-  quickTemplates: any[];
-  setQuickTemplates: React.Dispatch<React.SetStateAction<any[]>>;
+  isDarkMode: boolean; setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
+  events: any[]; categories: any[];
+  targetType: string; setTargetType: React.Dispatch<React.SetStateAction<string>>;
+  targetValue: string; setTargetValue: React.Dispatch<React.SetStateAction<string>>;
+  currentMonthEvents: any[]; currentYearEvents: any[];
+  quickTemplates: any[]; setQuickTemplates: React.Dispatch<React.SetStateAction<any[]>>;
   setMode: React.Dispatch<React.SetStateAction<any>>;
-  setStartDate: React.Dispatch<React.SetStateAction<string>>;
-  setEndDate: React.Dispatch<React.SetStateAction<string>>;
-  setStartH: React.Dispatch<React.SetStateAction<string>>;
-  setStartM: React.Dispatch<React.SetStateAction<string>>;
-  setEndH: React.Dispatch<React.SetStateAction<string>>;
-  setEndM: React.Dispatch<React.SetStateAction<string>>;
-  setTitle: React.Dispatch<React.SetStateAction<string>>;
-  setLocation: React.Dispatch<React.SetStateAction<string>>;
-  setMemo: React.Dispatch<React.SetStateAction<string>>;
-  setPhotoUrls: React.Dispatch<React.SetStateAction<string[]>>;
-  setIsStocked: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsTentative: React.Dispatch<React.SetStateAction<boolean>>;
-  setRating: React.Dispatch<React.SetStateAction<number>>;
-  setIsPinned: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setCategoryName: React.Dispatch<React.SetStateAction<string>>;
-  setIsAllDayBackground: React.Dispatch<React.SetStateAction<boolean>>;
-  setEventColor: React.Dispatch<React.SetStateAction<string>>;
-  setIsAnalyticsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsGalleryOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsCategoryModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsRoutineModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setStartDate: React.Dispatch<React.SetStateAction<string>>; setEndDate: React.Dispatch<React.SetStateAction<string>>;
+  setStartH: React.Dispatch<React.SetStateAction<string>>; setStartM: React.Dispatch<React.SetStateAction<string>>;
+  setEndH: React.Dispatch<React.SetStateAction<string>>; setEndM: React.Dispatch<React.SetStateAction<string>>;
+  setTitle: React.Dispatch<React.SetStateAction<string>>; setLocation: React.Dispatch<React.SetStateAction<string>>;
+  setMemo: React.Dispatch<React.SetStateAction<string>>; setPhotoUrls: React.Dispatch<React.SetStateAction<string[]>>;
+  setIsStocked: React.Dispatch<React.SetStateAction<boolean>>; setIsTentative: React.Dispatch<React.SetStateAction<boolean>>;
+  setRating: React.Dispatch<React.SetStateAction<number>>; setIsPinned: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsModalOpen: React.Dispatch<React.SetStateAction<boolean>>; setCategoryName: React.Dispatch<React.SetStateAction<string>>;
+  setIsAllDayBackground: React.Dispatch<React.SetStateAction<boolean>>; setEventColor: React.Dispatch<React.SetStateAction<string>>;
+  setIsAnalyticsModalOpen: React.Dispatch<React.SetStateAction<boolean>>; setIsGalleryOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsCategoryModalOpen: React.Dispatch<React.SetStateAction<boolean>>; setIsRoutineModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAnniversaryModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  syncWithCloud: () => void;
-  handleEventClick: (info: any) => void;
+  syncWithCloud: () => void; handleEventClick: (info: any) => void;
   setCustomFieldsData: React.Dispatch<React.SetStateAction<any>>;
   homeLocation: string; setHomeLocation: React.Dispatch<React.SetStateAction<string>>;
   nearestStation: string; setNearestStation: React.Dispatch<React.SetStateAction<string>>;
   walkTime: string; setWalkTime: React.Dispatch<React.SetStateAction<string>>;
   startPointType: string; setStartPointType: React.Dispatch<React.SetStateAction<string>>;
   displayMode: string; setDisplayMode: React.Dispatch<React.SetStateAction<string>>;
-  viewType: string;
-  calendarCategoryFilter: string; setCalendarCategoryFilter: React.Dispatch<React.SetStateAction<string>>;
-  activeUserId: string | null;
-  activeUserName: string;
-  activeUserAvatar: string;
-  setActiveUserAvatar: React.Dispatch<React.SetStateAction<string>>;
-  setActiveUserName: React.Dispatch<React.SetStateAction<string>>;
-  onLogout: () => void;
-  setIsFinanceGraphOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  viewType: string; calendarCategoryFilter: string; setCalendarCategoryFilter: React.Dispatch<React.SetStateAction<string>>;
+  activeUserId: string | null; activeUserName: string; activeUserAvatar: string;
+  setActiveUserAvatar: React.Dispatch<React.SetStateAction<string>>; setActiveUserName: React.Dispatch<React.SetStateAction<string>>;
+  onLogout: () => void; setIsFinanceGraphOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsScheduleAssistantOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAdvanceModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsTimetableModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -94,19 +67,17 @@ export default function Sidebar({
   setCustomFieldsData, homeLocation, setHomeLocation, nearestStation, setNearestStation,
   walkTime, setWalkTime, startPointType, setStartPointType,
   displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter,
-  activeUserId, activeUserName,activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, 
+  activeUserId, activeUserName, activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, 
   setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen,
   setIsTimetableModalOpen
 }: SidebarProps) {
 
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [editUserName, setEditUserName] = useState('');
+  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [isCategoryHistoryOpen, setIsCategoryHistoryOpen] = useState(false);
   const [historyCategory, setHistoryCategory] = useState('すべて');
   const [historyTimeFilter, setHistoryTimeFilter] = useState<'past' | 'future'>('past'); 
-  const [viewingPartner, setViewingPartner] = useState<string | null>(null); 
-
   const [isTravelMapOpen, setIsTravelMapOpen] = useState(false);
+  
   const [visitedPrefs, setVisitedPrefs] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {};
     const saved = localStorage.getItem('os_visitedPrefs');
@@ -117,7 +88,6 @@ export default function Sidebar({
   const [historySpan, setHistorySpan] = useState<'month' | 'year' | 'all'>('month');
   const [financeTypeFilter, setFinanceTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [isFinanceHistoryOpen, setIsFinanceHistoryOpen] = useState(false);
-  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [mapZoom, setMapZoom] = useState(1);
   const mapContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -126,20 +96,12 @@ export default function Sidebar({
     return localStorage.getItem('os_incomeCalcBasis') as 'wage' | 'payday' || 'wage';
   });
 
-  const DEFAULT_ORDER = ['finance', 'actions', 'reports', 'settings', 'transit'];
-  const [sidebarOrder, setSidebarOrder] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return DEFAULT_ORDER;
-    const saved = localStorage.getItem('os_sidebarOrder');
-    try { return saved ? JSON.parse(saved) : DEFAULT_ORDER; } catch(e) { return DEFAULT_ORDER; }
-  });
-
   const [favoriteItems, setFavoriteItems] = useState<string[]>(() => {
     if (typeof window === 'undefined') return ['create_event', 'finance_single'];
     const saved = localStorage.getItem('os_favoriteItems');
     try { return saved ? JSON.parse(saved) : ['create_event', 'finance_single']; } catch(e) { return ['create_event', 'finance_single']; }
   });
   
-  const dragSection = useRef<number | null>(null);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
@@ -147,9 +109,8 @@ export default function Sidebar({
   useEffect(() => {
     localStorage.setItem('os_visitedPrefs', JSON.stringify(visitedPrefs));
     localStorage.setItem('os_incomeCalcBasis', incomeCalcBasis);
-    localStorage.setItem('os_sidebarOrder', JSON.stringify(sidebarOrder));
     localStorage.setItem('os_favoriteItems', JSON.stringify(favoriteItems));
-  }, [visitedPrefs, incomeCalcBasis, sidebarOrder, favoriteItems]);
+  }, [visitedPrefs, incomeCalcBasis, favoriteItems]);
 
   const MENU_ACTIONS = [
     { id: 'create_event', label: '新しく予定を作成', icon: Edit3, color: themeColor },
@@ -158,6 +119,7 @@ export default function Sidebar({
     { id: 'category_history', label: 'ジャンル別の履歴・振り返り', icon: FolderKanban, color: themeColor },
     { id: 'finance_single', label: '単発の収支を記録', icon: Banknote, color: themeColor },
     { id: 'finance_history', label: '収支履歴を見る', icon: HistoryIcon, color: themeColor },
+    { id: 'finance_graph', label: '収支推移グラフ', icon: PieChart, color: '#10b981' }, 
     { id: 'advance_manage', label: '立替・貸し借り管理', icon: Handshake, color: '#f59e0b' },
     { id: 'finance_bar', label: '収支サマリーバー', icon: Target, color: themeColor },
     { id: 'dashboard', label: 'ダッシュボード', icon: PieChart, color: themeColor },
@@ -169,44 +131,45 @@ export default function Sidebar({
     { id: 'anniversary_settings', label: '記念日管理', icon: Gift, color: 'var(--text-sub)' },
   ];
 
-  const handleMenuAction = (id: string) => {
-    setIsSettingsPanelOpen(false); // 👈 追加：パネルも自動で閉じる
+  const handleMenuAction = (e: any, id: string) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    
+    setIsSettingsPanelOpen(false); 
     setIsSidebarOpen(false);
 
-    if (id === 'dashboard') { setIsModalOpen(false); setIsAnalyticsModalOpen(true); }
-    else if (id === 'category_history') { setIsCategoryHistoryOpen(true); }
-    else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); }
-    else if (id === 'travel_map') { setIsModalOpen(false); setIsTravelMapOpen(true); }
-    else if (id === 'category_settings') { setIsModalOpen(false); setIsCategoryModalOpen(true); }
-    else if (id === 'schedule_assistant') { setIsScheduleAssistantOpen(true); } 
-    else if (id === 'timetable_settings') { setIsTimetableModalOpen(true); }
-    else if (id === 'advance_manage') { setIsAdvanceModalOpen(true); }
-    else if (id === 'routine_settings') { setIsModalOpen(false); setIsRoutineModalOpen(true); }
-    else if (id === 'subscription_settings') { setMode('subscription'); setIsModalOpen(true); }
-    else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); }
-    else if (id === 'finance_history') { setIsFinanceHistoryOpen(true); }
-    else if (id === 'create_event') {
-      const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
-      setMode('create'); setStartDate(today); setEndDate(today);
-      setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-      setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); 
-      setCategoryName(''); setEventColor(''); setIsAllDayBackground(false); setIsTentative(false); setRating(0); setIsPinned(false);
-      setCustomFieldsData({}); setIsModalOpen(true);
-    }
-    else if (id === 'finance_single') {
-      const today = toLocalYYYYMMDD(new Date());
-      setMode('expense'); setStartDate(today); setCategoryName(''); setTitle('');
-      setCustomFieldsData({ transactionMode: 'expense', isExpenseSet: true });
-      setIsModalOpen(true);
-    }
-  };
-
-  const SECTION_INFO: Record<string, { title: string, icon: any }> = {
-    finance: { title: '収支履歴・管理', icon: Banknote },
-    actions: { title: 'アクション・予定追加', icon: Zap },
-    reports: { title: 'レポート・ギャラリー', icon: FolderKanban },
-    settings: { title: '各種設定・マスター管理', icon: Settings2 },
-    transit: { title: '出発地・ルート検索設定', icon: MapPin },
+    // 👇 修正：0.1秒だけ遅らせてページ側にイベントを渡すことで、遅延・無反応バグを完全に回避！
+    setTimeout(() => {
+      if (id === 'dashboard') { setIsModalOpen(false); setIsAnalyticsModalOpen(true); }
+      else if (id === 'category_history') { setIsCategoryHistoryOpen(true); }
+      else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); }
+      else if (id === 'travel_map') { setIsModalOpen(false); setIsTravelMapOpen(true); }
+      else if (id === 'category_settings') { setIsModalOpen(false); setIsCategoryModalOpen(true); }
+      else if (id === 'schedule_assistant') { setIsScheduleAssistantOpen(true); } 
+      else if (id === 'timetable_settings') { setIsTimetableModalOpen(true); }
+      else if (id === 'advance_manage') { setIsAdvanceModalOpen(true); }
+      else if (id === 'routine_settings') { setIsModalOpen(false); setIsRoutineModalOpen(true); }
+      else if (id === 'subscription_settings') { setMode('subscription'); setIsModalOpen(true); }
+      else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); }
+      else if (id === 'finance_history') { setIsFinanceHistoryOpen(true); }
+      else if (id === 'finance_graph') { setIsFinanceGraphOpen(true); } 
+      else if (id === 'create_event') {
+        const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
+        setMode('create'); setStartDate(today); setEndDate(today);
+        setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
+        setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); 
+        setCategoryName(''); setEventColor(''); setIsAllDayBackground(false); setIsTentative(false); setRating(0); setIsPinned(false);
+        setCustomFieldsData({}); setIsModalOpen(true);
+      }
+      else if (id === 'finance_single') {
+        const today = toLocalYYYYMMDD(new Date());
+        setMode('expense'); setStartDate(today); setCategoryName(''); setTitle('');
+        setCustomFieldsData({ transactionMode: 'expense', isExpenseSet: true });
+        setIsModalOpen(true);
+      }
+    }, 100);
   };
 
   const ModalHeader = ({ title, onClose }: any) => (
@@ -281,9 +244,10 @@ export default function Sidebar({
                 {favoriteItems.filter(id => id !== 'finance_bar').map(itemId => {
                   const item = MENU_ACTIONS.find(m => m.id === itemId);
                   if (!item) return null;
+                  const Icon = item.icon;
                   return (
-                    <button key={item.id} onClick={() => handleMenuAction(item.id)} style={{ padding: '12px 8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
-                      <item.icon size={20} color={item.color} />
+                    <button key={item.id} onClick={(e) => handleMenuAction(e, item.id)} style={{ padding: '12px 8px', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', borderRadius: '16px', background: 'var(--card-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'pointer' }}>                      
+                      <Icon size={20} color={item.color} />
                       <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%', textAlign: 'center' }}>{item.label}</span>
                     </button>
                   );
@@ -345,15 +309,15 @@ export default function Sidebar({
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', display: 'block', paddingLeft: '4px' }}>アプリケーション</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <MenuListItem icon={PieChart} label="振り返りダッシュボード" onClick={() => handleMenuAction('dashboard')} />
-              <MenuListItem icon={FolderKanban} label="ジャンル別の履歴" onClick={() => handleMenuAction('category_history')} />
-              <MenuListItem icon={Handshake} label="立替・貸し借り管理" onClick={() => { setIsAdvanceModalOpen(true); setIsSidebarOpen(false); }} />
-              <MenuListItem icon={HistoryIcon} label="すべての収支履歴・推移" onClick={() => { setIsFinanceHistoryOpen(true); setIsSidebarOpen(false); }} />
-              <MenuListItem icon={ImageIcon} label="思い出ギャラリー" onClick={() => handleMenuAction('gallery')} />
-              <MenuListItem icon={Globe} label="トラベル・マップ" onClick={() => handleMenuAction('travel_map')} />
+              <MenuListItem icon={PieChart} label="振り返りダッシュボード" onClick={(e: any) => handleMenuAction(e, 'dashboard')} />
+              <MenuListItem icon={FolderKanban} label="ジャンル別の履歴" onClick={(e: any) => handleMenuAction(e, 'category_history')} />
+              <MenuListItem icon={Handshake} label="立替・貸し借り管理" onClick={(e: any) => handleMenuAction(e, 'advance_manage')} />
+              <MenuListItem icon={HistoryIcon} label="すべての収支履歴・推移" onClick={(e: any) => handleMenuAction(e, 'finance_history')} />
+              <MenuListItem icon={ImageIcon} label="思い出ギャラリー" onClick={(e: any) => handleMenuAction(e, 'gallery')} />
+              <MenuListItem icon={Globe} label="トラベル・マップ" onClick={(e: any) => handleMenuAction(e, 'travel_map')} />
             </div>
           </div>
-        </div>
+        </div> 
 
         {/* ⚙️ ボトムエリア（設定やアカウント） */}
         <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
@@ -403,17 +367,20 @@ export default function Sidebar({
               <div>
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>アプリの全機能・管理</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {MENU_ACTIONS.filter(item => item.id !== 'finance_bar').map(item => (
-                    <button 
-                      key={`settings-${item.id}`} 
-                      onClick={() => handleMenuAction(item.id)} 
-                      className="btn-secondary hover-bg-glass" 
-                      style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem', textAlign: 'left', border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}
-                    >
-                      <item.icon size={18} color={item.color} style={{ flexShrink: 0 }} />
-                      <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{item.label}</span>
-                    </button>
-                  ))}
+                  {MENU_ACTIONS.filter(item => item.id !== 'finance_bar').map(item => {
+                    const Icon = item.icon;
+                    return (
+                      <button 
+                        key={`settings-${item.id}`} 
+                        onClick={(e) => handleMenuAction(e, item.id)} 
+                        className="btn-secondary hover-bg-glass" 
+                        style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem', textAlign: 'left', border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}
+                      >
+                        <Icon size={18} color={item.color} style={{ flexShrink: 0 }} />
+                        <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -449,12 +416,11 @@ export default function Sidebar({
                 </div>
               </div>
 
-              {/* メニューのカスタマイズ */}
+              {/* クイックアクションのカスタマイズ */}
               <div>
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Star size={16} fill="var(--theme)" /> クイックアクションのカスタマイズ
                 </span>
-                {/* 👇 修正：grid を使用し、左右 50%/50% で固定。横スクロールを完全に禁止 */}
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: '1fr 1fr', 
@@ -464,13 +430,14 @@ export default function Sidebar({
                 }}>
                   {MENU_ACTIONS.map(item => {
                     const isFav = favoriteItems.includes(item.id);
+                    const Icon = item.icon;
                     return (
                       <button 
                         key={item.id} 
                         onClick={() => setFavoriteItems(prev => isFav ? prev.filter(i => i !== item.id) : [...prev, item.id])} 
                         style={{ 
                           width: '100%',
-                          minWidth: 0, // 👈 修正：中身が長くてもボタンを突き破らないように設定
+                          minWidth: 0, 
                           padding: '10px 4px', 
                           fontSize: '0.7rem', 
                           background: isFav ? 'var(--theme)' : 'var(--input-bg)', 
@@ -483,14 +450,14 @@ export default function Sidebar({
                           gap: '4px', 
                           transition: 'all 0.2s', 
                           cursor: 'pointer',
-                          overflow: 'hidden' // 👈 修正：はみ出した文字を隠す
+                          overflow: 'hidden' 
                         }}
                       >
-                        <item.icon size={14} color={isFav ? '#fff' : item.color} style={{ flexShrink: 0 }} />
+                        <Icon size={14} color={isFav ? '#fff' : item.color} style={{ flexShrink: 0 }} />
                         <span style={{ 
                           whiteSpace: 'nowrap', 
                           overflow: 'hidden', 
-                          textOverflow: 'ellipsis', // 👈 修正：長い文字は「...」にする
+                          textOverflow: 'ellipsis', 
                           flex: 1,
                           textAlign: 'left'
                         }}>
@@ -502,7 +469,7 @@ export default function Sidebar({
                 </div>
               </div>
 
-              {/* 収支計算の基準設定 */}
+              {/* 収入の計算基準 */}
               <div>
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>収入の計算基準</span>
                 <select className="pop-input" value={incomeCalcBasis} onChange={e => setIncomeCalcBasis(e.target.value as any)} style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
@@ -539,13 +506,11 @@ export default function Sidebar({
                 <ModalHeader title="ジャンル別の履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
               </div>
               
-              {/* 過去/未来タブ */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
                 <button onClick={() => setHistoryTimeFilter('past')} className={historyTimeFilter === 'past' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: historyTimeFilter === 'past' ? themeColor : 'var(--input-bg)', color: historyTimeFilter === 'past' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: historyTimeFilter === 'past' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>過去の履歴</button>
                 <button onClick={() => setHistoryTimeFilter('future')} className={historyTimeFilter === 'future' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: historyTimeFilter === 'future' ? themeColor : 'var(--input-bg)', color: historyTimeFilter === 'future' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: historyTimeFilter === 'future' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>今後の予定</button>
               </div>
 
-              {/* ジャンル選択スライダー */}
               <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', paddingBottom: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}>
                 <button onClick={() => setHistoryCategory('すべて')} style={{ background: historyCategory === 'すべて' ? themeColor : 'var(--input-bg)', color: historyCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>すべて</button>
                 {categories.map((c: any) => (
@@ -553,7 +518,6 @@ export default function Sidebar({
                 ))}
               </div>
               
-              {/* スクロールする履歴リスト */}
               <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
                 {sortedEvents.length === 0 ? <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontSize: '0.85rem', fontWeight: 'bold' }}>予定・履歴がありません</div> : sortedEvents.map((e: any) => {
                   const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
@@ -611,7 +575,6 @@ export default function Sidebar({
 
         const totalVisited = Object.values(visitedPrefs).filter(v => v > 0).length;
 
-        // 👇 追加：ズームを1に戻し、スライド位置を左上(0,0)にリセットする関数
         const handleResetZoom = () => {
           setMapZoom(1);
           setTimeout(() => {
@@ -641,9 +604,7 @@ export default function Sidebar({
                 </div>
               </div>
 
-              {/* ズームイン・アウト ＆ リセットボタン */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '8px', flexShrink: 0 }}>
-                {/* 👇 修正：最小値を「1」に設定し、1以下の時はボタンを薄くして押せなくしました */}
                 <button 
                   onClick={() => setMapZoom(z => Math.max(1, z - 0.2))} 
                   disabled={mapZoom <= 1}
@@ -651,8 +612,8 @@ export default function Sidebar({
                     width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', 
                     background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', 
                     display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
-                    cursor: mapZoom <= 1 ? 'not-allowed' : 'pointer', // 1以下の時は禁止カーソル
-                    opacity: mapZoom <= 1 ? 0.4 : 1                   // 1以下の時は半透明にする
+                    cursor: mapZoom <= 1 ? 'not-allowed' : 'pointer',
+                    opacity: mapZoom <= 1 ? 0.4 : 1
                   }}
                 >
                   -
@@ -661,7 +622,6 @@ export default function Sidebar({
                 <button onClick={() => setMapZoom(z => Math.min(3, z + 0.2))} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>+</button>
               </div>
 
-              {/* マップ本体（枠だけがズームし、文字サイズは固定） */}
               <div className="hide-scrollbar" ref={mapContainerRef} style={{ flex: 1, overflow: 'auto', paddingRight: '4px', background: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '16px', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.02)' }}>
                 
                 <div style={{ 
@@ -685,7 +645,7 @@ export default function Sidebar({
                             background: s.bg,
                             color: s.color,
                             border: s.border,
-                            fontSize: '0.75rem', // 👈 【修正】ズームの計算式を消し、常に一定の大きさに固定しました
+                            fontSize: '0.75rem',
                             fontWeight: '900',
                             cursor: 'pointer',
                             display: 'flex',
@@ -709,11 +669,11 @@ export default function Sidebar({
         );
       })()}
 
+      {/* 💳 すべての収支履歴 モーダル */}
       {isFinanceHistoryOpen && (() => {
         const tMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
         const tYear = String(new Date().getFullYear());
         
-        // 👇 修正：予定に紐づくすべての支出（複数ある場合も）を個別の履歴として取り出す処理
         const allTransactions: any[] = [];
         events.forEach((e: any) => {
           const f = e.extendedProps?.metadata?.customFields || {};
@@ -721,7 +681,6 @@ export default function Sidebar({
           const dateStr = e.start.split('T')[0].replace(/-/g, '/');
 
           if (f.expenses && f.expenses.length > 0) {
-            // カレンダーの予定に紐づいた複数の支出・立替を1つずつ抽出
             f.expenses.forEach((ex: any) => {
               if (!ex.amount) return;
               const isInc = ex.type === 'income' || ex.type === 'borrow';
@@ -740,7 +699,6 @@ export default function Sidebar({
               });
             });
           } else if (f.isExpenseSet || f.isIncomeSet || cat === '収支記録') {
-            // 旧バージョンのデータや、単発の収支記録用のフォールバック
             const isInc = f.isIncomeSet;
             const amt = isInc ? f.standardIncomeAmount : f.standardExpenseAmount;
             if (amt) {
@@ -760,7 +718,6 @@ export default function Sidebar({
           }
         });
 
-        // 抽出した履歴を日付でソートし、月・年で絞り込み
         const ledgerHistory = allTransactions
           .filter(t => {
             if (historySpan === 'month') return t.dateStr.startsWith(tMonth.replace(/-/g, '/'));
@@ -769,7 +726,6 @@ export default function Sidebar({
           })
           .sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
 
-        // 収入・支出のタブ切り替え
         const filteredHistory = ledgerHistory.filter(t => {
           if (financeTypeFilter === 'income') return t.isIncome;
           if (financeTypeFilter === 'expense') return !t.isIncome;
@@ -790,7 +746,6 @@ export default function Sidebar({
                   <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-sub)', padding: '24px' }}>記録がありません</div>
                 ) : (
                   filteredHistory.map((t: any) => {
-                    // 👇 修正：上で抽出した t のデータを使って描画する
                     let MethodIcon = Banknote;
                     let methodText = '現金';
                     if (!t.isIncome) {
@@ -828,6 +783,7 @@ export default function Sidebar({
         );
       })()}
 
+      {/* ⚠️ フィードバック モーダル */}
       {isFeedbackModalOpen && (
         <div className="modal-overlay" onClick={() => setIsFeedbackModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '24px' }}>
           <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '92%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
