@@ -6,7 +6,7 @@ import {
   PieChart, Image as ImageIcon, Palette, Repeat, Gift, Database, Banknote, MapPin, Home, Train, Footprints,
   ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical,
   LogOut, User, TrendingUp, Users, Send, MessageSquare, Handshake, CheckCircle, Trash2,
-  CreditCard, Smartphone, Landmark // 👈 スマートアイコンを完全対応させるために追加
+  CreditCard, Smartphone, Landmark, Calendar as CalendarIcon
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -76,6 +76,7 @@ interface SidebarProps {
   setIsFinanceGraphOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsScheduleAssistantOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAdvanceModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsTimetableModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function Sidebar({
@@ -94,7 +95,8 @@ export default function Sidebar({
   walkTime, setWalkTime, startPointType, setStartPointType,
   displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter,
   activeUserId, activeUserName,activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, 
-  setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen
+  setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen,
+  setIsTimetableModalOpen
 }: SidebarProps) {
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -152,9 +154,11 @@ export default function Sidebar({
   const MENU_ACTIONS = [
     { id: 'create_event', label: '新しく予定を作成', icon: Edit3, color: themeColor },
     { id: 'schedule_assistant', label: '日程調整アシスタント', icon: Users, color: '#f59e0b' }, 
+    { id: 'timetable_settings', label: '時間割・週間ルーティン', icon: CalendarIcon, color: '#3b82f6' },
     { id: 'category_history', label: 'ジャンル別の履歴・振り返り', icon: FolderKanban, color: themeColor },
     { id: 'finance_single', label: '単発の収支を記録', icon: Banknote, color: themeColor },
     { id: 'finance_history', label: '収支履歴を見る', icon: HistoryIcon, color: themeColor },
+    { id: 'advance_manage', label: '立替・貸し借り管理', icon: Handshake, color: '#f59e0b' },
     { id: 'finance_bar', label: '収支サマリーバー', icon: Target, color: themeColor },
     { id: 'dashboard', label: 'ダッシュボード', icon: PieChart, color: themeColor },
     { id: 'gallery', label: '思い出ギャラリー', icon: ImageIcon, color: '#9B59B6' },
@@ -166,30 +170,34 @@ export default function Sidebar({
   ];
 
   const handleMenuAction = (id: string) => {
-    if (id === 'dashboard') { setIsModalOpen(false); setIsAnalyticsModalOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'category_history') { setIsCategoryHistoryOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'travel_map') { setIsModalOpen(false); setIsTravelMapOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'category_settings') { setIsModalOpen(false); setIsCategoryModalOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'schedule_assistant') { setIsScheduleAssistantOpen(true); setIsSidebarOpen(false); } 
-    else if (id === 'routine_settings') { setIsModalOpen(false); setIsRoutineModalOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'subscription_settings') { setMode('subscription'); setIsModalOpen(true); setIsSidebarOpen(false); }
-    else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); setIsSidebarOpen(false); }
+    setIsSettingsPanelOpen(false); // 👈 追加：パネルも自動で閉じる
+    setIsSidebarOpen(false);
+
+    if (id === 'dashboard') { setIsModalOpen(false); setIsAnalyticsModalOpen(true); }
+    else if (id === 'category_history') { setIsCategoryHistoryOpen(true); }
+    else if (id === 'gallery') { setIsModalOpen(false); setIsGalleryOpen(true); }
+    else if (id === 'travel_map') { setIsModalOpen(false); setIsTravelMapOpen(true); }
+    else if (id === 'category_settings') { setIsModalOpen(false); setIsCategoryModalOpen(true); }
+    else if (id === 'schedule_assistant') { setIsScheduleAssistantOpen(true); } 
+    else if (id === 'timetable_settings') { setIsTimetableModalOpen(true); }
+    else if (id === 'advance_manage') { setIsAdvanceModalOpen(true); }
+    else if (id === 'routine_settings') { setIsModalOpen(false); setIsRoutineModalOpen(true); }
+    else if (id === 'subscription_settings') { setMode('subscription'); setIsModalOpen(true); }
+    else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); }
     else if (id === 'finance_history') { setIsFinanceHistoryOpen(true); }
     else if (id === 'create_event') {
       const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
       setMode('create'); setStartDate(today); setEndDate(today);
       setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-      // 👇 修正：ジャンル・色・写真・ピン留めなどを確実に完全リセットする
       setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); 
       setCategoryName(''); setEventColor(''); setIsAllDayBackground(false); setIsTentative(false); setRating(0); setIsPinned(false);
-      setCustomFieldsData({}); setIsModalOpen(true); setIsSidebarOpen(false);
+      setCustomFieldsData({}); setIsModalOpen(true);
     }
     else if (id === 'finance_single') {
       const today = toLocalYYYYMMDD(new Date());
       setMode('expense'); setStartDate(today); setCategoryName(''); setTitle('');
       setCustomFieldsData({ transactionMode: 'expense', isExpenseSet: true });
-      setIsModalOpen(true); setIsSidebarOpen(false);
+      setIsModalOpen(true);
     }
   };
 
@@ -391,22 +399,21 @@ export default function Sidebar({
             
             <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px', paddingRight: '4px' }}>
               
-              {/* マスターデータ管理 */}
+              {/* アプリの全機能と管理 */}
               <div>
-                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>マスターデータの管理</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>アプリの全機能・管理</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <button onClick={() => { setIsCategoryModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
-                    <Palette size={18} color="var(--theme)" /> ジャンル・記録項目の設定
-                  </button>
-                  <button onClick={() => { setIsRoutineModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
-                    <Repeat size={18} color="var(--theme)" /> 毎月の予定 (給料・引き落とし等)
-                  </button>
-                  <button onClick={() => { setMode('subscription'); setIsModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
-                    <Banknote size={18} color="var(--theme)" /> サブスク管理 (毎月/毎年)
-                  </button>
-                  <button onClick={() => { setIsAnniversaryModalOpen(true); setIsSettingsPanelOpen(false); }} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem' }}>
-                    <Gift size={18} color="var(--theme)" /> 記念日管理
-                  </button>
+                  {MENU_ACTIONS.filter(item => item.id !== 'finance_bar').map(item => (
+                    <button 
+                      key={`settings-${item.id}`} 
+                      onClick={() => handleMenuAction(item.id)} 
+                      className="btn-secondary hover-bg-glass" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem', textAlign: 'left', border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}
+                    >
+                      <item.icon size={18} color={item.color} style={{ flexShrink: 0 }} />
+                      <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{item.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

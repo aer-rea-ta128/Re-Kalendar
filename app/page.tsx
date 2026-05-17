@@ -7,11 +7,11 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
 import { supabase } from '@/lib/supabase';
 import {
-  Train, Footprints, MapPin, Clock, Star, Inbox, Settings, Trash2, TrendingUp, TrendingDown, Target,
+  Train, Footprints, MapPin, Clock, Star, Inbox, Settings, Settings2, Trash2, TrendingUp, TrendingDown, Target,
   History, PieChart, Image as ImageIcon, Repeat, Pin, Database, Palette, Gift, Calendar as CalendarIcon, Zap,
   Home, Edit3, Flag, Monitor, Dumbbell, Beer, Circle, Search, Calendar, Plane, Bus, FileText, Sun, Moon, CreditCard, 
   Check, CheckCircle, Banknote, BookOpen, Users, Download, Share2, Sparkles, Unlock, Lock, Globe, Store,
-  Smartphone, Landmark, ChevronUp, ChevronDown, Handshake
+  Smartphone, Landmark, ChevronUp, ChevronDown, Handshake, 
 } from 'lucide-react';
 
 // ★ 分割したファイルを読み込む（パスは画像の設定に合わせています）
@@ -41,6 +41,7 @@ export default function SmartLifeOS() {
   const touchEndX = useRef<number | null>(null);
 
   const isSwipingRef = useRef(false);
+  const blockCalendarClick = useRef(false); // 👈 追加：誤作動を防ぐバリア
 
   // 👇==== ここから追加 ====👇
   const touchStartY = useRef<number | null>(null);
@@ -134,6 +135,15 @@ export default function SmartLifeOS() {
   const [isFinanceGraphOpen, setIsFinanceGraphOpen] = useState(false);
   const [isScheduleAssistantOpen, setIsScheduleAssistantOpen] = useState(false);
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
+  const [weeklyTimetables, setWeeklyTimetables] = useState<any[]>(() => loadData('os_timetables', []));
+  const [timetableTab, setTimetableTab] = useState<number>(1); // 1:月曜スタート
+
+  // 👇 ここから追加：時間割の期間と例外日
+  const [termStart, setTermStart] = useState<string>(() => loadData('os_termStart', ''));
+  const [termEnd, setTermEnd] = useState<string>(() => loadData('os_termEnd', ''));
+  const [exceptionDays, setExceptionDays] = useState<Record<string, 'class' | 'off'>>(() => loadData('os_exceptionDays', {}));
+  // 👆 ここまで
 
   const [advanceTab, setAdvanceTab] = useState<'unsettled' | 'settled' | 'partners'>('unsettled');
   const [viewingPartner, setViewingPartner] = useState<string | null>(null); 
@@ -330,6 +340,7 @@ export default function SmartLifeOS() {
   const [memo, setMemo] = useState('');
   const [rating, setRating] = useState(0);
   const [isPinned, setIsPinned] = useState(false);
+  const [isRecordDetailsOpen, setIsRecordDetailsOpen] = useState(false);
 
   const [customFieldsData, setCustomFieldsData] = useState<Record<string, any>>({});
   const [repeatUntil, setRepeatUntil] = useState('');
@@ -392,8 +403,11 @@ export default function SmartLifeOS() {
     localStorage.setItem('os_walkTime', JSON.stringify(walkTime));
     localStorage.setItem('os_startPointType', JSON.stringify(startPointType));
     localStorage.setItem('os_customPayees', JSON.stringify(customPayees));
-  // 👇 修正：subs と customPayees を監視対象に追加し、データ消失を防ぐ！
-  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees]);
+    localStorage.setItem('os_timetables', JSON.stringify(weeklyTimetables));
+    localStorage.setItem('os_termStart', termStart);
+    localStorage.setItem('os_termEnd', termEnd);
+    localStorage.setItem('os_exceptionDays', JSON.stringify(exceptionDays));
+  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees, weeklyTimetables, termStart, termEnd, exceptionDays]);
 
   const activePresets: string[] = [...INITIAL_PRESETS, ...userColors];
 
@@ -832,11 +846,11 @@ export default function SmartLifeOS() {
   };
 
   const handleSelect = (info: any) => {
-    if (isDeleteMode) return;
-    
-    // 👇 修正：選択された期間が2日以上の場合は、スワイプ判定を無視して予定作成画面を開く！
-    const diffDays = Math.round((new Date(info.end).getTime() - new Date(info.start).getTime()) / (1000 * 60 * 60 * 24));
-    if (isSwipingRef.current && diffDays <= 1) return;
+    if (isDeleteMode || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) return;    
+    // 👇 追加：カレンダーのマスを選択した瞬間、スワイプ判定を強制的にキャンセル（リセット）する！
+    touchStartX.current = null;
+    touchEndX.current = null;
+    isSwipingRef.current = false;
 
     // コピーしている予定があれば、それをペーストして開く
     if (clipboardEvent) {
@@ -873,6 +887,7 @@ export default function SmartLifeOS() {
     // 👇 修正：ジャンル・色・写真・メモなども確実にリセットする
     setTitle(''); setLocation(''); setIsGathering(false); setGatheringTime(''); setDepartureTime(''); setDepartureType(startPointType === 'station' ? 'train' : 'home'); setSelectedDays([]);
     setCategoryName(''); setEventColor(''); setMemo(''); setPhotoUrls([]); setRating(0); setIsPinned(false); setIsTentative(false);
+    setIsRecordDetailsOpen(false);
     
     // 👇 修正：カレンダーのマスをタップして追加する際も、すべての設定とバーの開閉を確実にリセットする
     setCustomFieldsData({});
@@ -886,7 +901,9 @@ export default function SmartLifeOS() {
     }
     setIsStocked(false);
 
-    // 👇 修正：上のほうですでに計算しているので、ここの「const diffDays = ...」の行をまるごと消します
+    // 👇 修正：ここで diffDays を計算します
+    const diffDays = Math.round((new Date(info.end).getTime() - new Date(info.start).getTime()) / (1000 * 60 * 60 * 24));
+    
     if (viewType === 'dayGridMonth' && diffDays > 1) {
       setIsAllDayBackground(true);
     } else {
@@ -897,7 +914,8 @@ export default function SmartLifeOS() {
   };
 
   const handleEventClick = (info: any) => {
-    if (isSwipingRef.current) return;
+    // 👇 修正：ここも丸ごと上書きしてブロック！
+    if (isSwipingRef.current || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) return;
     const { event } = info;
 
     if (String(event.id).startsWith('sub-')) {
@@ -935,6 +953,22 @@ export default function SmartLifeOS() {
       }
       return;
     }
+    if (event.extendedProps.isTimetableSummary) {
+      // 月カレンダーで「大学(3コマ)」をタップしたら、その日の日カレンダーにジャンプ
+      calendarRef.current?.getApi().changeView('timeGridDay', event.start);
+      return;
+    }
+
+    if (event.extendedProps.isTimetable) {
+      // 授業をタップした時
+      setMode('detail'); 
+      const props = event.extendedProps;
+      setSelectedId(event.id); setTitle(event.title); setLocation(props.metadata?.location || ''); setCategoryName(props.category);
+      setEventColor(props.cColor);
+      setCustomFieldsData({ isTimetableEvent: true, lessonType: props.metadata?.lessonType }); // 編集不可にするための目印
+      setIsModalOpen(true);
+      return;
+    }
 
     if (event.extendedProps.isRoutine) {
       setMode('routine_detail');
@@ -956,6 +990,8 @@ export default function SmartLifeOS() {
     setIsStocked(props.metadata?.isStocked || false);
     setIsTentative(props.metadata?.isTentative || false);
     setExpandedBlocks([]); // 👈 支出、集合出発、交通機関のすべてのメニューを閉じた状態で開く
+
+    setIsRecordDetailsOpen(Boolean(props.metadata?.memo || props.metadata?.photoUrls?.length > 0));
 
     const startDateStr = props.metadata?.startDateStr || (props.start_at ? props.start_at.split('T')[0] : toLocalYYYYMMDD(event.start));
     const endDateStr = props.metadata?.endDateStr || (props.end_at ? props.end_at.split('T')[0] : toLocalYYYYMMDD(event.end || event.start));
@@ -1929,9 +1965,100 @@ export default function SmartLifeOS() {
     });
     return evts;
   });
+
+  // 👇==== ここから追加：時間割の自動展開ロジック ====👇
+  const timetableEvents = (() => {
+    const evts: any[] = [];
+    if (weeklyTimetables.length === 0) return evts;
+    
+    // 前後1ヶ月分を展開
+    const baseDate = new Date(`${currentYear}-${String(currentMonthNum).padStart(2,'0')}-01`);
+    baseDate.setDate(baseDate.getDate() - 15);
+    const endLimit = new Date(baseDate);
+    endLimit.setDate(endLimit.getDate() + 60);
+
+    const dailySummaryMap = new Map();
+
+    for (let d = new Date(baseDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
+      const dateStr = toLocalYYYYMMDD(d);
+      
+      // 🌟 新機能1：学期期間外（春休み・夏休みなど）なら非表示にする
+      if (termStart && dateStr < termStart) continue;
+      if (termEnd && dateStr > termEnd) continue;
+
+      // 🌟 新機能2：例外日（休講）なら非表示にする
+      const exception = exceptionDays[dateStr];
+      if (exception === 'off') continue; 
+
+      // 🌟 新機能3：祝日の場合は、例外として「授業あり(class)」に設定されていなければ非表示
+      if (holidays[dateStr] && exception !== 'class') continue;
+
+      const dayOfWeek = d.getDay();
+      const dayRoutines = weeklyTimetables.filter(t => t.dayOfWeek === dayOfWeek);
+      if (dayRoutines.length === 0) continue;
+
+      if (viewType === 'dayGridMonth') {
+        // 月表示：カテゴリごとにまとめる
+        dayRoutines.forEach(r => {
+          const key = `${dateStr}-${r.categoryName}`;
+          if (!dailySummaryMap.has(key)) {
+            dailySummaryMap.set(key, { categoryName: r.categoryName, color: r.color, count: 1 });
+          } else {
+            dailySummaryMap.get(key).count++;
+          }
+        });
+      } else {
+        // 週・日表示：個別の授業として展開
+        dayRoutines.forEach((r, idx) => {
+          const startIso = new Date(`${dateStr}T${r.startH}:${r.startM}:00`).toISOString();
+          const endIso = new Date(`${dateStr}T${r.endH}:${r.endM}:00`).toISOString();
+          evts.push({
+            id: `timetable-${dateStr}-${r.id}-${idx}`,
+            title: r.title,
+            start: startIso,
+            end: endIso,
+            allDay: false,
+            backgroundColor: 'transparent',
+            borderColor: r.color,
+            extendedProps: {
+              isTimetable: true,
+              cColor: r.color,
+              category: r.categoryName,
+              metadata: { location: r.location, lessonType: r.lessonType }
+            }
+          });
+        });
+      }
+    }
+
+    if (viewType === 'dayGridMonth') {
+      dailySummaryMap.forEach((val, key) => {
+        const [dateStr, cat] = key.split('-');
+        evts.push({
+          id: `timetable-summary-${key}`,
+          title: `${cat} (${val.count}コマ)`,
+          start: dateStr,
+          allDay: true,
+          backgroundColor: val.color,
+          borderColor: val.color,
+          textColor: '#fff',
+          extendedProps: {
+            isTimetableSummary: true,
+            cColor: val.color,
+            category: cat,
+            metadata: { isAllDayBackground: true } // 月カレンダーでは帯として表示
+          }
+        });
+      });
+    }
+    return evts;
+  })();
+  // 👆==== ここまで ====👆
+
+  // 👇修正：timetableEvents を結合配列に追加する
+  const displayEvents = [...events, ...anniversaryEvents, ...routineEvents, ...subEvents, ...timetableEvents].flatMap((e: any) => {
     
     // 👇 修正：...subEvents を追加し、月カレンダーでのブロック表示を制御する
-    const displayEvents = [...events, ...anniversaryEvents, ...routineEvents, ...subEvents].flatMap((e: any) => {
       const metadata = e.extendedProps?.metadata || {};
       const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
       const results = [];
@@ -2518,7 +2645,10 @@ useEffect(() => {
                     const [y, m] = e.target.value.split('-');
                     handleYearMonthChange(y, m);
                   }
+                  e.target.blur(); // 👈 確実に入力を閉じる
                 }} 
+                onFocus={() => { blockCalendarClick.current = true; }} // バリア展開
+                onBlur={() => { setTimeout(() => { blockCalendarClick.current = false; }, 300); }} // 0.3秒後にバリア解除
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} 
               />
 
@@ -2816,7 +2946,7 @@ useEffect(() => {
                           </button>
                           
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '60px', position: 'relative', cursor: 'pointer' }} title="タップして日付をジャンプ">
-                            <input type="date" value={`${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(currentDayNum).padStart(2, '0')}`} onChange={(e) => { if (e.target.value) calendarRef.current?.getApi().gotoDate(e.target.value); }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
+                            <input type="date" value={`${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(currentDayNum).padStart(2, '0')}`} onChange={(e) => { if (e.target.value) calendarRef.current?.getApi().gotoDate(e.target.value); e.target.blur(); }} onFocus={() => { blockCalendarClick.current = true; }} onBlur={() => { setTimeout(() => { blockCalendarClick.current = false; }, 300); }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
                             <div style={{ fontSize: '3.2rem', fontWeight: '900', color: centerColor || 'var(--text-main)', lineHeight: 1, margin: '0', textShadow: '0 2px 4px rgba(0,0,0,0.05)', transition: 'color 0.3s' }}>{currentDayNum}</div>
                             <div style={{ fontSize: '1.1rem', color: dayColor, fontWeight: '900', marginTop: '2px' }}>{DAY_NAMES[dayOfWeek]}</div>
                           </div>
@@ -2978,10 +3108,10 @@ useEffect(() => {
               
               // 👇 追加：タップした瞬間に確実に新規予定画面を開く！
               dateClick={(info: any) => {
-                if (isSwipingRef.current) return;
+                // 👇 修正：ここも丸ごと上書きしてブロック！
+                if (isSwipingRef.current || isDeleteMode || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) return;
                 handleSelect({ start: info.date, end: new Date(info.date.getTime() + 86400000), allDay: info.allDay });
               }}
-              // 👇 追加：予定をドラッグ＆ドロップで移動・時間変更できるようにする
               // 月毎カレンダーではドラッグ移動を無効化する
               editable={viewType !== 'dayGridMonth'}
               eventStartEditable={viewType !== 'dayGridMonth'}
@@ -3065,18 +3195,15 @@ useEffect(() => {
               dayCellContent={(arg: any) => {
                 if (arg.view.type === 'dayGridMonth') {
                   const dStr = toLocalYYYYMMDD(arg.date);
-                  // 👇 その日にサブスクやルーティンがあるかチェック
                   const paymentEvent = [...routineEvents, ...subEvents].find((e: any) => e.start?.startsWith(dStr));
 
                   return (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span>{arg.date.getDate()}</span>
-                        {/* 👇 サブスク等がある日だけ、日付の右上に小さな点を表示（場所を取らない） */}
-                        {paymentEvent && (
-                          <div style={{ position: 'absolute', top: '2px', right: '-8px', width: '5px', height: '5px', borderRadius: '50%', background: paymentEvent.backgroundColor || 'var(--text-sub)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }} />
-                        )}
-                      </div>
+                    <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: '100%', height: '100%' }}>
+                      <span>{arg.date.getDate()}</span>
+                      {/* 👇 マスの底辺に、幅80%・高さ3pxの線を配置する */}
+                      {paymentEvent && (
+                        <div style={{ position: 'absolute', bottom: '1px', left: '10%', width: '80%', height: '3px', borderRadius: '3px', background: paymentEvent.backgroundColor || 'var(--theme)', opacity: 0.6 }} />
+                      )}
                     </div>
                   );
                 }
@@ -3202,7 +3329,154 @@ useEffect(() => {
           setIsFinanceGraphOpen={setIsFinanceGraphOpen} // 👈 追加
           setIsScheduleAssistantOpen={setIsScheduleAssistantOpen}
           setIsAdvanceModalOpen={setIsAdvanceModalOpen}
+          setIsTimetableModalOpen={setIsTimetableModalOpen} // 👈 忘れずにこれを追加
         />
+
+        {/* 🏫 時間割・週間ルーティン設定 モーダル（ここに配置するのが正解です！） */}
+        {isTimetableModalOpen && (() => {
+          const WEEK_DAYS = ['日', '月', '火', '水', '木', '金', '土'];
+          const currentDayRoutines = weeklyTimetables.filter((t: any) => t.dayOfWeek === timetableTab).sort((a: any, b: any) => (parseInt(a.startH)*60+parseInt(a.startM)) - (parseInt(b.startH)*60+parseInt(b.startM)));
+          
+          return (
+            <div className="modal-overlay" onClick={() => setIsTimetableModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+              <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '80vh', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flexShrink: 0 }}>
+                  <ModalHeader title="時間割・週間ルーティン" onClose={() => setIsTimetableModalOpen(false)} />
+                </div>
+
+                <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexShrink: 0, overflowX: 'auto', paddingBottom: '4px' }}>
+                  {[1, 2, 3, 4, 5, 6, 0].map(dayIdx => (
+                    <button key={dayIdx} onClick={() => setTimetableTab(dayIdx)} className={timetableTab === dayIdx ? 'btn-pop' : 'btn-secondary'} style={{ flexShrink: 0, padding: '8px 16px', fontSize: '0.8rem', borderRadius: '10px', background: timetableTab === dayIdx ? themeColor : 'var(--input-bg)', color: timetableTab === dayIdx ? '#fff' : 'var(--text-sub)', border: 'none', fontWeight: 'bold' }}>
+                      {WEEK_DAYS[dayIdx]}
+                    </button>
+                  ))}
+                  <button onClick={() => setTimetableTab(-1)} className={timetableTab === -1 ? 'btn-pop' : 'btn-secondary'} style={{ flexShrink: 0, padding: '8px 16px', fontSize: '0.8rem', borderRadius: '10px', background: timetableTab === -1 ? themeColor : 'var(--input-bg)', color: timetableTab === -1 ? '#fff' : 'var(--text-sub)', border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Settings2 size={14}/> 期間・例外設定
+                  </button>
+                </div>
+
+                {timetableTab === -1 ? (
+                  /* ⚙️ 期間・例外設定タブ */
+                  <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '4px' }}>
+                    
+                    <div className="card-box" style={{ margin: 0, padding: '16px' }}>
+                      <label className="form-label" style={{ color: themeColor, fontSize: '0.9rem' }}>学期・授業期間の設定</label>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginBottom: '12px' }}>指定した期間以外はカレンダーに時間割が表示されなくなります。</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>開始日</span>
+                          <input type="date" className="pop-input" value={termStart} onChange={e => setTermStart(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem' }} />
+                        </div>
+                        <span style={{ fontWeight: 'bold', color: 'var(--text-sub)', marginTop: '20px' }}>〜</span>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>終了日</span>
+                          <input type="date" className="pop-input" value={termEnd} onChange={e => setTermEnd(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                         <button onClick={() => { setTermStart(''); setTermEnd(''); }} className="btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.75rem', borderRadius: '10px' }}>期間をクリア</button>
+                      </div>
+                    </div>
+
+                    <div className="card-box" style={{ margin: 0, padding: '16px' }}>
+                      <label className="form-label" style={{ color: themeColor, fontSize: '0.9rem' }}>休講・祝日授業の設定</label>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginBottom: '12px' }}>祝日は自動的に休みになります。特別な日を設定してください。</p>
+                      
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center' }}>
+                        <input type="date" id="ex-date" className="pop-input" style={{ flex: 1.5, padding: '0 8px', fontSize: '0.8rem' }} />
+                        <select id="ex-type" className="pop-input" style={{ flex: 1, padding: '0 8px', fontSize: '0.8rem' }}>
+                          <option value="off">休講</option>
+                          <option value="class">祝日授業日</option>
+                        </select>
+                        <button onClick={() => {
+                          const date = (document.getElementById('ex-date') as HTMLInputElement).value;
+                          const type = (document.getElementById('ex-type') as HTMLSelectElement).value as 'class' | 'off';
+                          if (date) setExceptionDays({ ...exceptionDays, [date]: type });
+                        }} className="btn-pop" style={{ padding: '0 16px', fontSize: '0.8rem', borderRadius: '12px', height: '46px' }}>追加</button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {Object.entries(exceptionDays).sort().map(([date, type]) => (
+                          <div key={date} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{date.replace(/-/g, '/')}</span>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', padding: '4px 8px', borderRadius: '6px', background: type === 'class' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: type === 'class' ? '#10b981' : '#ef4444' }}>
+                                {type === 'class' ? '祝日だけど授業あり' : '休講'}
+                              </span>
+                            </div>
+                            <button onClick={() => {
+                              const newEx = { ...exceptionDays };
+                              delete newEx[date];
+                              setExceptionDays(newEx);
+                            }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                          </div>
+                        ))}
+                        {Object.keys(exceptionDays).length === 0 && <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-sub)', padding: '10px' }}>設定されていません</div>}
+                      </div>
+                    </div>
+
+                  </div>
+                ) : (
+                  /* 📅 通常の曜日タブ */
+                  <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px' }}>
+                    {currentDayRoutines.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem' }}>この曜日の授業・ルーティンはありません</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {currentDayRoutines.map((r: any, i: number) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', borderLeft: `6px solid ${r.color}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
+                            <div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{r.startH}:{r.startM} 〜 {r.endH}:{r.endM}</div>
+                              <div style={{ fontSize: '1rem', fontWeight: '900', color: 'var(--text-main)' }}>{r.title} <span style={{ fontSize: '0.65rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', marginLeft: '4px' }}>{r.lessonType}</span></div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '2px' }}>{r.categoryName} {r.location && `📍 ${r.location}`}</div>
+                            </div>
+                            <button onClick={() => setWeeklyTimetables(weeklyTimetables.filter((item: any) => item.id !== r.id))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}><Trash2 size={16} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px dashed var(--theme)' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>新しいコマを追加</span>
+                      <input type="text" className="pop-input" placeholder="授業名・ルーティン名" id="tt-title" style={{ marginBottom: '8px', fontSize: '0.85rem' }} />
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        <select className="pop-input" id="tt-category" style={{ flex: 1, padding: '0 8px', fontSize: '0.8rem' }}>
+                          <option value="大学">大学</option>
+                          {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                        </select>
+                        <select className="pop-input" id="tt-type" style={{ width: '100px', padding: '0 8px', fontSize: '0.8rem' }}>
+                          <option value="対面">対面</option>
+                          <option value="ｵﾝライン">ｵﾝライン</option>
+                          <option value="ｵﾝﾃﾞﾏﾝﾄﾞ">ｵﾝﾃﾞﾏﾝﾄﾞ</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                        {/* 👇 ここで step="300" を追加して5分単位にしました！ */}
+                        <input type="time" className="pop-input" id="tt-start" defaultValue="09:00" step="300" style={{ flex: 1, padding: '0 8px' }} />
+                        <span style={{ fontWeight: 'bold', color: 'var(--text-sub)' }}>〜</span>
+                        <input type="time" className="pop-input" id="tt-end" defaultValue="10:30" step="300" style={{ flex: 1, padding: '0 8px' }} />
+                      </div>
+                      <input type="text" className="pop-input" placeholder="教室・場所 (任意)" id="tt-loc" style={{ marginBottom: '12px', fontSize: '0.85rem' }} />
+                      <button onClick={() => {
+                        const title = (document.getElementById('tt-title') as HTMLInputElement).value;
+                        const cat = (document.getElementById('tt-category') as HTMLSelectElement).value;
+                        const type = (document.getElementById('tt-type') as HTMLSelectElement).value;
+                        const start = (document.getElementById('tt-start') as HTMLInputElement).value;
+                        const end = (document.getElementById('tt-end') as HTMLInputElement).value;
+                        const loc = (document.getElementById('tt-loc') as HTMLInputElement).value;
+                        if (!title || !start || !end) return alert('タイトルと時間を入力してください');
+                        const catObj = categories.find((c: any) => c.name === cat);
+                        const color = catObj ? catObj.color : '#3b82f6';
+                        setWeeklyTimetables([...weeklyTimetables, { id: Date.now().toString(), dayOfWeek: timetableTab, title, categoryName: cat, startH: start.split(':')[0], startM: start.split(':')[1], endH: end.split(':')[0], endM: end.split(':')[1], location: loc, lessonType: type, color }]);
+                        (document.getElementById('tt-title') as HTMLInputElement).value = '';
+                      }} className="btn-pop" style={{ width: '100%', padding: '12px', fontSize: '0.9rem' }}>この曜日に登録</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 日付選択モーダル */}
         {isDayPickerOpen && (
@@ -4021,8 +4295,8 @@ useEffect(() => {
 
                     const showPhotoUI = currentCategoryObj?.allowPhoto || photoUrls.length > 0;
                     const BlockRecords = showRecords && (
-                      // 👇 修正：<details>タグを使って折りたたみ式に変更
-                      <details key="records" className="card-box" style={{ background: isDarkMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.7)', border: '1px solid rgba(253, 230, 138, 0.5)', marginBottom: '16px', padding: '16px' }}>
+                      // 👇 修正：open属性をステートで管理し、onToggleで状態を更新する
+                      <details key="records" className="card-box" style={{ background: isDarkMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.7)', border: '1px solid rgba(253, 230, 138, 0.5)', marginBottom: '16px', padding: '16px' }} open={isRecordDetailsOpen} onToggle={(e) => setIsRecordDetailsOpen((e.target as HTMLDetailsElement).open)}>
                         <summary style={{ fontSize: '0.85rem', fontWeight: '900', color: '#d97706', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', outline: 'none', listStyle: 'none' }}>
                           <FileText size={16} /> 事後の記録（振り返り）を追加
                         </summary>
@@ -4213,10 +4487,10 @@ useEffect(() => {
                           const showPhotoUI = currentCategoryObj?.allowPhoto || photoUrls.length > 0;
 
                           return (
-                            <details style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', cursor: 'pointer' }} open={Boolean(memo || photoUrls.length > 0)}>
-                              <summary style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', outline: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                ＋ 思い出メモ{showPhotoUI ? '・写真' : ''}を追加
-                              </summary>
+                            <details key="records" className="card-box" style={{ background: isDarkMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.7)', border: '1px solid rgba(253, 230, 138, 0.5)', marginBottom: '16px', padding: '16px' }} open={isRecordDetailsOpen} onToggle={(e) => setIsRecordDetailsOpen((e.target as HTMLDetailsElement).open)}>                            
+                            <summary style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', outline: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Edit3 size={16} /> 思い出メモ{showPhotoUI ? '・写真' : ''}を追加
+                            </summary>
                               <div style={{ marginTop: '12px', cursor: 'default' }}>
                                 <textarea className="pop-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="思い出メモ..." rows={2} style={{ background: 'var(--input-bg)' }} />
                                 
@@ -4264,65 +4538,83 @@ useEffect(() => {
                     return items.filter(Boolean);
                   })()}
 
-                  {/* 👇 修正：ボタンエリアを上段（キャンセル・保存）と下段（星・候補追加）に分ける */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
-                    
-                    {/* 上段：キャンセル と 保存 */}
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '14px', fontSize: '0.95rem', fontWeight: 'bold' }}>キャンセル</button>
-                      <button onClick={handleSave} className="btn-pop" style={{ flex: 1, padding: '14px', fontSize: '0.95rem', fontWeight: 'bold' }}>保存する</button>
+                  {/* 👇 ここからコピー＆ペースト（上書き） 👇 */}
+                  {customFieldsData.isTimetableEvent ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '24px' }}>
+                      <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-sub)' }}>※この予定は時間割マスターで管理されています</div>
+                      <button onClick={() => {
+                        setIsModalOpen(false);
+                        setTimeout(() => {
+                          setMode('create');
+                          setCategoryName('課題・テスト'); // 無ければ適当な色になります
+                          setTitle(`${title} の課題`);
+                          setEventColor('#ef4444'); // 課題は赤などで目立たせる
+                          setIsMilestone(true); // 締切なので時刻のみ表示モード
+                          setIsModalOpen(true);
+                        }, 300);
+                      }} className="btn-pop" style={{ width: '100%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        📝 この授業の課題・テストを登録
+                      </button>
                     </div>
-
-                    {/* 下段：星 と 候補に追加 (どちらかが存在する場合のみ表示) */}
-                    {((title && (mode === 'create' || mode === 'detail')) || mode === 'create') && (
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '24px' }}>
+                      {/* 上段：キャンセル と 保存 */}
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        {title && (mode === 'create' || mode === 'detail') ? (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              const newT = { title, location, startH, startM, endH, endM, categoryName, isAllDayBackground, eventColor };
-                              const updated = [...quickTemplates, newT];
-                              setQuickTemplates(updated);
-                              localStorage.setItem('quickTemplates', JSON.stringify(updated));
-                              alert('「よくある予定」として新しく登録しました！');
-                            }}
-                            className="btn-secondary"
-                            style={{ flex: 1, padding: '12px 8px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: '2px dashed var(--theme)', color: 'var(--theme)', fontWeight: 'bold', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
-                          >
-                            <Star size={16} /> テンプレート登録
-                          </button>
-                        ) : (
-                          <div style={{ flex: 1 }} />
-                        )}
-
-                        {mode === 'create' ? (
-                          <button onClick={(e) => {
-                            e.preventDefault();
-                            const sObj = new Date(startDate);
-                            const dateStr = `${sObj.getMonth() + 1}/${sObj.getDate()}(${DAY_NAMES[sObj.getDay()]})`;
-                            const timeStr = isAllDayBackground ? '終日' : `${startH}:${startM}〜${endH}:${endM}`;
-                            const slotStr = `${dateStr} ${timeStr}`;
-                            setAssistTimeSlots(prev => {
-                              if (!prev.includes(slotStr)) return [...prev, slotStr];
-                              return prev;
-                            });
-                            setIsModalOpen(false);
-                            setIsScheduleAssistantOpen(true);
-                            setAssistMode('send');
-                          }} className="btn-secondary" style={{ flex: 1, padding: '12px 8px', fontSize: '0.8rem', whiteSpace: 'nowrap', border: '1px solid #f59e0b', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                            <Users size={16} /> 候補に追加
-                          </button>
-                        ) : (
-                           <div style={{ flex: 1 }} />
-                        )}
+                        <button onClick={() => setIsModalOpen(false)} className="btn-secondary" style={{ flex: 1, padding: '14px', fontSize: '0.95rem', fontWeight: 'bold' }}>キャンセル</button>
+                        <button onClick={handleSave} className="btn-pop" style={{ flex: 1, padding: '14px', fontSize: '0.95rem', fontWeight: 'bold' }}>保存する</button>
                       </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
+
+                      {/* 下段：星 と 候補に追加 (どちらかが存在する場合のみ表示) */}
+                      {((title && (mode === 'create' || mode === 'detail')) || mode === 'create') && (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {title && (mode === 'create' || mode === 'detail') ? (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                const newT = { title, location, startH, startM, endH, endM, categoryName, isAllDayBackground, eventColor };
+                                const updated = [...quickTemplates, newT];
+                                setQuickTemplates(updated);
+                                localStorage.setItem('quickTemplates', JSON.stringify(updated));
+                                alert('「よくある予定」として新しく登録しました！');
+                              }}
+                              className="btn-secondary"
+                              style={{ flex: 1, padding: '12px 8px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: '2px dashed var(--theme)', color: 'var(--theme)', fontWeight: 'bold', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+                            >
+                              <Star size={16} /> テンプレート登録
+                            </button>
+                          ) : (
+                            <div style={{ flex: 1 }} />
+                          )}
+
+                          {mode === 'create' ? (
+                            <button onClick={(e) => {
+                              e.preventDefault();
+                              const sObj = new Date(startDate);
+                              const dateStr = `${sObj.getMonth() + 1}/${sObj.getDate()}(${DAY_NAMES[sObj.getDay()]})`;
+                              const timeStr = isAllDayBackground ? '終日' : `${startH}:${startM}〜${endH}:${endM}`;
+                              const slotStr = `${dateStr} ${timeStr}`;
+                              setAssistTimeSlots(prev => {
+                                if (!prev.includes(slotStr)) return [...prev, slotStr];
+                                return prev;
+                              });
+                              setIsModalOpen(false);
+                              setIsScheduleAssistantOpen(true);
+                              setAssistMode('send');
+                            }} className="btn-secondary" style={{ flex: 1, padding: '12px 8px', fontSize: '0.8rem', whiteSpace: 'nowrap', border: '1px solid #f59e0b', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                              <Users size={16} /> 候補に追加
+                            </button>
+                          ) : (
+                            <div style={{ flex: 1 }} />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+              </>
+            )}
           </div>
-        )}
+        </div>
+    )}
 
       {/* 📊 収支グラフ（棒グラフ）モーダル */}
       {isFinanceGraphOpen && (() => {
@@ -4913,204 +5205,6 @@ useEffect(() => {
                     <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'unsettled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'unsettled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'unsettled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>未精算 ({unsettledAdvances.length})</button>
                     <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'settled' ? themeColor : 'var(--input-bg)', color: advanceTab === 'settled' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'settled' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>精算済 ({settledAdvances.length})</button>
                     <button onClick={() => setAdvanceTab('partners')} className={advanceTab === 'partners' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: advanceTab === 'partners' ? themeColor : 'var(--input-bg)', color: advanceTab === 'partners' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: advanceTab === 'partners' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>相手リスト</button>
-                  </div>
-
-                  <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
-                    {advanceTab === 'unsettled' && (
-                      unsettledAdvances.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold' }}>
-                          <Handshake size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5, color: 'var(--theme)' }} />
-                          <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>現在、未精算の立替記録はありません。</p>
-                          <p style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>※カレンダーの「予定を追加」画面の<br/>「支出・立替を記録する」から<br/>立て替えた金額を登録するとここに表示されます。</p>
-                        </div>
-                      ) : (
-                        unsettledAdvances.map((adv: any, i: number) => (
-                          <div key={i} style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <span style={{ fontSize: '0.95rem', fontWeight: '900', color: 'var(--text-main)' }}>
-                                  {adv.payee || '誰か'} に <span style={{ color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>{adv.type === 'advance' ? '貸し' : '借り'}</span>
-                                </span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{adv.eventDate} ({adv.eventTitle})</span>
-                              </div>
-                              <div style={{ fontSize: '1.2rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>
-                                ¥{Number(adv.amount).toLocaleString()}
-                              </div>
-                            </div>
-                            <button onClick={async () => {
-                                if (confirm(`「${adv.payee || 'この相手'}」との精算を完了しますか？`)) {
-                                  const targetEvent = events.find((e: any) => e.id === adv.eventId);
-                                  if (targetEvent) {
-                                    const updatedExpenses = targetEvent.extendedProps.metadata.customFields.expenses.map((ex: any) => 
-                                      ex.id === adv.id ? { ...ex, isSettled: true } : ex
-                                    );
-                                    await supabase.from('events').update({
-                                      metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
-                                    }).eq('id', adv.eventId);
-                                    
-                                    const today = toLocalYYYYMMDD(new Date());
-                                    await supabase.from('events').insert([{
-                                      title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
-                                      start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
-                                      metadata: {
-                                        isAllDayBackground: true, isPureFinance: true, customColor: '#10b981',
-                                        customFields: {
-                                          isIncomeSet: adv.type === 'advance', standardIncomeAmount: adv.type === 'advance' ? adv.amount : '',
-                                          isExpenseSet: adv.type === 'borrow', standardExpenseAmount: adv.type === 'borrow' ? adv.amount : '',
-                                          paymentMethod: 'cash'
-                                        }
-                                      }
-                                    }]);
-                                    alert('精算を完了として記録しました！');
-                                    window.location.reload(); 
-                                  }
-                                }
-                              }}
-                              className="btn-pop" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', borderRadius: '12px', background: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                            >
-                              <CheckCircle size={16} /> 精算を完了する
-                            </button>
-                          </div>
-                        ))
-                      )
-                    )}
-
-                    {advanceTab === 'settled' && (
-                      settledAdvances.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: 'bold', fontSize: '0.85rem' }}>精算済みの記録はありません</div>
-                      ) : (
-                        settledAdvances.map((adv: any, i: number) => (
-                          <div key={i} style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-sub)', textDecoration: 'line-through' }}>
-                                {adv.payee || '誰か'} に {adv.type === 'advance' ? '貸し' : '借り'}
-                              </span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate} ({adv.eventTitle})</span>
-                            </div>
-                            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>
-                              ¥{Number(adv.amount).toLocaleString()}
-                            </div>
-                          </div>
-                        ))
-                      )
-                    )}
-
-                    {advanceTab === 'partners' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <input type="text" className="pop-input" placeholder="よく立て替える相手の名前を追加" value={newPayeeName} onChange={e => setNewPayeeName(e.target.value)} style={{ flex: 1, fontSize: '0.85rem' }} />
-                          <button onClick={() => {
-                            if (newPayeeName.trim() && !customPayees.includes(newPayeeName.trim())) {
-                              setCustomPayees([...customPayees, newPayeeName.trim()]);
-                              setNewPayeeName('');
-                            }
-                          }} className="btn-pop" style={{ padding: '0 16px', borderRadius: '12px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>追加</button>
-                        </div>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '4px' }}>登録済みの相手リスト</span>
-                          {customPayees.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem', background: 'var(--card-bg)', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>登録されている相手はいません</div>
-                          ) : (
-                            customPayees.map((p, i) => (
-                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                                <div style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={() => setViewingPartner(p)}>
-                                  <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{p}</span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--theme)', fontWeight: 'bold', background: 'var(--input-bg)', padding: '4px 8px', borderRadius: '8px' }}>履歴を見る 👉</span>
-                                </div>
-                                <button onClick={() => setCustomPayees(customPayees.filter(name => name !== p))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-      {/* 🤝 立替・貸し借り管理 モーダル */}
-      {isAdvanceModalOpen && (() => {
-        const unsettledAdvances = events.flatMap(e => {
-          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && !e.isSettled);
-
-        const settledAdvances = events.flatMap(e => {
-          const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-          return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-        }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.isSettled);
-
-        return (
-          <div className="modal-overlay" onClick={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-            {/* 👇 修正：maxHeight: '90vh' を height: '80vh' に変更し、高さを完全に固定する */}
-            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '80vh', display: 'flex', flexDirection: 'column' }}>
-              <ModalHeader title="立替・貸し借り管理" onClose={() => { setIsAdvanceModalOpen(false); setViewingPartner(null); }} />
-              
-              {/* 👇 追加：相手別の履歴画面 */}
-              {viewingPartner ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <button onClick={() => setViewingPartner(null)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>← 戻る</button>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--theme)' }}>{viewingPartner} さんとの履歴</h3>
-                  </div>
-                  {(() => {
-                    const partnerHistory = events.flatMap(e => {
-                      const exps = e.extendedProps?.metadata?.customFields?.expenses || [];
-                      return exps.map((exp: any) => ({ ...exp, eventId: e.id, eventTitle: e.title, eventDate: e.start.split('T')[0] }));
-                    }).filter(e => (e.type === 'advance' || e.type === 'borrow') && e.payee === viewingPartner)
-                      .sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
-
-                    const lentTotal = partnerHistory.filter(e => e.type === 'advance' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
-                    const borrowedTotal = partnerHistory.filter(e => e.type === 'borrow' && !e.isSettled).reduce((sum, e) => sum + Number(e.amount), 0);
-                    const diff = lentTotal - borrowedTotal;
-
-                    return (
-                      <>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の貸し</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#ef4444' }}>¥{lentTotal.toLocaleString()}</div>
-                          </div>
-                          <div style={{ flex: 1, background: 'var(--card-bg)', border: '1px solid #10b981', borderRadius: '12px', padding: '12px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>未精算の借り</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: '900', color: '#10b981' }}>¥{borrowedTotal.toLocaleString()}</div>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'center', fontSize: '0.9rem', fontWeight: 'bold', margin: '4px 0 8px 0', color: 'var(--text-main)' }}>
-                            {diff > 0 ? `👉 あなたが ¥${diff.toLocaleString()} 受け取ります` : diff < 0 ? `👈 あなたが ¥${Math.abs(diff).toLocaleString()} 支払います` : '🎉 精算完了しています'}
-                        </div>
-                        <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
-                          {partnerHistory.length === 0 ? <div style={{textAlign:'center', fontSize:'0.8rem', color:'var(--text-sub)', marginTop:'20px'}}>履歴がありません</div> : partnerHistory.map((adv: any, i: number) => (
-                              <div key={i} style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: `1px solid var(--border-color)`, borderLeft: `6px solid ${adv.type === 'advance' ? '#ef4444' : '#10b981'}`, opacity: adv.isSettled ? 0.6 : 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                  <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', textDecoration: adv.isSettled ? 'line-through' : 'none' }}>
-                                    {adv.type === 'advance' ? '貸した' : '借りた'} <span style={{fontSize:'0.75rem', fontWeight:'normal'}}>({adv.eventTitle})</span>
-                                  </div>
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>{adv.eventDate}</div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                                  <div style={{ fontSize: '1rem', fontWeight: '900', color: adv.type === 'advance' ? '#ef4444' : '#10b981' }}>¥{Number(adv.amount).toLocaleString()}</div>
-                                  {adv.isSettled && <span style={{ fontSize: '0.6rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', fontWeight: 'bold' }}>精算済</span>}
-                                </div>
-                              </div>
-                          ))}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexShrink: 0 }}>
-                    <button onClick={() => setAdvanceTab('unsettled')} className={advanceTab === 'unsettled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>未精算 ({unsettledAdvances.length})</button>
-                    <button onClick={() => setAdvanceTab('settled')} className={advanceTab === 'settled' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>精算済 ({settledAdvances.length})</button>
-                    <button onClick={() => setAdvanceTab('partners')} className={advanceTab === 'partners' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px 4px', fontSize: '0.75rem', borderRadius: '12px' }}>相手リスト</button>
                   </div>
 
                   <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }} className="hide-scrollbar">
