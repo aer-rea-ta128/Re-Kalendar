@@ -846,7 +846,8 @@ export default function SmartLifeOS() {
   };
 
   const handleSelect = (info: any) => {
-    if (isDeleteMode || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) return;    
+    if (isDeleteMode) return;
+    
     // 👇 追加：カレンダーのマスを選択した瞬間、スワイプ判定を強制的にキャンセル（リセット）する！
     touchStartX.current = null;
     touchEndX.current = null;
@@ -868,18 +869,14 @@ export default function SmartLifeOS() {
       setGatheringTime(clipboardEvent.gatheringTime); setDepartureTime(clipboardEvent.departureTime);
       setDepartureType(clipboardEvent.departureType);
 
-      if (info.allDay) {
-        setStartH(clipboardEvent.startH); setStartM(clipboardEvent.startM);
-        setEndH(clipboardEvent.endH); setEndM(clipboardEvent.endM);
-      } else {
-        const s = info.start as Date; const e = info.end || new Date(s.getTime() + 60 * 60 * 1000);
-        setStartH(String(s.getHours()).padStart(2, '0')); setStartM(String(s.getMinutes()).padStart(2, '0')); 
-        setEndH(String(e.getHours()).padStart(2, '0')); setEndM(String(e.getMinutes()).padStart(2, '0'));
-      }
-      setClipboardEvent(null); // ペースト完了したら空にする
-      setIsModalOpen(true);
-      return;
-    }
+      // 👇 修正：タップした場所に関わらず、コピー元の時間をそのまま適用する！
+      setStartH(clipboardEvent.startH); setStartM(clipboardEvent.startM);
+      setEndH(clipboardEvent.endH); setEndM(clipboardEvent.endM);
+
+      setClipboardEvent(null); // ペースト完了したら空にする
+      setIsModalOpen(true);
+      return;
+    }
 
     setMode('create'); setStartDate(toLocalYYYYMMDD(info.start));
     const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1); setEndDate(toLocalYYYYMMDD(adjEnd));
@@ -1504,14 +1501,16 @@ export default function SmartLifeOS() {
 
       return (
         <div data-travel-target={targetId} style={{
-          width: '100%', height: '100%', padding: '4px',
-          background: hexToRgba(cColor, 0.1), border: `1.5px solid ${cColor}`, // 👈 点線(dashed)から実線(solid)へ変更
+          width: '100%', height: '100%', padding: '4px 2px',
+          background: hexToRgba(cColor, 0.1), border: `1.5px solid ${cColor}`, 
           borderRadius: '4px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', gap: '2px'
         }}>
-          <TransitIcon size={12} color={cColor} style={{ flexShrink: 0 }} />
-          <span style={{ fontSize: '0.55rem', fontWeight: '900', color: cColor, textAlign: 'center', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
-            {sT}〜{eT}
-          </span>
+          <TransitIcon size={12} color={cColor} style={{ flexShrink: 0, marginBottom: '2px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '0.55rem', fontWeight: '900', color: cColor, lineHeight: 1.1 }}>
+            <span>{sT}</span>
+            <span style={{ margin: '-1px 0' }}>〜</span>
+            <span>{eT}</span>
+          </div>
         </div>
       );
     }
@@ -1628,10 +1627,10 @@ export default function SmartLifeOS() {
       if (isPayment) {
         return (
           <div className={highlightClass} style={{
-            display: 'flex', alignItems: 'center', padding: '2px 6px', overflow: 'hidden', width: '100%', height: '22px',
-            backgroundColor: 'var(--card-bg)', border: `1px solid ${cColor}`, borderRadius: '6px', boxSizing: 'border-box', marginBottom: '2px'
+            display: 'flex', alignItems: 'center', padding: '1px 4px', overflow: 'hidden', width: '100%', height: '16px',
+            backgroundColor: 'var(--card-bg)', border: `1px solid ${cColor}`, borderRadius: '4px', boxSizing: 'border-box', marginBottom: '1px'
           }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.7rem', color: cColor }}>{displayTitle.replace('🔄 ', '')}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.6rem', color: cColor }}>{displayTitle.replace('🔄 ', '')}</span>
           </div>
         );
       }
@@ -1639,11 +1638,11 @@ export default function SmartLifeOS() {
       if (isRoutine) {
         return (
           <div className={highlightClass} style={{
-            display: 'flex', alignItems: 'center', padding: '2px 6px', overflow: 'hidden', width: '100%', height: '26px',
-            backgroundColor: 'transparent', borderLeft: `3px solid ${cColor}`, borderBottom: `1px dashed ${hexToRgba(cColor, 0.3)}`, boxSizing: 'border-box', marginBottom: '2px'
+            display: 'flex', alignItems: 'center', padding: '1px 4px', overflow: 'hidden', width: '100%', height: '16px',
+            backgroundColor: 'transparent', borderLeft: `2px solid ${cColor}`, borderBottom: `1px dashed ${hexToRgba(cColor, 0.3)}`, boxSizing: 'border-box', marginBottom: '1px'
           }}>
-            <Repeat size={10} style={{ color: cColor, marginRight: '4px', flexShrink: 0 }} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.75rem', color: 'var(--text-main)' }}>{displayTitle}</span>
+            <Repeat size={8} style={{ color: cColor, marginRight: '2px', flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.6rem', color: 'var(--text-main)' }}>{displayTitle}</span>
           </div>
         );
       }
@@ -2154,12 +2153,11 @@ export default function SmartLifeOS() {
     if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
     if (e.extendedProps?.metadata?.isPureFinance) return false;
     
-    if (viewType === 'dayGridMonth') {
-      // 👇 追加：サブスクとルーティンを「枠（帯）」としては絶対に表示させない！
-      const isSub = String(e.id).startsWith('sub-');
-      const isRoutine = e.extendedProps?.isRoutine;
-      if (isSub || isRoutine) return false;
+    // 👇 サブスクは今まで通りカレンダーに表示させない（裏側だけで計算）
+    const isSub = String(e.id).startsWith('sub-');
+    if (isSub) return false;
 
+    if (viewType === 'dayGridMonth') {
       if (calendarCategoryFilter !== 'すべて' && e.extendedProps?.category !== calendarCategoryFilter) {
         return false;
       }
@@ -4483,25 +4481,24 @@ useEffect(() => {
                         })}
 
                         {(() => {
-                          // 👇 修正：ジャンル設定の「写真許可チェックボックス」に連動させる！
                           const showPhotoUI = currentCategoryObj?.allowPhoto || photoUrls.length > 0;
 
                           return (
-                            <details key="records" className="card-box" style={{ background: isDarkMode ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.7)', border: '1px solid rgba(253, 230, 138, 0.5)', marginBottom: '16px', padding: '16px' }} open={isRecordDetailsOpen} onToggle={(e) => setIsRecordDetailsOpen((e.target as HTMLDetailsElement).open)}>                            
-                            <summary style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', outline: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <Edit3 size={16} /> 思い出メモ{showPhotoUI ? '・写真' : ''}を追加
-                            </summary>
-                              <div style={{ marginTop: '12px', cursor: 'default' }}>
-                                <textarea className="pop-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="思い出メモ..." rows={2} style={{ background: 'var(--input-bg)' }} />
+                            <div className="card-box" style={{ margin: 0, padding: '16px' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                                <Edit3 size={16} /> 思い出メモ{showPhotoUI ? '・写真' : ''}を追加
+                              </span>
+                              <div>
+                                {/* 👇 修正：テキストエリアを input に変更し、上下中央揃えにする。折りたたみをやめてバグを完全解消 */}
+                                <input type="text" className="pop-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="思い出メモ..." style={{ background: 'var(--input-bg)' }} />
                                 
                                 {showPhotoUI && (
                                   <div style={{ marginTop: '12px' }}>
                                     <label className="form-label" style={{ color: 'var(--theme)' }}>思い出の写真</label>
                                     <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
                                       {photoUrls.map((url, i) => (
-                                        // 👇 修正：画像の上に「×」ボタンを追加して削除できるようにする
                                         <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
-                                          <img src={url} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} />
+                                          <img src={url} style={{ width: '60px', height: '60px', borderRadius: '8px', objectFit: 'cover' }} alt="memory" />
                                           <button 
                                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPhotoUrls(photoUrls.filter((_, idx) => idx !== i)); }} 
                                             style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '14px', lineHeight: 1, paddingBottom: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
@@ -4517,7 +4514,7 @@ useEffect(() => {
                                   </div>
                                 )}
                               </div>
-                            </details>
+                            </div>
                           );
                         })()}
                       </div>
