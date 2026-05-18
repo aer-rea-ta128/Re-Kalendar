@@ -94,7 +94,7 @@ export default function Sidebar({
   const [mapZoom, setMapZoom] = useState(1);
   const mapContainerRef = React.useRef<HTMLDivElement>(null);
 
-  const [expandedKeepEventId, setExpandedKeepEventId] = useState<string | null>(null);
+  const [isKeepSectionOpen, setIsKeepSectionOpen] = useState(true);
 
   const [incomeCalcBasis, setIncomeCalcBasis] = useState<'wage' | 'payday'>(() => {
     if (typeof window === 'undefined') return 'wage';
@@ -134,7 +134,7 @@ export default function Sidebar({
     { id: 'routine_settings', label: '毎月の予定(給料等)', icon: Repeat, color: 'var(--text-sub)' },
     { id: 'subscription_settings', label: 'サブスク管理', icon: Banknote, color: 'var(--text-sub)' },
     { id: 'anniversary_settings', label: '記念日管理', icon: Gift, color: 'var(--text-sub)' },
-    { id: 'template_settings', label: 'よくある予定の管理', icon: Star, color: 'var(--text-sub)' }, // 👈 追加
+    { id: 'template_settings', label: 'よくある予定の管理', icon: Star, color: 'var(--text-sub)' },
   ];
 
   const handleMenuAction = (e: any, id: string) => {
@@ -146,7 +146,6 @@ export default function Sidebar({
     setIsSettingsPanelOpen(false); 
     setIsSidebarOpen(false);
 
-    // 👇 修正：0.1秒だけ遅らせてページ側にイベントを渡すことで、遅延・無反応バグを完全に回避！
     setTimeout(() => {
       if (id === 'dashboard') { setIsModalOpen(false); setIsAnalyticsModalOpen(true); }
       else if (id === 'category_history') { setIsCategoryHistoryOpen(true); }
@@ -161,7 +160,7 @@ export default function Sidebar({
       else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); }
       else if (id === 'finance_history') { setIsFinanceHistoryOpen(true); }
       else if (id === 'finance_graph') { setIsFinanceGraphOpen(true); } 
-      else if (id === 'template_settings') { setIsModalOpen(false); setIsTemplateModalOpen(true); } // 👈 追加
+      else if (id === 'template_settings') { setIsModalOpen(false); setIsTemplateModalOpen(true); }
       else if (id === 'create_event') {
         const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
         setMode('create'); setStartDate(today); setEndDate(today);
@@ -186,22 +185,18 @@ export default function Sidebar({
     </div>
   );
 
-  const MenuListItem = ({ icon: Icon, label, onClick, color = 'var(--text-main)' }: any) => (
-    <button onClick={onClick} style={{ width: '100%', textAlign: 'left', padding: '12px 14px', borderRadius: '12px', background: 'transparent', border: 'none', color: color, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', transition: 'background 0.2s', fontWeight: 'bold' }} className="hover-bg-glass">
-      <Icon size={18} color={color === 'var(--text-main)' ? themeColor : color} />
-      <span>{label}</span>
-    </button>
-  );
-
+  // 👇 Sidebar.tsx の `return (` から最後の `);` までを、丸ごとこれで上書きしてください 👇
   return (
     <>
+      {/* 画面外タップで閉じる用オーバーレイ */}
       <div onClick={() => { setIsSidebarOpen(false); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', zIndex: 1999, opacity: isSidebarOpen ? 1 : 0, pointerEvents: isSidebarOpen ? 'auto' : 'none', transition: 'all 0.3s ease' }} />
 
+      {/* サイドバー本体 */}
       <div style={{ position: 'fixed', top: 0, left: 0, width: '85%', maxWidth: '320px', height: '100dvh', borderTopRightRadius: '24px', borderBottomRightRadius: '24px', zIndex: 2000, transform: isSidebarOpen ? 'translateX(0)' : 'translateX(-100%)', padding: '24px 20px', transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1)', display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', boxShadow: isSidebarOpen ? '4px 0 24px rgba(0,0,0,0.15)' : 'none', borderRight: '1px solid var(--border-color)' }}>
         
-        {/* ヘッダーエリア */}
         <ModalHeader title="Smart LifeOS" onClose={() => setIsSidebarOpen(false)} />
 
+        {/* 検索・テーマ・フィルター */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', background: 'var(--input-bg)', borderRadius: '12px', padding: '4px 12px', border: `1px solid var(--border-color)` }}>
             <Search size={16} style={{ color: 'var(--text-sub)', marginRight: '8px' }} />
@@ -216,7 +211,6 @@ export default function Sidebar({
             </button>
           </div>
           
-          {/* 月毎カレンダー表示時のフィルター */}
           {viewType === 'dayGridMonth' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--input-bg)', borderRadius: '12px', padding: '8px', border: `1px solid var(--border-color)` }}>
               <div style={{ display: 'flex', background: 'var(--bg-main)', borderRadius: '8px', padding: '2px' }}>
@@ -311,55 +305,83 @@ export default function Sidebar({
               })()}
             </div>
           )}
-          {/* 📱 アプリケーション（日常的に見る・使うもの） */}
+
+          {/* 📱 アプリケーション（グループ化） */}
           <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', display: 'block', paddingLeft: '4px' }}>アプリケーション</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <MenuListItem icon={PieChart} label="振り返りダッシュボード" onClick={(e: any) => handleMenuAction(e, 'dashboard')} />
-              <MenuListItem icon={FolderKanban} label="ジャンル別の履歴" onClick={(e: any) => handleMenuAction(e, 'category_history')} />
-              <MenuListItem icon={Handshake} label="立替・貸し借り管理" onClick={(e: any) => handleMenuAction(e, 'advance_manage')} />
-              <MenuListItem icon={HistoryIcon} label="すべての収支履歴・推移" onClick={(e: any) => handleMenuAction(e, 'finance_history')} />
-              <MenuListItem icon={ImageIcon} label="思い出ギャラリー" onClick={(e: any) => handleMenuAction(e, 'gallery')} />
-              <MenuListItem icon={Globe} label="トラベル・マップ" onClick={(e: any) => handleMenuAction(e, 'travel_map')} />
+            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block', paddingLeft: '4px' }}>アプリの全機能・管理</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {[
+                { title: '予定・カレンダー', icon: CalendarIcon, keys: ['create_event', 'template_settings', 'timetable_settings', 'routine_settings', 'anniversary_settings'] },
+                { title: '収支・お金の管理', icon: Banknote, keys: ['finance_single', 'finance_bar', 'finance_history', 'finance_graph', 'advance_manage', 'subscription_settings'] },
+                { title: '記録・振り返り', icon: PieChart, keys: ['dashboard', 'category_history', 'gallery', 'travel_map'] },
+                { title: 'ツール・システム', icon: Settings2, keys: ['schedule_assistant', 'category_settings'] }
+              ].map(group => {
+                const GroupIcon = group.icon;
+                return (
+                  <div key={group.title} style={{ background: 'var(--input-bg)', padding: '12px', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <GroupIcon size={14} />
+                      {group.title}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {group.keys.map(key => {
+                        const item = MENU_ACTIONS.find(m => m.id === key);
+                        if (!item) return null;
+                        const Icon = item.icon;
+                        return (
+                          <button key={item.id} onClick={(e) => handleMenuAction(e, item.id)} className="btn-secondary hover-bg-glass" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px', fontSize: '0.85rem', textAlign: 'left', border: 'none', background: 'var(--card-bg)' }}>
+                            <Icon size={16} color={item.color} style={{ flexShrink: 0 }} />
+                            <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* 👇 ここから「キープ・仮予定リスト」のセクションを追加 👇 */}
+          {/* 👇 キープ・仮予定リスト 👇 */}
           <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '4px' }}>
-              <Inbox size={14} /> 入るかもしれない予定
-            </span>
-            <div style={{ background: 'var(--input-bg)', padding: '10px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {(() => {
-                const keepEvents = events.filter((e: any) => e.extendedProps?.metadata?.isTentative || e.extendedProps?.metadata?.isStocked);
-                if (keepEvents.length === 0) {
-                  return <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', textAlign: 'center', padding: '8px 0', fontWeight: 'bold' }}>キープ中の予定はありません</div>;
-                }
-                return keepEvents.map((e: any) => {
-                  const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
-                  const isExpanded = expandedKeepEventId === e.id;
-                  
-                  return (
-                    <div 
-                      key={e.id} 
-                      onClick={() => setExpandedKeepEventId(isExpanded ? null : e.id)} // 👈 タップで開閉
-                      style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', borderLeft: `4px solid ${cColor}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: isExpanded ? '0 4px 12px rgba(0,0,0,0.05)' : '0 2px 4px rgba(0,0,0,0.01)', cursor: 'pointer', transition: 'all 0.2s' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', wordBreak: 'break-all' }}>{e.title}</div>
-                        <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '6px', flexShrink: 0 }}>
-                          仮予定
-                        </span>
-                      </div>
-                      
-                      {e.start && (
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
-                          予定日: {e.start.split('T')[0].replace(/-/g, '/')}
-                        </div>
-                      )}
+            <div 
+              onClick={() => setIsKeepSectionOpen(!isKeepSectionOpen)} 
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: '8px', padding: '0 4px' }}
+            >
+              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Inbox size={14} /> 入るかもしれない予定
+              </span>
+              <ChevronDown size={14} color="var(--text-sub)" style={{ transform: isKeepSectionOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            </div>
 
-                      {/* 👇 メニューが開いた時だけ表示されるボタン群 */}
-                      {isExpanded && (
+            {isKeepSectionOpen && (
+              <div style={{ background: 'var(--input-bg)', padding: '10px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(() => {
+                  const keepEvents = events.filter((e: any) => e.extendedProps?.metadata?.isTentative || e.extendedProps?.metadata?.isStocked);
+                  if (keepEvents.length === 0) {
+                    return <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', textAlign: 'center', padding: '8px 0', fontWeight: 'bold' }}>キープ中の予定はありません</div>;
+                  }
+                  return keepEvents.map((e: any) => {
+                    const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                    
+                    return (
+                      <div 
+                        key={e.id} 
+                        style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', borderLeft: `4px solid ${cColor}`, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', wordBreak: 'break-all' }}>{e.title}</div>
+                          <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '6px', flexShrink: 0 }}>
+                            仮予定
+                          </span>
+                        </div>
+                        
+                        {e.start && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                            予定日: {e.start.split('T')[0].replace(/-/g, '/')}
+                          </div>
+                        )}
+
                         <div style={{ display: 'flex', gap: '6px', marginTop: '6px', paddingTop: '10px', borderTop: '1px dashed var(--border-color)' }}>
                           <button 
                             onClick={async (evt) => {
@@ -388,13 +410,14 @@ export default function Sidebar({
                             <Edit3 size={14} /> 日時設定
                           </button>
                         </div>
-                      )}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
           </div>
+
         </div> 
 
         {/* ⚙️ ボトムエリア（設定やアカウント） */}
@@ -402,7 +425,6 @@ export default function Sidebar({
           
           {activeUserId && (
             <div 
-              // 👇 クリックイベントを追加
               onClick={() => { setIsSidebarOpen(false); setTimeout(() => setIsProfileModalOpen(true), 100); }} 
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: `1px solid var(--border-color)`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', marginBottom: '4px', cursor: 'pointer' }}
               className="hover-bg-glass"
@@ -410,13 +432,11 @@ export default function Sidebar({
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--input-bg)', border: '2px solid var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--theme)', flexShrink: 0, overflow: 'hidden' }}>
                   {userProfile?.avatar ? (
-                    // 👇 transform と objectPosition を追加
                     <img src={userProfile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${userProfile.avatarPanX || 50}% ${userProfile.avatarPanY || 50}%`, transform: `scale(${userProfile.avatarScale || 1})` }} alt="profile" />
                   ) : <User size={20} />}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{activeUserName}</span>
-                  {/* 👇 アドレスがあればアドレスを表示 */}
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{userProfile?.email || `@${activeUserId}`}</span>
                 </div>
               </div>
@@ -428,14 +448,6 @@ export default function Sidebar({
 
           <button onClick={() => { setIsSettingsPanelOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'var(--input-bg)', border: 'none', color: 'var(--text-main)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold', transition: 'background 0.2s' }}>
             <Settings2 size={16} color="var(--theme)" /> アプリ設定と管理
-          </button>
-
-          <button onClick={() => { setIsFeedbackModalOpen(true); setIsSidebarOpen(false); }} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: 'var(--input-bg)', border: 'none', color: 'var(--text-main)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 'bold', transition: 'background 0.2s' }}>
-            <MessageSquare size={16} color="var(--theme)" /> ご要望・不具合の報告
-          </button>
-
-          <button onClick={syncWithCloud} style={{ width: '100%', padding: '12px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: `1px dashed var(--theme)`, color: 'var(--theme)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', fontWeight: 'bold' }}>
-            <Database size={16} /> クラウド同期
           </button>
         </div>
       </div>
@@ -449,12 +461,10 @@ export default function Sidebar({
             <ModalHeader title="アプリ設定と管理" onClose={() => setIsSettingsPanelOpen(false)} />
             
             <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px', paddingRight: '4px' }}>
-                            {/* アプリの全機能と管理 */}
+              {/* アプリの全機能と管理 */}
               <div>
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>アプリの全機能・管理</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  
-                  {/* 👇 ここからグループ化のコードに書き換え 👇 */}
                   {[
                     { title: '予定・カレンダー', icon: CalendarIcon, keys: ['create_event', 'template_settings', 'timetable_settings', 'routine_settings', 'anniversary_settings'] },
                     { title: '収支・お金の管理', icon: Banknote, keys: ['finance_single', 'finance_bar', 'finance_history', 'finance_graph', 'advance_manage', 'subscription_settings'] },
@@ -462,7 +472,10 @@ export default function Sidebar({
                     { title: 'ツール・システム', icon: Settings2, keys: ['schedule_assistant', 'category_settings'] }
                   ].map(group => (
                     <div key={group.title} style={{ background: 'var(--input-bg)', padding: '12px', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', paddingLeft: '4px' }}>{group.title}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', paddingLeft: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <group.icon size={14} />
+                        {group.title}
+                      </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {group.keys.map(key => {
                           const item = MENU_ACTIONS.find(m => m.id === key);
@@ -478,8 +491,6 @@ export default function Sidebar({
                       </div>
                     </div>
                   ))}
-                  {/* 👆 ここまで 👆 */}
-
                 </div>
               </div>
 
@@ -520,13 +531,7 @@ export default function Sidebar({
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Star size={16} fill="var(--theme)" /> クイックアクションのカスタマイズ
                 </span>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1fr 1fr', 
-                  gap: '8px', 
-                  width: '100%',
-                  overflow: 'hidden' 
-                }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', width: '100%', overflow: 'hidden' }}>
                   {MENU_ACTIONS.map(item => {
                     const isFav = favoriteItems.includes(item.id);
                     const Icon = item.icon;
@@ -534,32 +539,10 @@ export default function Sidebar({
                       <button 
                         key={item.id} 
                         onClick={() => setFavoriteItems(prev => isFav ? prev.filter(i => i !== item.id) : [...prev, item.id])} 
-                        style={{ 
-                          width: '100%',
-                          minWidth: 0, 
-                          padding: '10px 4px', 
-                          fontSize: '0.7rem', 
-                          background: isFav ? 'var(--theme)' : 'var(--input-bg)', 
-                          color: isFav ? '#fff' : 'var(--text-main)', 
-                          borderRadius: '10px', 
-                          border: `1px solid ${isFav ? 'var(--theme)' : 'var(--border-color)'}`, 
-                          fontWeight: 'bold', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '4px', 
-                          transition: 'all 0.2s', 
-                          cursor: 'pointer',
-                          overflow: 'hidden' 
-                        }}
+                        style={{ width: '100%', minWidth: 0, padding: '10px 4px', fontSize: '0.7rem', background: isFav ? 'var(--theme)' : 'var(--input-bg)', color: isFav ? '#fff' : 'var(--text-main)', borderRadius: '10px', border: `1px solid ${isFav ? 'var(--theme)' : 'var(--border-color)'}`, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s', cursor: 'pointer', overflow: 'hidden' }}
                       >
                         <Icon size={14} color={isFav ? '#fff' : item.color} style={{ flexShrink: 0 }} />
-                        <span style={{ 
-                          whiteSpace: 'nowrap', 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis', 
-                          flex: 1,
-                          textAlign: 'left'
-                        }}>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left' }}>
                           {item.label}
                         </span>
                       </button>
@@ -576,7 +559,6 @@ export default function Sidebar({
                   <option value="payday">給料日・実際の入金のみを計算</option>
                 </select>
               </div>
-
             </div>
           </div>
         </div>
@@ -600,11 +582,9 @@ export default function Sidebar({
         return (
           <div className="modal-overlay" onClick={() => setIsCategoryHistoryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '70vh', justifyContent: 'flex-start' }}>
-              
               <div style={{ flexShrink: 0 }}>
                 <ModalHeader title="ジャンル別の履歴" onClose={() => setIsCategoryHistoryOpen(false)} />
               </div>
-              
               <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', flexShrink: 0 }}>
                 <button onClick={() => setHistoryTimeFilter('past')} className={historyTimeFilter === 'past' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: historyTimeFilter === 'past' ? themeColor : 'var(--input-bg)', color: historyTimeFilter === 'past' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: historyTimeFilter === 'past' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>過去の履歴</button>
                 <button onClick={() => setHistoryTimeFilter('future')} className={historyTimeFilter === 'future' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: historyTimeFilter === 'future' ? themeColor : 'var(--input-bg)', color: historyTimeFilter === 'future' ? '#fff' : 'var(--text-main)', border: 'none', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: historyTimeFilter === 'future' ? `0 4px 10px ${themeColor}50` : 'none', transition: 'all 0.2s' }}>今後の予定</button>
@@ -686,11 +666,9 @@ export default function Sidebar({
         return (
           <div className="modal-overlay" onClick={() => setIsTravelMapOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', height: '80vh' }}>
-              
               <div style={{ flexShrink: 0 }}>
                 <ModalHeader title="トラベル・マップ" onClose={() => setIsTravelMapOpen(false)} />
               </div>
-              
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px', flexShrink: 0 }}>
                 <div style={{ display: 'flex', gap: '8px', fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><div style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'var(--input-bg)', border: '1px solid var(--border-color)' }}/>未</div>
@@ -704,64 +682,25 @@ export default function Sidebar({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '8px', flexShrink: 0 }}>
-                <button 
-                  onClick={() => setMapZoom(z => Math.max(1, z - 0.2))} 
-                  disabled={mapZoom <= 1}
-                  style={{ 
-                    width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', 
-                    background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
-                    cursor: mapZoom <= 1 ? 'not-allowed' : 'pointer',
-                    opacity: mapZoom <= 1 ? 0.4 : 1
-                  }}
-                >
-                  -
-                </button>
+                <button onClick={() => setMapZoom(z => Math.max(1, z - 0.2))} disabled={mapZoom <= 1} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', cursor: mapZoom <= 1 ? 'not-allowed' : 'pointer', opacity: mapZoom <= 1 ? 0.4 : 1 }}>-</button>
                 <button onClick={handleResetZoom} style={{ height: '36px', padding: '0 12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>中央に戻す</button>
                 <button onClick={() => setMapZoom(z => Math.min(3, z + 0.2))} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>+</button>
               </div>
 
               <div className="hide-scrollbar" ref={mapContainerRef} style={{ flex: 1, overflow: 'auto', paddingRight: '4px', background: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '16px', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.02)' }}>
-                
-                <div style={{ 
-                  width: `${Math.max(100, mapZoom * 100)}%`, 
-                  minWidth: `${320 * mapZoom}px`, 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(12, 1fr)', 
-                  gap: `${4 * mapZoom}px`, 
-                  transition: 'width 0.2s, min-width 0.2s, gap 0.2s' 
-                }}>
+                <div style={{ width: `${Math.max(100, mapZoom * 100)}%`, minWidth: `${320 * mapZoom}px`, display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: `${4 * mapZoom}px`, transition: 'width 0.2s, min-width 0.2s, gap 0.2s' }}>
                   {PREF_GRID.map((row, rowIndex) => 
                     row.map((p, colIndex) => {
                       if (!p) return <div key={`${rowIndex}-${colIndex}`} style={{ aspectRatio: '1' }} />;
                       const s = getPrefStyle(p);
                       return (
-                        <button
-                          key={p}
-                          onClick={() => togglePref(p)}
-                          style={{
-                            aspectRatio: '1',
-                            background: s.bg,
-                            color: s.color,
-                            border: s.border,
-                            fontSize: '0.75rem',
-                            fontWeight: '900',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'background 0.2s, color 0.2s',
-                            padding: 0,
-                            borderRadius: `${4 * mapZoom}px`
-                          }}
-                        >
+                        <button key={p} onClick={() => togglePref(p)} style={{ aspectRatio: '1', background: s.bg, color: s.color, border: s.border, fontSize: '0.75rem', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s, color 0.2s', padding: 0, borderRadius: `${4 * mapZoom}px` }}>
                           {getShortName(p)}
                         </button>
                       );
                     })
                   )}
                 </div>
-
               </div>
             </div>
           </div>

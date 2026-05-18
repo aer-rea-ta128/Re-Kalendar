@@ -146,7 +146,17 @@ export default function SmartLifeOS() {
   const [newTermStart, setNewTermStart] = useState('');
   const [newTermEnd, setNewTermEnd] = useState('');
   const [exceptionDays, setExceptionDays] = useState<Record<string, 'class' | 'off'>>(() => loadData('os_exceptionDays', {}));
+  const [canceledClasses, setCanceledClasses] = useState<string[]>(() => loadData('os_canceledClasses', []));
+
+  useEffect(() => {
+    localStorage.setItem('os_canceledClasses', JSON.stringify(canceledClasses));
+  }, [canceledClasses]);
   // 👆 ここまで
+
+  const [companions, setCompanions] = useState<string[]>([]); // 同行者リスト
+  const [companionInput, setCompanionInput] = useState(''); // 同行者入力用
+  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false); // ストーリー表示用
+  const [storyDate, setStoryDate] = useState<string | null>(null); // ストーリーの日付
 
   const [newTermName, setNewTermName] = useState(''); 
   const [editTimetableId, setEditTimetableId] = useState<string | null>(null);
@@ -160,6 +170,8 @@ export default function SmartLifeOS() {
   const [cropZoom, setCropZoom] = useState(1);
   const [cropPanX, setCropPanX] = useState(50);
   const [cropPanY, setCropPanY] = useState(50);
+  const [cropDragStart, setCropDragStart] = useState<{x: number, y: number} | null>(null);
+  const [touchDist, setTouchDistance] = useState<number | null>(null);
 
   useEffect(() => {
     if (isDataLoaded) localStorage.setItem('os_user_profile', JSON.stringify(userProfile));
@@ -590,6 +602,11 @@ export default function SmartLifeOS() {
 
   const handleDelete = async () => {
     if (confirm('本当に削除しますか？')) {
+      if (customFieldsData.isTimetableEvent && selectedId) {
+        setCanceledClasses([...canceledClasses, selectedId]);
+        setIsModalOpen(false);
+        return;
+      }
       await supabase.from('events').delete().eq('id', selectedId);
       setIsModalOpen(false);
       fetchEvents();
@@ -870,6 +887,7 @@ export default function SmartLifeOS() {
 
   const handleSelect = (info: any) => {
     if (isDeleteMode) return;
+    setIsViewSelectorExpanded(false);
     
     // 👇 追加：カレンダーのマスを選択した瞬間、スワイプ判定を強制的にキャンセル（リセット）する！
     touchStartX.current = null;
@@ -939,9 +957,13 @@ export default function SmartLifeOS() {
   };
 
   const handleEventClick = (info: any) => {
-    // 👇 修正：ここも丸ごと上書きしてブロック！
-    if (isSwipingRef.current || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) return;
+    if (isSwipingRef.current || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) {
+       setIsViewSelectorExpanded(false); // 👈 もしメニューバーが開いていれば閉じてクリックをキャンセル
+       return;
+    }
     const { event } = info;
+    
+    setIsViewSelectorExpanded(false);
 
     if (String(event.id).startsWith('sub-')) {
       const [_, name, y, m] = String(event.id).split('-');
@@ -1010,6 +1032,7 @@ export default function SmartLifeOS() {
 
     setIsGathering(props.metadata?.isGathering || false); setGatheringTime(props.metadata?.gatheringTime || ''); setDepartureTime(props.metadata?.departureTime || ''); setDepartureType(props.metadata?.departureType || (startPointType === 'station' ? 'train' : 'home')); setPhotoUrls(props.metadata?.photoUrls || (props.metadata?.photoUrl ? [props.metadata.photoUrl] : []));
     setMemo(props.metadata?.memo || '');
+    setCompanions(props.metadata?.companions || []);
     setRating(props.metadata?.rating || 0);
     setIsPinned(props.metadata?.isPinned || false);
     setIsStocked(props.metadata?.isStocked || false);
@@ -1204,7 +1227,8 @@ export default function SmartLifeOS() {
         photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
         startDateStr: startDate, endDateStr: endDate,
         user_id: activeUserId,
-        isTentative
+        isTentative,
+        companions
       };
 
       // 💾 保存処理
@@ -2059,10 +2083,15 @@ export default function SmartLifeOS() {
       } else {
         // 週・日表示：個別の授業として展開
         dayRoutines.forEach((r, idx) => {
+          // 👇 ここから追加：ユニークなIDを作り、休講リストにあればスキップ 👇
+          const uniqueId = `timetable-${dateStr}-${r.id}-${idx}`;
+          if (canceledClasses.includes(uniqueId)) return;
+          // 👆 追加ここまで 👆
+
           const startIso = new Date(`${dateStr}T${r.startH}:${r.startM}:00`).toISOString();
           const endIso = new Date(`${dateStr}T${r.endH}:${r.endM}:00`).toISOString();
           evts.push({
-            id: `timetable-${dateStr}-${r.id}-${idx}`,
+            id: uniqueId, // 👈 修正：id に uniqueId を使う
             title: r.title,
             start: startIso,
             end: endIso,
@@ -2660,29 +2689,22 @@ useEffect(() => {
         {/* 👇 修正：中央の年月を完全固定し、ボタン開閉時のカクつきを排除 */}
         <header style={{ padding: '8px 12px 4px 12px', position: 'relative', background: 'linear-gradient(180deg, var(--bg-main) 40%, transparent 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100, pointerEvents: 'auto' }}>
           
-          {/* 左側：メニュー・追加 */}
+          {/* 左側：メニューと振り返り機能 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 20 }}>
-            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); }} style={{ width: '44px', height: '44px', fontSize: '1.4rem', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '14px', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 10px var(--theme-shadow)`, transition: 'all 0.2s', paddingBottom: '2px', flexShrink: 0 }}>☰</button>
-            <button
+            <button onClick={() => { setOpenSections([]); setIsSidebarOpen(true); setIsViewSelectorExpanded(false); }} style={{ width: '44px', height: '44px', fontSize: '1.4rem', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '14px', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 10px var(--theme-shadow)`, transition: 'all 0.2s', paddingBottom: '2px', flexShrink: 0 }}>☰</button>
+            
+            {/* 👇 修正：テキストとグラデーションを消し、隣のボタンと完全にデザインを統一 👇 */}
+            <button 
               onClick={() => {
-                const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
-                setMode('create'); setStartDate(today); setEndDate(today);
-                setStartH(String(nowH).padStart(2, '0')); setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0'));
-                
-                // 👇 修正：ジャンル・色・写真・メモなども確実にリセットする
-                setTitle(''); setLocation(''); setMemo(''); setPhotoUrls([]); setIsStocked(false); setIsAllDayBackground(false); setIsTentative(false);
-                setCategoryName(''); setEventColor(''); setRating(0); setIsPinned(false);
-                
-                // 👇 修正：以前開いていたメニューを確実にすべて閉じてリセットする
-                setCustomFieldsData({});
-                setIsGathering(false);
-                setExpandedBlocks([]);
-                
-                setIsModalOpen(true);
+                const dateStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}-${String(currentDayNum || '1').padStart(2, '0')}`;
+                setStoryDate(dateStr);
+                setIsStoryModalOpen(true);
+                setIsViewSelectorExpanded(false); 
               }}
-              style={{ background: 'var(--theme)', color: '#fff', fontSize: '2rem', fontWeight: 'bold', width: '44px', height: '44px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', boxShadow: `0 0 12px var(--theme-shadow), inset 0 0 8px rgba(255,255,255,0.3)`, paddingBottom: '4px', lineHeight: 0, flexShrink: 0 }}
+              style={{ width: '44px', height: '44px', background: 'var(--card-bg)', border: `1px solid var(--theme)`, borderRadius: '14px', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 0 10px var(--theme-shadow)`, transition: 'all 0.2s', flexShrink: 0 }}
+              title="1日の振り返り"
             >
-              +
+              <ImageIcon size={20} />
             </button>
           </div>
 
@@ -2732,6 +2754,20 @@ useEffect(() => {
           {/* 右側：今日・月週日切替 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 20, height: '44px' }}>
             
+            {viewType !== 'dayGridMonth' && (
+              <button 
+                onClick={() => {
+                  const currentApiDate = calendarRef.current?.getApi().getDate();
+                  if (currentApiDate) {
+                    setStoryDate(toLocalYYYYMMDD(currentApiDate));
+                    setIsStoryModalOpen(true);
+                  }
+                }}
+                style={{ height: '44px', padding: '0 12px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: '900', background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(220, 39, 67, 0.3)', flexShrink: 0 }}
+              >
+                <ImageIcon size={16} /> ストーリー
+              </button>
+            )}
             {!isViewSelectorExpanded && (
               <button onClick={() => calendarRef.current?.getApi().today()} style={{ background: 'var(--card-bg)', border: `1px solid var(--theme)`, width: '44px', height: '44px', borderRadius: '14px', cursor: 'pointer', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px var(--theme-shadow)`, padding: 0, animation: 'fadeIn 0.2s', flexShrink: 0 }}>
                 <Calendar size={18} />
@@ -3270,6 +3306,7 @@ useEffect(() => {
                 }
                 // 👇 日付が変わるたびに currentDayNum も同期する魔法
                 setCurrentYear(String(y)); setCurrentMonthNum(String(m)); setCurrentDayNum(String(day));
+                setIsViewSelectorExpanded(false);
               }}
               dayCellClassNames={(arg: any) => {
                 if (arg.date.getDay() === 0 || holidays[toLocalYYYYMMDD(arg.date)]) return ['holiday-cell'];
@@ -4241,37 +4278,60 @@ useEffect(() => {
               
               {cropImageSrc ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ width: '200px', height: '200px', borderRadius: '50%', border: '2px solid var(--theme)', margin: '0 auto', overflow: 'hidden', position: 'relative', background: 'var(--input-bg)' }}>
-                    <img src={cropImageSrc} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${cropPanX}% ${cropPanY}%`, transform: `scale(${cropZoom})`, transition: 'none' }} alt="crop preview" />
+                  
+                  {/* 👇 ここから直感的なトリミングUI 👇 */}
+                  <div 
+                    style={{ width: '220px', height: '220px', borderRadius: '50%', border: '2px solid var(--theme)', margin: '0 auto', overflow: 'hidden', position: 'relative', background: 'var(--input-bg)', cursor: 'move', touchAction: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
+                    onPointerDown={(e) => {
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                      setCropDragStart({ x: e.clientX, y: e.clientY });
+                    }}
+                    onPointerMove={(e) => {
+                      if (!cropDragStart) return;
+                      const dx = e.clientX - cropDragStart.x;
+                      const dy = e.clientY - cropDragStart.y;
+                      setCropPanX(prev => Math.max(0, Math.min(100, prev - dx * 0.2)));
+                      setCropPanY(prev => Math.max(0, Math.min(100, prev - dy * 0.2)));
+                      setCropDragStart({ x: e.clientX, y: e.clientY });
+                    }}
+                    onPointerUp={(e) => {
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                      setCropDragStart(null);
+                    }}
+                    onWheel={(e) => {
+                      setCropZoom(z => Math.max(1, Math.min(3, z - e.deltaY * 0.005)));
+                    }}
+                    onTouchStart={(e) => {
+                      if (e.touches.length === 2) {
+                        const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                        setTouchDistance(dist);
+                      }
+                    }}
+                    onTouchMove={(e) => {
+                      if (e.touches.length === 2 && touchDist !== null) {
+                        const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                        setCropZoom(z => Math.max(1, Math.min(3, z + (dist - touchDist) * 0.01)));
+                        setTouchDistance(dist);
+                      }
+                    }}
+                    onTouchEnd={() => setTouchDistance(null)}
+                  >
+                    <img src={cropImageSrc} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${cropPanX}% ${cropPanY}%`, transform: `scale(${cropZoom})`, pointerEvents: 'none' }} alt="crop preview" />
                   </div>
                   
-                  <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      ズーム <input type="range" min="1" max="3" step="0.01" value={cropZoom} onChange={e => setCropZoom(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--theme)', cursor: 'pointer' }} />
-                    </label>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      横移動 <input type="range" min="0" max="100" step="1" value={cropPanX} onChange={e => setCropPanX(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--theme)', cursor: 'pointer' }} />
-                    </label>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      縦移動 <input type="range" min="0" max="100" step="1" value={cropPanY} onChange={e => setCropPanY(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--theme)', cursor: 'pointer' }} />
-                    </label>
+                  <div style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                    👆 画像をドラッグして移動 / ピンチ（スクロール）でズーム
                   </div>
+                  {/* 👆 ここまで直感的なトリミングUI 👆 */}
 
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                     <button onClick={() => setCropImageSrc(null)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '12px' }}>戻る</button>
                     <button 
                       onClick={() => {
-                        setUserProfile({ 
-                          ...userProfile, 
-                          avatar: cropImageSrc, 
-                          avatarScale: cropZoom, 
-                          avatarPanX: cropPanX, 
-                          avatarPanY: cropPanY 
-                        });
+                        setUserProfile({ ...userProfile, avatar: cropImageSrc, avatarScale: cropZoom, avatarPanX: cropPanX, avatarPanY: cropPanY });
                         setCropImageSrc(null);
                       }} 
-                      className="btn-pop" 
-                      style={{ flex: 1, padding: '12px', borderRadius: '12px' }}
+                      className="btn-pop" style={{ flex: 1, padding: '12px', borderRadius: '12px' }}
                     >
                       決定
                     </button>
@@ -4321,12 +4381,88 @@ useEffect(() => {
                     </span>
                   </div>
 
+                  <button onClick={syncWithCloud} className="btn-secondary" style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: `1px dashed var(--theme)`, color: 'var(--theme)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', fontWeight: 'bold', marginTop: '16px' }}>
+                    <Database size={16} /> クラウド同期（手動バックアップ）
+                  </button>
+
                   <button onClick={() => setIsProfileModalOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '8px', padding: '14px' }}>保存して閉じる</button>
                 </div>
               )}
             </div>
           </div>
         )}
+
+        {/* 👇 ここから追加：🎞️ デイリー・ストーリー モーダル 👇 */}
+      {isStoryModalOpen && storyDate && (() => {
+        const dayEvents = events.filter((e: any) => e.start?.startsWith(storyDate));
+        const dayPhotos = dayEvents.flatMap((e: any) => e.extendedProps?.metadata?.photoUrls || []);
+        let totalIncome = 0; let totalExpense = 0;
+        dayEvents.forEach((e: any) => {
+          const cf = e.extendedProps?.metadata?.customFields || {};
+          if (cf.isExpenseSet && cf.standardExpenseAmount) totalExpense += Number(cf.standardExpenseAmount);
+          if (cf.isIncomeSet && cf.standardIncomeAmount) totalIncome += Number(cf.standardIncomeAmount);
+        });
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsStoryModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column', color: '#fff' }}>
+            <div style={{ display: 'flex', gap: '4px', padding: '16px 8px 8px 8px', marginTop: 'env(safe-area-inset-top)' }}>
+              <div style={{ flex: 1, height: '3px', background: 'rgba(255,255,255,0.3)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '100%', background: '#fff', borderRadius: '2px', animation: 'progress 5s linear forwards' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{storyDate.replace(/-/g, '/')}</div>
+              <button onClick={() => setIsStoryModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }} className="hide-scrollbar">
+              {dayPhotos.length > 0 ? (
+                <div style={{ width: '100%', aspectRatio: '4/5', borderRadius: '24px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)', position: 'relative' }}>
+                  <img src={dayPhotos[0]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="highlight" />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', background: 'linear-gradient(transparent, rgba(0,0,0,0.8))', padding: '24px 16px', color: '#fff', fontWeight: 'bold', fontSize: '1.2rem' }}>今日のハイライト</div>
+                </div>
+              ) : (
+                <div style={{ width: '100%', padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.1)', borderRadius: '24px', fontWeight: 'bold' }}>写真はまだありません📸</div>
+              )}
+
+              <div style={{ background: 'rgba(255,255,255,0.1)', padding: '20px', borderRadius: '24px', backdropFilter: 'blur(10px)' }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 今日の予定まとめ</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {dayEvents.map((e: any) => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '4px', height: '24px', background: e.extendedProps?.cColor || e.backgroundColor || themeColor, borderRadius: '2px' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>{e.title}</div>
+                        {e.extendedProps?.metadata?.companions?.length > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>with {e.extendedProps.metadata.companions.join(', ')}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {(totalIncome > 0 || totalExpense > 0) && (
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, background: 'rgba(16,185,129,0.2)', padding: '16px', borderRadius: '20px', border: '1px solid rgba(16,185,129,0.3)' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 'bold', marginBottom: '4px' }}>収入</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff' }}>¥{totalIncome.toLocaleString()}</div>
+                  </div>
+                  <div style={{ flex: 1, background: 'rgba(239,68,68,0.2)', padding: '16px', borderRadius: '20px', border: '1px solid rgba(239,68,68,0.3)' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 'bold', marginBottom: '4px' }}>支出</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff' }}>¥{totalExpense.toLocaleString()}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <style>{`
+              @keyframes progress { from { width: 0%; } to { width: 100%; } }
+            `}</style>
+          </div>
+        );
+      })()}
 
         {isModalOpen && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }} onClick={() => setIsModalOpen(false)}>
@@ -5242,6 +5378,81 @@ useEffect(() => {
                           );
                         })()}
 
+      {/* 🎞️ デイリー・ストーリー モーダル */}
+      {isStoryModalOpen && storyDate && (() => {
+        // その日のイベントと写真を抽出
+        const dayEvents = events.filter((e: any) => e.start?.startsWith(storyDate));
+        const dayPhotos = dayEvents.flatMap((e: any) => e.extendedProps?.metadata?.photoUrls || []);
+        let totalIncome = 0; let totalExpense = 0;
+        dayEvents.forEach((e: any) => {
+          const cf = e.extendedProps?.metadata?.customFields || {};
+          if (cf.isExpenseSet && cf.standardExpenseAmount) totalExpense += Number(cf.standardExpenseAmount);
+          if (cf.isIncomeSet && cf.standardIncomeAmount) totalIncome += Number(cf.standardIncomeAmount);
+        });
+
+        return (
+          <div className="modal-overlay" onClick={() => setIsStoryModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 9999, display: 'flex', flexDirection: 'column', color: '#fff' }}>
+            {/* プログレスバー（装飾用） */}
+            <div style={{ display: 'flex', gap: '4px', padding: '16px 8px 8px 8px', marginTop: 'env(safe-area-inset-top)' }}>
+              <div style={{ flex: 1, height: '3px', background: 'rgba(255,255,255,0.3)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '100%', background: '#fff', borderRadius: '2px', animation: 'progress 5s linear forwards' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 16px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{storyDate.replace(/-/g, '/')}</div>
+              <button onClick={() => setIsStoryModalOpen(false)} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {dayPhotos.length > 0 ? (
+                <div style={{ width: '100%', aspectRatio: '4/5', borderRadius: '24px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)', position: 'relative' }}>
+                  <img src={dayPhotos[0]} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="highlight" />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', background: 'linear-gradient(transparent, rgba(0,0,0,0.8))', padding: '24px 16px', color: '#fff', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                    今日のハイライト
+                  </div>
+                </div>
+              ) : (
+                <div style={{ width: '100%', padding: '40px', textAlign: 'center', background: 'rgba(255,255,255,0.1)', borderRadius: '24px', fontWeight: 'bold' }}>写真はまだありません📸</div>
+              )}
+
+              <div style={{ background: 'rgba(255,255,255,0.1)', padding: '20px', borderRadius: '24px', backdropFilter: 'blur(10px)' }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={18} /> 今日の予定まとめ</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {dayEvents.map((e: any) => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '4px', height: '24px', background: e.extendedProps?.cColor || e.backgroundColor || themeColor, borderRadius: '2px' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>{e.title}</div>
+                        {e.extendedProps?.metadata?.companions?.length > 0 && (
+                          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '4px' }}>with {e.extendedProps.metadata.companions.join(', ')}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {(totalIncome > 0 || totalExpense > 0) && (
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, background: 'rgba(16,185,129,0.2)', padding: '16px', borderRadius: '20px', border: '1px solid rgba(16,185,129,0.3)' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 'bold', marginBottom: '4px' }}>収入</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff' }}>¥{totalIncome.toLocaleString()}</div>
+                  </div>
+                  <div style={{ flex: 1, background: 'rgba(239,68,68,0.2)', padding: '16px', borderRadius: '20px', border: '1px solid rgba(239,68,68,0.3)' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 'bold', marginBottom: '4px' }}>支出</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: '900', color: '#fff' }}>¥{totalExpense.toLocaleString()}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <style>{`
+              @keyframes progress { from { width: 0%; } to { width: 100%; } }
+            `}</style>
+          </div>
+        );
+      })()}
                         {/* 🚩 集合・出発時間を設定（開閉式） */}
                         <div className="card-box" style={{ margin: 0, padding: 0, background: isGathering ? 'var(--input-bg)' : 'transparent', borderStyle: isGathering ? 'solid' : 'dashed', overflow: 'hidden' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px' }}>
@@ -5567,7 +5778,40 @@ useEffect(() => {
                               <div>
                                 {/* 👇 修正：テキストエリアを input に変更し、上下中央揃えにする。折りたたみをやめてバグを完全解消 */}
                                 <input type="text" className="pop-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="思い出メモ..." style={{ background: 'var(--input-bg)' }} />
-                                
+                                <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px dashed var(--border-color)' }}>
+                                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                                    <Users size={16} color="var(--theme)" /> 誰と行った？（同行者）
+                                  </label>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: companions.length > 0 ? '12px' : '0' }}>
+                                    {companions.map(c => (
+                                      <span key={c} style={{ background: 'var(--theme)', color: '#fff', padding: '4px 10px', borderRadius: '16px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 'bold' }}>
+                                        {c} <button onClick={(e) => { e.preventDefault(); setCompanions(companions.filter(x => x !== c)); }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: 0 }}>×</button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <input 
+                                    type="text" 
+                                    className="pop-input" 
+                                    placeholder="名前を入力してEnter" 
+                                    value={companionInput}
+                                    onChange={e => setCompanionInput(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' && companionInput.trim() !== '') {
+                                        e.preventDefault();
+                                        if (!companions.includes(companionInput.trim())) setCompanions([...companions, companionInput.trim()]);
+                                        setCompanionInput('');
+                                      }
+                                    }}
+                                    style={{ height: '40px', fontSize: '0.85rem' }}
+                                  />
+                                  <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginTop: '8px' }}>
+                                    {Array.from(new Set(events.flatMap((e: any) => e.extendedProps?.metadata?.companions || []))).filter(c => !companions.includes(c as string)).map(c => (
+                                      <button key={c as string} onClick={(e) => { e.preventDefault(); setCompanions([...companions, c as string]); }} style={{ background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-sub)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                        + {c as string}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                                 {showPhotoUI && (
                                   <div style={{ marginTop: '12px' }}>
                                     <label className="form-label" style={{ color: 'var(--theme)' }}>思い出の写真</label>

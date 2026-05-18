@@ -14,7 +14,12 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  output: 'export', // 👈 静的ファイルとして出力する設定（iOS化に必須）
+  images: {
+    unoptimized: true, // 👈 アプリ内での画像表示エラーを防ぐ（iOS化に必須）
+  },
+  // 他の既存の設定があればそのまま残す
 };
 
+// 👇 修正：.mjs 形式の正しい書き方（export default）にし、PWAの設定で包んで出力します
 export default withPWA(nextConfig);
