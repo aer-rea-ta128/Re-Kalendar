@@ -11,7 +11,7 @@ import {
   History, PieChart, Image as ImageIcon, Repeat, Pin, Database, Palette, Gift, Calendar as CalendarIcon, Zap,
   Home, Edit3, Flag, Monitor, Dumbbell, Beer, Circle, Search, Calendar, Plane, Bus, FileText, Sun, Moon, CreditCard, 
   Check, CheckCircle, Banknote, BookOpen, Users, Download, Share2, Sparkles, Unlock, Lock, Globe, Store,
-  Smartphone, Landmark, ChevronUp, ChevronDown, Handshake, 
+  Smartphone, Landmark, ChevronUp, ChevronDown, Handshake, User
 } from 'lucide-react';
 
 // ★ 分割したファイルを読み込む（パスは画像の設定に合わせています）
@@ -41,7 +41,9 @@ export default function SmartLifeOS() {
   const touchEndX = useRef<number | null>(null);
 
   const isSwipingRef = useRef(false);
-  const blockCalendarClick = useRef(false); // 👈 追加：誤作動を防ぐバリア
+  const blockCalendarClick = useRef(false);
+
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // 👇==== ここから追加 ====👇
   const touchStartY = useRef<number | null>(null);
@@ -146,6 +148,19 @@ export default function SmartLifeOS() {
   const [exceptionDays, setExceptionDays] = useState<Record<string, 'class' | 'off'>>(() => loadData('os_exceptionDays', {}));
   // 👆 ここまで
 
+  const [newTermName, setNewTermName] = useState(''); 
+  const [editTimetableId, setEditTimetableId] = useState<string | null>(null);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [editTemplateIndex, setEditTemplateIndex] = useState<number | null>(null);
+  const [templateForm, setTemplateForm] = useState<any>({});
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState(() => loadData('os_user_profile', { email: '', phone: '', avatar: '' }));
+
+  useEffect(() => {
+    if (isDataLoaded) localStorage.setItem('os_user_profile', JSON.stringify(userProfile));
+  }, [userProfile, isDataLoaded]);
+
   const [advanceTab, setAdvanceTab] = useState<'unsettled' | 'settled' | 'partners'>('unsettled');
   const [viewingPartner, setViewingPartner] = useState<string | null>(null); 
   const [customPayees, setCustomPayees] = useState<string[]>(() => loadData('os_customPayees', []));
@@ -239,7 +254,6 @@ export default function SmartLifeOS() {
   ];
 
   const [categories, setCategories] = useState<any[]>(() => loadData('os_categories', DEFAULT_CATEGORIES));
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [holidays, setHolidays] = useState<Record<string, string>>({});
   const [templates, setTemplates] = useState<any[]>([]);
 
@@ -390,6 +404,7 @@ export default function SmartLifeOS() {
     setWalkTime(get('os_walkTime', '10'));
     setStartPointType(get('os_startPointType', 'address'));
     setIsDataLoaded(true);
+    setSubs(get('os_subs', [])); // 👈 これを追加！
   }, []);
 
   useEffect(() => {
@@ -2010,7 +2025,17 @@ export default function SmartLifeOS() {
       if (holidays[dateStr] && exception !== 'class') continue;
 
       const dayOfWeek = d.getDay();
-      const dayRoutines = weeklyTimetables.filter(t => t.dayOfWeek === dayOfWeek);
+      
+      // 👇 修正：授業ごとに指定された期間（学期）内かどうかを個別に判定する！
+      const dayRoutines = weeklyTimetables.filter(t => {
+        if (t.dayOfWeek !== dayOfWeek) return false;
+        if (!t.termId || t.termId === 'all') return true; // 全期間対象なら表示
+        const term = timetableTerms.find((termObj: any) => termObj.id === t.termId);
+        if (!term) return true;
+        const afterStart = !term.start || dateStr >= term.start;
+        const beforeEnd = !term.end || dateStr <= term.end;
+        return afterStart && beforeEnd;
+      });
       if (dayRoutines.length === 0) continue;
 
       if (viewType === 'dayGridMonth') {
@@ -3348,8 +3373,84 @@ useEffect(() => {
           setIsFinanceGraphOpen={setIsFinanceGraphOpen} // 👈 追加
           setIsScheduleAssistantOpen={setIsScheduleAssistantOpen}
           setIsAdvanceModalOpen={setIsAdvanceModalOpen}
-          setIsTimetableModalOpen={setIsTimetableModalOpen} // 👈 忘れずにこれを追加
+          setIsTimetableModalOpen={setIsTimetableModalOpen}
+          setIsTemplateModalOpen={setIsTemplateModalOpen}
+          userProfile={userProfile}
+          setIsProfileModalOpen={setIsProfileModalOpen}
         />
+
+        {/* 📋 よくある予定（テンプレート）管理 モーダル */}
+        {isTemplateModalOpen && (
+          <div className="modal-overlay" onClick={() => { setIsTemplateModalOpen(false); setEditTemplateIndex(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flexShrink: 0 }}>
+                <ModalHeader title="よくある予定の管理" onClose={() => { setIsTemplateModalOpen(false); setEditTemplateIndex(null); }} />
+              </div>
+
+              <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px', marginBottom: '16px' }}>
+                {quickTemplates.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text-sub)', fontSize: '0.85rem', padding: '20px' }}>登録されている予定はありません</div>
+                ) : (
+                  quickTemplates.map((t, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', borderLeft: `6px solid ${t.eventColor || 'var(--theme)'}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
+                      <div>
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{t.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>{t.categoryName} {t.isAllDayBackground ? '/ 終日' : `/ ${t.startH}:${t.startM}〜${t.endH}:${endM}`}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button onClick={() => {
+                          setEditTemplateIndex(i);
+                          setTemplateForm({ ...t });
+                        }} className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.75rem', borderRadius: '8px' }}>編集</button>
+                        <button onClick={() => {
+                          const updated = quickTemplates.filter((_, idx) => idx !== i);
+                          setQuickTemplates(updated);
+                          localStorage.setItem('quickTemplates', JSON.stringify(updated));
+                        }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {editTemplateIndex !== null && (
+                <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px dashed var(--theme)', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)' }}>✏️ テンプレートを編集</span>
+                    <button onClick={() => setEditTemplateIndex(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-sub)', fontSize: '0.75rem', cursor: 'pointer' }}>キャンセル</button>
+                  </div>
+                  
+                  <input type="text" className="pop-input" value={templateForm.title || ''} onChange={e => setTemplateForm({...templateForm, title: e.target.value})} placeholder="タイトル" style={{ marginBottom: '8px', fontSize: '0.85rem' }} />
+                  
+                  <select className="pop-input" value={templateForm.categoryName || ''} onChange={e => {
+                    const catObj = categories.find((c: any) => c.name === e.target.value);
+                    setTemplateForm({...templateForm, categoryName: e.target.value, eventColor: catObj?.color || ''});
+                  }} style={{ marginBottom: '8px', fontSize: '0.85rem' }}>
+                    {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+                    <input type="time" className="pop-input" value={`${templateForm.startH || '09'}:${templateForm.startM || '00'}`} onChange={e => setTemplateForm({...templateForm, startH: e.target.value.split(':')[0], startM: e.target.value.split(':')[1]})} style={{ flex: 1, padding: '0 8px' }} disabled={templateForm.isAllDayBackground} />
+                    <span style={{ fontWeight: 'bold', color: 'var(--text-sub)' }}>〜</span>
+                    <input type="time" className="pop-input" value={`${templateForm.endH || '10'}:${templateForm.endM || '00'}`} onChange={e => setTemplateForm({...templateForm, endH: e.target.value.split(':')[0], endM: e.target.value.split(':')[1]})} style={{ flex: 1, padding: '0 8px' }} disabled={templateForm.isAllDayBackground} />
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={templateForm.isAllDayBackground || false} onChange={e => setTemplateForm({...templateForm, isAllDayBackground: e.target.checked})} /> 1日単位（終日）にする
+                  </label>
+
+                  <button onClick={() => {
+                    const updated = [...quickTemplates];
+                    updated[editTemplateIndex] = templateForm;
+                    setQuickTemplates(updated);
+                    localStorage.setItem('quickTemplates', JSON.stringify(updated));
+                    setEditTemplateIndex(null);
+                  }} className="btn-pop" style={{ width: '100%', padding: '12px', fontSize: '0.9rem' }}>更新する</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 🏫 時間割・週間ルーティン設定 モーダル（ここに配置するのが正解です！） */}
         {isTimetableModalOpen && (() => {
@@ -3385,15 +3486,19 @@ useEffect(() => {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                         {timetableTerms.map((term: any) => (
                           <div key={term.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--input-bg)', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
-                              {term.start ? term.start.replace(/-/g, '/') : '未定'} 〜 {term.end ? term.end.replace(/-/g, '/') : '未定'}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)' }}>{term.name || '名称未設定'}</span>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                                {term.start ? term.start.replace(/-/g, '/') : '未定'} 〜 {term.end ? term.end.replace(/-/g, '/') : '未定'}
+                              </span>
+                            </div>
                             <button onClick={() => setTimetableTerms(timetableTerms.filter((t: any) => t.id !== term.id))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
                           </div>
                         ))}
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--input-bg)', padding: '12px', borderRadius: '12px', border: '1px dashed var(--theme)' }}>
+                        <input type="text" className="pop-input" value={newTermName} onChange={e => setNewTermName(e.target.value)} placeholder="期間名 (例: 前期, 秋学期)" style={{ fontSize: '0.8rem', width: '100%' }} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', width: '40px' }}>開始日</span>
                           <input type="date" className="pop-input" value={newTermStart} onChange={e => setNewTermStart(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem', flex: 1 }} />
@@ -3403,9 +3508,10 @@ useEffect(() => {
                           <input type="date" className="pop-input" value={newTermEnd} onChange={e => setNewTermEnd(e.target.value)} style={{ padding: '0 8px', fontSize: '0.8rem', flex: 1 }} />
                         </div>
                         <button onClick={() => {
+                          if (!newTermName) return alert('期間名を入力してください');
                           if (!newTermStart && !newTermEnd) return alert('開始日か終了日を指定してください');
-                          setTimetableTerms([...timetableTerms, { id: Date.now().toString(), start: newTermStart, end: newTermEnd }]);
-                          setNewTermStart(''); setNewTermEnd('');
+                          setTimetableTerms([...timetableTerms, { id: Date.now().toString(), name: newTermName, start: newTermStart, end: newTermEnd }]);
+                          setNewTermName(''); setNewTermStart(''); setNewTermEnd('');
                         }} className="btn-pop" style={{ padding: '10px', fontSize: '0.8rem', borderRadius: '10px', marginTop: '4px' }}>＋ 期間を追加</button>
                       </div>
                     </div>
@@ -3455,21 +3561,52 @@ useEffect(() => {
                       <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-sub)', fontSize: '0.8rem' }}>この曜日の授業・ルーティンはありません</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {currentDayRoutines.map((r: any, i: number) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', borderLeft: `6px solid ${r.color}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
-                            <div>
-                              <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{r.startH}:{r.startM} 〜 {r.endH}:{r.endM}</div>
-                              <div style={{ fontSize: '1rem', fontWeight: '900', color: 'var(--text-main)' }}>{r.title} <span style={{ fontSize: '0.65rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', marginLeft: '4px' }}>{r.lessonType}</span></div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '2px' }}>{r.categoryName} {r.location && `📍 ${r.location}`}</div>
+                        {currentDayRoutines.map((r: any, i: number) => {
+                          const termName = timetableTerms.find(t => t.id === r.termId)?.name || '全期間';
+                          return (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', borderLeft: `6px solid ${r.color}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>{r.startH}:{r.startM} 〜 {r.endH}:{r.endM}</div>
+                                <div style={{ fontSize: '1rem', fontWeight: '900', color: 'var(--text-main)' }}>{r.title} <span style={{ fontSize: '0.65rem', background: 'var(--input-bg)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-sub)', marginLeft: '4px' }}>{r.lessonType}</span></div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '2px' }}>{r.categoryName} {r.location && `📍 ${r.location}`} <span style={{ marginLeft: '6px', color: 'var(--theme)' }}>[{termName}]</span></div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                <button onClick={() => {
+                                  setEditTimetableId(r.id);
+                                  (document.getElementById('tt-title') as HTMLInputElement).value = r.title;
+                                  (document.getElementById('tt-category') as HTMLSelectElement).value = r.categoryName;
+                                  (document.getElementById('tt-type') as HTMLSelectElement).value = r.lessonType;
+                                  (document.getElementById('tt-start') as HTMLInputElement).value = `${r.startH}:${r.startM}`;
+                                  (document.getElementById('tt-end') as HTMLInputElement).value = `${r.endH}:${r.endM}`;
+                                  (document.getElementById('tt-loc') as HTMLInputElement).value = r.location || '';
+                                  (document.getElementById('tt-term') as HTMLSelectElement).value = r.termId || 'all';
+                                }} className="btn-secondary" style={{ padding: '6px 10px', fontSize: '0.75rem', borderRadius: '8px' }}>編集</button>
+                                <button onClick={() => setWeeklyTimetables(weeklyTimetables.filter((item: any) => item.id !== r.id))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}><Trash2 size={16} /></button>
+                              </div>
                             </div>
-                            <button onClick={() => setWeeklyTimetables(weeklyTimetables.filter((item: any) => item.id !== r.id))} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}><Trash2 size={16} /></button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
-                    <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px dashed var(--theme)' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>新しいコマを追加</span>
+                    <div style={{ background: editTimetableId ? 'rgba(59, 130, 246, 0.1)' : 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: `1px dashed ${editTimetableId ? '#3b82f6' : 'var(--theme)'}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: editTimetableId ? '#3b82f6' : 'var(--theme)' }}>
+                          {editTimetableId ? '✏️ コマを編集' : '新しいコマを追加'}
+                        </span>
+                        {editTimetableId && (
+                          <button onClick={() => {
+                            setEditTimetableId(null);
+                            (document.getElementById('tt-title') as HTMLInputElement).value = '';
+                          }} style={{ background: 'transparent', border: 'none', color: 'var(--text-sub)', fontSize: '0.75rem', cursor: 'pointer' }}>キャンセル</button>
+                        )}
+                      </div>
+
+                      <select className="pop-input" id="tt-term" style={{ marginBottom: '8px', fontSize: '0.8rem', width: '100%' }}>
+                        <option value="all">全期間 (通年)</option>
+                        {timetableTerms.map(t => <option key={t.id} value={t.id}>{t.name} ({t.start?.replace(/-/g,'/')}〜)</option>)}
+                      </select>
+
                       <input type="text" className="pop-input" placeholder="授業名・ルーティン名" id="tt-title" style={{ marginBottom: '8px', fontSize: '0.85rem' }} />
                       <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                         <select className="pop-input" id="tt-category" style={{ flex: 1, padding: '0 8px', fontSize: '0.8rem' }}>
@@ -3483,7 +3620,6 @@ useEffect(() => {
                         </select>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                        {/* 👇 ここで step="300" を追加して5分単位にしました！ */}
                         <input type="time" className="pop-input" id="tt-start" defaultValue="09:00" step="300" style={{ flex: 1, padding: '0 8px' }} />
                         <span style={{ fontWeight: 'bold', color: 'var(--text-sub)' }}>〜</span>
                         <input type="time" className="pop-input" id="tt-end" defaultValue="10:30" step="300" style={{ flex: 1, padding: '0 8px' }} />
@@ -3496,12 +3632,20 @@ useEffect(() => {
                         const start = (document.getElementById('tt-start') as HTMLInputElement).value;
                         const end = (document.getElementById('tt-end') as HTMLInputElement).value;
                         const loc = (document.getElementById('tt-loc') as HTMLInputElement).value;
+                        const termId = (document.getElementById('tt-term') as HTMLSelectElement).value;
                         if (!title || !start || !end) return alert('タイトルと時間を入力してください');
                         const catObj = categories.find((c: any) => c.name === cat);
                         const color = catObj ? catObj.color : '#3b82f6';
-                        setWeeklyTimetables([...weeklyTimetables, { id: Date.now().toString(), dayOfWeek: timetableTab, title, categoryName: cat, startH: start.split(':')[0], startM: start.split(':')[1], endH: end.split(':')[0], endM: end.split(':')[1], location: loc, lessonType: type, color }]);
+                        
+                        if (editTimetableId) {
+                          setWeeklyTimetables(weeklyTimetables.map(item => item.id === editTimetableId ? { ...item, title, categoryName: cat, startH: start.split(':')[0], startM: start.split(':')[1], endH: end.split(':')[0], endM: end.split(':')[1], location: loc, lessonType: type, color, termId } : item));
+                          setEditTimetableId(null);
+                        } else {
+                          setWeeklyTimetables([...weeklyTimetables, { id: Date.now().toString(), dayOfWeek: timetableTab, title, categoryName: cat, startH: start.split(':')[0], startM: start.split(':')[1], endH: end.split(':')[0], endM: end.split(':')[1], location: loc, lessonType: type, color, termId }]);
+                        }
                         (document.getElementById('tt-title') as HTMLInputElement).value = '';
-                      }} className="btn-pop" style={{ width: '100%', padding: '12px', fontSize: '0.9rem' }}>この曜日に登録</button>
+                        (document.getElementById('tt-loc') as HTMLInputElement).value = '';
+                      }} className="btn-pop" style={{ width: '100%', padding: '12px', fontSize: '0.9rem', background: editTimetableId ? '#3b82f6' : 'var(--theme)' }}>{editTimetableId ? '更新する' : 'この曜日に登録'}</button>
                     </div>
                   </div>
                 )}
@@ -4047,6 +4191,53 @@ useEffect(() => {
                             </div>
                           );
                         })()}
+                        {/* 👤 プロフィール設定 モーダル */}
+        {isProfileModalOpen && (
+          <div className="modal-overlay" onClick={() => setIsProfileModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+            <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '400px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
+              <ModalHeader title="アカウント設定" onClose={() => setIsProfileModalOpen(false)} />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                   <label style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--input-bg)', border: '2px dashed var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+                      {userProfile.avatar ? <img src={userProfile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="avatar" /> : <User size={32} color="var(--theme)" />}
+                      <div style={{ position: 'absolute', bottom: 0, width: '100%', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: '0.6rem', textAlign: 'center', padding: '2px 0', fontWeight: 'bold' }}>変更</div>
+                      <input type="file" style={{ display: 'none' }} accept="image/*" onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = ev => setUserProfile({...userProfile, avatar: ev.target?.result as string});
+                          reader.readAsDataURL(file);
+                        }
+                      }} />
+                   </label>
+                </div>
+
+                <div>
+                  <label className="form-label">ユーザー名</label>
+                  <input type="text" className="pop-input" value={activeUserName} onChange={e => setActiveUserName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">メールアドレス (セキュリティ連携用)</label>
+                  <input type="email" className="pop-input" value={userProfile.email || ''} onChange={e => setUserProfile({...userProfile, email: e.target.value})} placeholder="example@mail.com" />
+                </div>
+                <div>
+                  <label className="form-label">電話番号 (SMS認証用)</label>
+                  <input type="tel" className="pop-input" value={userProfile.phone || ''} onChange={e => setUserProfile({...userProfile, phone: e.target.value})} placeholder="090-XXXX-XXXX" />
+                </div>
+
+                <div style={{ background: 'rgba(16,185,129,0.1)', padding: '12px', borderRadius: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '8px' }}>
+                  <CheckCircle size={16} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', lineHeight: 1.4 }}>
+                    メールアドレス・電話番号を登録することで、データのバックアップとクラウド同期がより安全に行われます。
+                  </span>
+                </div>
+
+                <button onClick={() => setIsProfileModalOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '8px', padding: '14px' }}>保存して閉じる</button>
+              </div>
+            </div>
+          </div>
+        )}
 
 
         {isModalOpen && (

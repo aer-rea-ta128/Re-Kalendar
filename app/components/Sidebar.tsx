@@ -50,6 +50,9 @@ interface SidebarProps {
   setIsScheduleAssistantOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAdvanceModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsTimetableModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsTemplateModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  userProfile: any;
+  setIsProfileModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export default function Sidebar({
@@ -69,7 +72,7 @@ export default function Sidebar({
   displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter,
   activeUserId, activeUserName, activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, 
   setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen,
-  setIsTimetableModalOpen
+  setIsTimetableModalOpen, setIsTemplateModalOpen, userProfile, setIsProfileModalOpen
 }: SidebarProps) {
 
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
@@ -129,6 +132,7 @@ export default function Sidebar({
     { id: 'routine_settings', label: '毎月の予定(給料等)', icon: Repeat, color: 'var(--text-sub)' },
     { id: 'subscription_settings', label: 'サブスク管理', icon: Banknote, color: 'var(--text-sub)' },
     { id: 'anniversary_settings', label: '記念日管理', icon: Gift, color: 'var(--text-sub)' },
+    { id: 'template_settings', label: 'よくある予定の管理', icon: Star, color: 'var(--text-sub)' }, // 👈 追加
   ];
 
   const handleMenuAction = (e: any, id: string) => {
@@ -155,6 +159,7 @@ export default function Sidebar({
       else if (id === 'anniversary_settings') { setIsModalOpen(false); setIsAnniversaryModalOpen(true); }
       else if (id === 'finance_history') { setIsFinanceHistoryOpen(true); }
       else if (id === 'finance_graph') { setIsFinanceGraphOpen(true); } 
+      else if (id === 'template_settings') { setIsModalOpen(false); setIsTemplateModalOpen(true); } // 👈 追加
       else if (id === 'create_event') {
         const today = toLocalYYYYMMDD(new Date()); const nowH = new Date().getHours();
         setMode('create'); setStartDate(today); setEndDate(today);
@@ -323,19 +328,26 @@ export default function Sidebar({
         <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
           
           {activeUserId && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: `1px solid var(--border-color)`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', marginBottom: '4px' }}>
+            <div 
+              // 👇 クリックイベントを追加
+              onClick={() => { setIsSidebarOpen(false); setTimeout(() => setIsProfileModalOpen(true), 100); }} 
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--card-bg)', padding: '12px', borderRadius: '16px', border: `1px solid var(--border-color)`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)', marginBottom: '4px', cursor: 'pointer' }}
+              className="hover-bg-glass"
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: themeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 }}>
-                  <User size={20} />
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--input-bg)', border: '2px solid var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--theme)', flexShrink: 0, overflow: 'hidden' }}>
+                  {/* 👇 画像があれば画像、なければアイコン */}
+                  {userProfile?.avatar ? <img src={userProfile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="profile" /> : <User size={20} />}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{activeUserName}</span>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>@{activeUserId}</span>
+                  {/* 👇 アドレスがあればアドレスを表示 */}
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{userProfile?.email || `@${activeUserId}`}</span>
                 </div>
               </div>
-              <button onClick={onLogout} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '12px', flexShrink: 0 }}>
-                <LogOut size={16} />
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Edit3 size={16} color="var(--text-sub)" />
+              </div>
             </div>
           )}
 
