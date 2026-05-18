@@ -4233,7 +4233,6 @@ useEffect(() => {
                             </div>
                           );
                         })()}
-                        // 👇 ここからコピーして上書きしてください 👇
         {/* 👤 プロフィール設定 モーダル */}
         {isProfileModalOpen && (
           <div className="modal-overlay" onClick={() => { setIsProfileModalOpen(false); setCropImageSrc(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
@@ -5612,7 +5611,6 @@ useEffect(() => {
                     return items.filter(Boolean);
                   })()}
 
-                  {/* 👇 ここからコピー＆ペースト（上書き） 👇 */}
                   {customFieldsData.isTimetableEvent ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '24px' }}>
                       <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-sub)' }}>※この予定は時間割マスターで管理されています</div>
