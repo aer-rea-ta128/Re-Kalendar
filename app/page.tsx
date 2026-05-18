@@ -156,6 +156,10 @@ export default function SmartLifeOS() {
 
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(() => loadData('os_user_profile', { email: '', phone: '', avatar: '' }));
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropPanX, setCropPanX] = useState(50);
+  const [cropPanY, setCropPanY] = useState(50);
 
   useEffect(() => {
     if (isDataLoaded) localStorage.setItem('os_user_profile', JSON.stringify(userProfile));
@@ -1482,24 +1486,28 @@ export default function SmartLifeOS() {
     // 月毎カレンダーの表示モード（ドット・写真）を【最優先】で処理する
     if (viewType === 'dayGridMonth' && displayMode !== 'normal') {
       if (displayMode === 'dot') {
-        return (
-          <div className={highlightClass} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '24px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cColor, boxShadow: `0 2px 4px ${cColor}60` }} />
-          </div>
-        );
+        // ... (省略)
       }
       if (displayMode === 'photo') {
-        if (hasPhoto) {
-          return (
-            // 👇 修正：最大3枚まで横に綺麗に並べて表示する
-            <div className={highlightClass} style={{ width: '100%', height: '40px', padding: '2px', display: 'flex', gap: '2px', overflow: 'hidden' }}>
-              {metadata.photoUrls.slice(0, 3).map((url: string, i: number) => (
-                <img key={i} src={url} style={{ flex: 1, minWidth: 0, height: '100%', objectFit: 'cover', borderRadius: '4px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} alt="event" />
-              ))}
+        return (
+          // 👇 横並びから縦並び（flexDirection: 'column'）に変更し、はみ出しを隠す 👇
+          <div className={highlightClass} style={{
+            display: 'flex', flexDirection: 'column', width: '100%', height: hasPhoto ? '42px' : '20px',
+            backgroundColor: 'transparent',
+            borderLeft: `3px solid ${cColor}`, borderRadius: '2px', boxSizing: 'border-box', overflow: 'hidden', padding: '2px 0'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 4px', marginBottom: hasPhoto ? '2px' : '0' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '0.65rem', color: 'var(--text-main)' }}>{displayTitle}</span>
             </div>
-          );
-        }
-        return <div style={{ display: 'none' }}></div>; // 写真がない予定は完全に非表示
+            {hasPhoto && (
+              <div style={{ width: '100%', height: '24px', display: 'flex', gap: '2px', padding: '0 2px', overflow: 'hidden' }}>
+                {metadata.photoUrls.slice(0, 3).map((url: string, i: number) => (
+                  <img key={i} src={url} style={{ flex: 1, minWidth: 0, height: '100%', objectFit: 'cover', borderRadius: '4px' }} alt="event" />
+                ))}
+              </div>
+            )}
+          </div>
+        );
       }
     }
 
@@ -3386,6 +3394,12 @@ useEffect(() => {
               <div style={{ flexShrink: 0 }}>
                 <ModalHeader title="よくある予定の管理" onClose={() => { setIsTemplateModalOpen(false); setEditTemplateIndex(null); }} />
               </div>
+              <button onClick={() => {
+                setEditTemplateIndex(-1); // -1 を新規作成の目印にする
+                setTemplateForm({ title: '', categoryName: categories[0]?.name || '', startH: '09', startM: '00', endH: '10', endM: '00', isAllDayBackground: false });
+              }} className="btn-pop" style={{ padding: '12px', fontSize: '0.85rem', borderRadius: '12px', marginBottom: '16px', flexShrink: 0 }}>
+                ＋ 予定を新しく追加
+              </button>
 
               <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px', marginBottom: '16px' }}>
                 {quickTemplates.length === 0 ? (
@@ -3413,10 +3427,14 @@ useEffect(() => {
                 )}
               </div>
 
+              // 👇 修正するコードの始まり
               {editTemplateIndex !== null && (
                 <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px dashed var(--theme)', flexShrink: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)' }}>✏️ テンプレートを編集</span>
+                    {/* 🌟 絵文字からスマートアイコン（Edit3）に変更 */}
+                    <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--theme)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Edit3 size={14} /> テンプレートを編集
+                    </span>
                     <button onClick={() => setEditTemplateIndex(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-sub)', fontSize: '0.75rem', cursor: 'pointer' }}>キャンセル</button>
                   </div>
                   
@@ -3439,13 +3457,38 @@ useEffect(() => {
                     <input type="checkbox" checked={templateForm.isAllDayBackground || false} onChange={e => setTemplateForm({...templateForm, isAllDayBackground: e.target.checked})} /> 1日単位（終日）にする
                   </label>
 
-                  <button onClick={() => {
-                    const updated = [...quickTemplates];
-                    updated[editTemplateIndex] = templateForm;
-                    setQuickTemplates(updated);
-                    localStorage.setItem('quickTemplates', JSON.stringify(updated));
-                    setEditTemplateIndex(null);
-                  }} className="btn-pop" style={{ width: '100%', padding: '12px', fontSize: '0.9rem' }}>更新する</button>
+                  {/* 👇 ここから挿入するコード 👇 */}
+                  <button 
+                    onClick={() => {
+                      if (!templateForm.title) return alert('タイトルを入力してください');
+                      let updated = [...quickTemplates];
+                      if (editTemplateIndex === -1) {
+                        updated.push(templateForm); // 新規追加
+                      } else if (editTemplateIndex !== null) {
+                        updated[editTemplateIndex] = templateForm; // 上書き更新
+                      }
+                      setQuickTemplates(updated);
+                      localStorage.setItem('quickTemplates', JSON.stringify(updated));
+                      setEditTemplateIndex(null);
+                    }} 
+                    className="btn-pop" 
+                    style={{ width: '100%', padding: '12px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    {/* 🌟 ボタンテキストもスマートアイコン仕様に変更 */}
+                    {editTemplateIndex === -1 ? (
+                      <>
+                        <Sparkles size={16} />
+                        <span>追加する</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={16} />
+                        <span>更新する</span>
+                      </>
+                    )}
+                  </button>
+                  {/* 👆 ここまで挿入するコード 👆 */}
+
                 </div>
               )}
             </div>
@@ -5259,14 +5302,19 @@ useEffect(() => {
                           {categories.map((c: any) => <option key={c.name} value={c.name}>{c.name}</option>)}
                         </select>
                         <ColorSelector value={eventColor || themeColor} onChange={setEventColor} />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', gap: '4px' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px', paddingTop: '12px', borderTop: '1px dashed var(--border-color)' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem' }}>
                             <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} style={{ margin: 0 }} />
-                            <Pin size={12} /> ピン留め
+                            <Pin size={12} /> 重要な予定としてピン留め
                           </label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', color: '#f59e0b', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                            <input type="checkbox" checked={isTentative} onChange={e => setIsTentative(e.target.checked)} style={{ margin: 0 }} />
-                            仮予定としてキープ
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', color: '#f59e0b', fontWeight: 'bold' }}>
+                            <input type="checkbox" checked={isTentative} onChange={e => { setIsTentative(e.target.checked); if (e.target.checked) setIsStocked(false); }} style={{ margin: 0 }} />
+                            <CalendarIcon size={12} /> 仮予定としてキープ（カレンダーに薄く表示）
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', color: '#8b5cf6', fontWeight: 'bold' }}>
+                            <input type="checkbox" checked={isStocked} onChange={e => { setIsStocked(e.target.checked); if (e.target.checked) setIsTentative(false); }} style={{ margin: 0 }} />
+                            <Inbox size={12} /> 日時未定のストック（カレンダーから隠してサイドバーに貯める）
                           </label>
                         </div>
                         {/* 👇 追加：仮予定の確定ボタン */}

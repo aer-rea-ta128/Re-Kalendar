@@ -6,7 +6,7 @@ import {
   PieChart, Image as ImageIcon, Palette, Repeat, Gift, Database, Banknote, MapPin, Home, Train, Footprints,
   ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical,
   LogOut, User, TrendingUp, Users, Send, MessageSquare, Handshake, CheckCircle, Trash2,
-  CreditCard, Smartphone, Landmark, Calendar as CalendarIcon
+  CreditCard, Smartphone, Landmark, Calendar as CalendarIcon, Inbox
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -310,6 +310,7 @@ export default function Sidebar({
             </div>
           )}
 
+          // 👇 修正するコードの始まり
           {/* 📱 アプリケーション（日常的に見る・使うもの） */}
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', display: 'block', paddingLeft: '4px' }}>アプリケーション</span>
@@ -320,6 +321,71 @@ export default function Sidebar({
               <MenuListItem icon={HistoryIcon} label="すべての収支履歴・推移" onClick={(e: any) => handleMenuAction(e, 'finance_history')} />
               <MenuListItem icon={ImageIcon} label="思い出ギャラリー" onClick={(e: any) => handleMenuAction(e, 'gallery')} />
               <MenuListItem icon={Globe} label="トラベル・マップ" onClick={(e: any) => handleMenuAction(e, 'travel_map')} />
+            </div>
+          </div>
+
+          {/* 👇 ここから「キープ・仮予定リスト」のセクションを追加 👇 */}
+          <div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '4px' }}>
+              <Inbox size={14} /> 入るかもしれない予定
+            </span>
+            <div style={{ background: 'var(--input-bg)', padding: '10px', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(() => {
+                const keepEvents = events.filter((e: any) => e.extendedProps?.metadata?.isTentative || e.extendedProps?.metadata?.isStocked);
+                if (keepEvents.length === 0) {
+                  return <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', textAlign: 'center', padding: '8px 0', fontWeight: 'bold' }}>キープ中の予定はありません</div>;
+                }
+                return keepEvents.map((e: any) => {
+                  const isStock = e.extendedProps?.metadata?.isStocked;
+                  const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                  return (
+                    <div key={e.id} style={{ background: 'var(--card-bg)', padding: '10px', borderRadius: '12px', borderLeft: `4px solid ${cColor}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', wordBreak: 'break-all' }}>{e.title}</div>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: isStock ? '#8b5cf6' : '#f59e0b', background: isStock ? 'rgba(139,92,246,0.1)' : 'rgba(245,158,11,0.1)', padding: '2px 6px', borderRadius: '6px', flexShrink: 0 }}>
+                          {isStock ? '日時未定' : '仮予定'}
+                        </span>
+                      </div>
+                      
+                      {!isStock && e.start && (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
+                          予定日: {e.start.split('T')[0].replace(/-/g, '/')}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                        <button 
+                          onClick={async (evt) => {
+                            evt.stopPropagation();
+                            if (confirm(`「${e.title}」を確定予定に変更しますか？`)) {
+                              const meta = e.extendedProps?.metadata || {};
+                              await supabase.from('events').update({
+                                metadata: { ...meta, isTentative: false, isStocked: false }
+                              }).eq('id', e.id);
+                              // グローバルにカレンダーを更新させるため、一度詳細モーダルを閉じる等の処理を走らせる
+                              setIsSidebarOpen(false);
+                              window.location.reload(); // 手軽かつ確実に状態同期するためリロード、または既存のfetchEventsを叩く動線にする
+                            }
+                          }}
+                          className="btn-pop" style={{ flex: 1, padding: '4px 0', fontSize: '0.7rem', borderRadius: '6px', background: '#10b981', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', height: '26px' }}
+                        >
+                          <CheckCircle size={12} /> 確定
+                        </button>
+                        <button 
+                          onClick={(evt) => {
+                            evt.stopPropagation();
+                            setIsSidebarOpen(false);
+                            setTimeout(() => handleEventClick({ event: e }), 100);
+                          }}
+                          className="btn-secondary" style={{ flex: 1, padding: '4px 0', fontSize: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', height: '26px' }}
+                        >
+                          <Edit3 size={12} /> 日時設定
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </div> 
@@ -336,8 +402,10 @@ export default function Sidebar({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--input-bg)', border: '2px solid var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--theme)', flexShrink: 0, overflow: 'hidden' }}>
-                  {/* 👇 画像があれば画像、なければアイコン */}
-                  {userProfile?.avatar ? <img src={userProfile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="profile" /> : <User size={20} />}
+                  {userProfile?.avatar ? (
+                    // 👇 transform と objectPosition を追加
+                    <img src={userProfile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${userProfile.avatarPanX || 50}% ${userProfile.avatarPanY || 50}%`, transform: `scale(${userProfile.avatarScale || 1})` }} alt="profile" />
+                  ) : <User size={20} />}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{activeUserName}</span>
@@ -374,25 +442,37 @@ export default function Sidebar({
             <ModalHeader title="アプリ設定と管理" onClose={() => setIsSettingsPanelOpen(false)} />
             
             <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '24px', paddingRight: '4px' }}>
-              
-              {/* アプリの全機能と管理 */}
+                            {/* アプリの全機能と管理 */}
               <div>
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--theme)', marginBottom: '12px', display: 'block' }}>アプリの全機能・管理</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {MENU_ACTIONS.filter(item => item.id !== 'finance_bar').map(item => {
-                    const Icon = item.icon;
-                    return (
-                      <button 
-                        key={`settings-${item.id}`} 
-                        onClick={(e) => handleMenuAction(e, item.id)} 
-                        className="btn-secondary hover-bg-glass" 
-                        style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', fontSize: '0.9rem', textAlign: 'left', border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}
-                      >
-                        <Icon size={18} color={item.color} style={{ flexShrink: 0 }} />
-                        <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{item.label}</span>
-                      </button>
-                    );
-                  })}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  
+                  {/* 👇 ここからグループ化のコードに書き換え 👇 */}
+                  {[
+                    { title: '予定・カレンダー', icon: CalendarIcon, keys: ['create_event', 'template_settings', 'timetable_settings', 'routine_settings', 'anniversary_settings'] },
+                    { title: '収支・お金の管理', icon: Banknote, keys: ['finance_single', 'finance_bar', 'finance_history', 'finance_graph', 'advance_manage', 'subscription_settings'] },
+                    { title: '記録・振り返り', icon: PieChart, keys: ['dashboard', 'category_history', 'gallery', 'travel_map'] },
+                    { title: 'ツール・システム', icon: Settings2, keys: ['schedule_assistant', 'category_settings'] }
+                  ].map(group => (
+                    <div key={group.title} style={{ background: 'var(--input-bg)', padding: '12px', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', paddingLeft: '4px' }}>{group.title}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {group.keys.map(key => {
+                          const item = MENU_ACTIONS.find(m => m.id === key);
+                          if (!item) return null;
+                          const Icon = item.icon;
+                          return (
+                            <button key={item.id} onClick={(e) => handleMenuAction(e, item.id)} className="btn-secondary hover-bg-glass" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px', fontSize: '0.85rem', textAlign: 'left', border: 'none', background: 'var(--card-bg)' }}>
+                              <Icon size={16} color={item.color} style={{ flexShrink: 0 }} />
+                              <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{item.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {/* 👆 ここまで 👆 */}
+
                 </div>
               </div>
 
