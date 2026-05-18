@@ -2199,7 +2199,6 @@ export default function SmartLifeOS() {
     });
     return results;
   }).filter((e: any) => {
-    if (e.extendedProps?.metadata?.isStocked) return false;
     if (viewType === 'dayGridMonth' && e.extendedProps?.isTransitEvent) return false;
     if (viewType === 'dayGridMonth' && e.extendedProps?.metadata?.isPureFinance) return false;
     
@@ -2642,11 +2641,12 @@ useEffect(() => {
           
         /* 👇 追加：仮予定のデザイン（斜め線＆半透明） */
         .tentative-event {
-          background-image: repeating-linear-gradient(-45deg, transparent, transparent 8px, rgba(255,255,255,0.3) 8px, rgba(255,255,255,0.3) 16px) !important;
-          opacity: 0.85 !important;
-          border: 1.5px dashed var(--theme) !important;
+          opacity: 0.2 !important; /* 👈 さらに薄く（透明度を上げる） */
+          border: 1.5px solid var(--theme) !important; /* 👈 点線(dashed)から実線(solid)に変更 */
+          background-image: none !important;
+          background-color: transparent !important;
+          box-shadow: none !important;
         }
-          
       `}</style>
 
       <div className="fixed-mobile-frame">
@@ -3427,7 +3427,6 @@ useEffect(() => {
                 )}
               </div>
 
-              // 👇 修正するコードの始まり
               {editTemplateIndex !== null && (
                 <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px dashed var(--theme)', flexShrink: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -4234,54 +4233,101 @@ useEffect(() => {
                             </div>
                           );
                         })()}
-                        {/* 👤 プロフィール設定 モーダル */}
+                        // 👇 ここからコピーして上書きしてください 👇
+        {/* 👤 プロフィール設定 モーダル */}
         {isProfileModalOpen && (
-          <div className="modal-overlay" onClick={() => setIsProfileModalOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
+          <div className="modal-overlay" onClick={() => { setIsProfileModalOpen(false); setCropImageSrc(null); }} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
             <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '400px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', display: 'flex', flexDirection: 'column' }}>
-              <ModalHeader title="アカウント設定" onClose={() => setIsProfileModalOpen(false)} />
+              <ModalHeader title={cropImageSrc ? "画像のトリミング" : "アカウント設定"} onClose={() => { setIsProfileModalOpen(false); setCropImageSrc(null); }} />
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                   <label style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--input-bg)', border: '2px dashed var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
-                      {userProfile.avatar ? <img src={userProfile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="avatar" /> : <User size={32} color="var(--theme)" />}
-                      <div style={{ position: 'absolute', bottom: 0, width: '100%', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: '0.6rem', textAlign: 'center', padding: '2px 0', fontWeight: 'bold' }}>変更</div>
-                      <input type="file" style={{ display: 'none' }} accept="image/*" onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = ev => setUserProfile({...userProfile, avatar: ev.target?.result as string});
-                          reader.readAsDataURL(file);
-                        }
-                      }} />
-                   </label>
-                </div>
+              {cropImageSrc ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ width: '200px', height: '200px', borderRadius: '50%', border: '2px solid var(--theme)', margin: '0 auto', overflow: 'hidden', position: 'relative', background: 'var(--input-bg)' }}>
+                    <img src={cropImageSrc} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${cropPanX}% ${cropPanY}%`, transform: `scale(${cropZoom})`, transition: 'none' }} alt="crop preview" />
+                  </div>
+                  
+                  <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      ズーム <input type="range" min="1" max="3" step="0.01" value={cropZoom} onChange={e => setCropZoom(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--theme)', cursor: 'pointer' }} />
+                    </label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      横移動 <input type="range" min="0" max="100" step="1" value={cropPanX} onChange={e => setCropPanX(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--theme)', cursor: 'pointer' }} />
+                    </label>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-sub)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      縦移動 <input type="range" min="0" max="100" step="1" value={cropPanY} onChange={e => setCropPanY(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--theme)', cursor: 'pointer' }} />
+                    </label>
+                  </div>
 
-                <div>
-                  <label className="form-label">ユーザー名</label>
-                  <input type="text" className="pop-input" value={activeUserName} onChange={e => setActiveUserName(e.target.value)} />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <button onClick={() => setCropImageSrc(null)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '12px' }}>戻る</button>
+                    <button 
+                      onClick={() => {
+                        setUserProfile({ 
+                          ...userProfile, 
+                          avatar: cropImageSrc, 
+                          avatarScale: cropZoom, 
+                          avatarPanX: cropPanX, 
+                          avatarPanY: cropPanY 
+                        });
+                        setCropImageSrc(null);
+                      }} 
+                      className="btn-pop" 
+                      style={{ flex: 1, padding: '12px', borderRadius: '12px' }}
+                    >
+                      決定
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="form-label">メールアドレス (セキュリティ連携用)</label>
-                  <input type="email" className="pop-input" value={userProfile.email || ''} onChange={e => setUserProfile({...userProfile, email: e.target.value})} placeholder="example@mail.com" />
-                </div>
-                <div>
-                  <label className="form-label">電話番号 (SMS認証用)</label>
-                  <input type="tel" className="pop-input" value={userProfile.phone || ''} onChange={e => setUserProfile({...userProfile, phone: e.target.value})} placeholder="090-XXXX-XXXX" />
-                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                     <label style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--input-bg)', border: '2px dashed var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+                        {userProfile.avatar ? (
+                          <img src={userProfile.avatar} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${userProfile.avatarPanX || 50}% ${userProfile.avatarPanY || 50}%`, transform: `scale(${userProfile.avatarScale || 1})` }} alt="avatar" />
+                        ) : <User size={32} color="var(--theme)" />}
+                        <div style={{ position: 'absolute', bottom: 0, width: '100%', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: '0.6rem', textAlign: 'center', padding: '2px 0', fontWeight: 'bold' }}>変更</div>
+                        <input type="file" style={{ display: 'none' }} accept="image/*" onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = ev => {
+                              setCropImageSrc(ev.target?.result as string);
+                              setCropZoom(1);
+                              setCropPanX(50);
+                              setCropPanY(50);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }} />
+                     </label>
+                  </div>
 
-                <div style={{ background: 'rgba(16,185,129,0.1)', padding: '12px', borderRadius: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '8px' }}>
-                  <CheckCircle size={16} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', lineHeight: 1.4 }}>
-                    メールアドレス・電話番号を登録することで、データのバックアップとクラウド同期がより安全に行われます。
-                  </span>
-                </div>
+                  <div>
+                    <label className="form-label">ユーザー名</label>
+                    <input type="text" className="pop-input" value={activeUserName} onChange={e => setActiveUserName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="form-label">メールアドレス (セキュリティ連携用)</label>
+                    <input type="email" className="pop-input" value={userProfile.email || ''} onChange={e => setUserProfile({...userProfile, email: e.target.value})} placeholder="example@mail.com" />
+                  </div>
+                  <div>
+                    <label className="form-label">電話番号 (SMS認証用)</label>
+                    <input type="tel" className="pop-input" value={userProfile.phone || ''} onChange={e => setUserProfile({...userProfile, phone: e.target.value})} placeholder="090-XXXX-XXXX" />
+                  </div>
 
-                <button onClick={() => setIsProfileModalOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '8px', padding: '14px' }}>保存して閉じる</button>
-              </div>
+                  <div style={{ background: 'rgba(16,185,129,0.1)', padding: '12px', borderRadius: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '8px' }}>
+                    <CheckCircle size={16} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-main)', lineHeight: 1.4 }}>
+                      メールアドレス・電話番号を登録することで、データのバックアップとクラウド同期がより安全に行われます。
+                    </span>
+                  </div>
+
+                  <button onClick={() => setIsProfileModalOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '8px', padding: '14px' }}>保存して閉じる</button>
+                </div>
+              )}
             </div>
           </div>
         )}
-
 
         {isModalOpen && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh', background: 'rgba(0,0,0,0.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }} onClick={() => setIsModalOpen(false)}>
@@ -5309,12 +5355,8 @@ useEffect(() => {
                             <Pin size={12} /> 重要な予定としてピン留め
                           </label>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', color: '#f59e0b', fontWeight: 'bold' }}>
-                            <input type="checkbox" checked={isTentative} onChange={e => { setIsTentative(e.target.checked); if (e.target.checked) setIsStocked(false); }} style={{ margin: 0 }} />
-                            <CalendarIcon size={12} /> 仮予定としてキープ（カレンダーに薄く表示）
-                          </label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.75rem', color: '#8b5cf6', fontWeight: 'bold' }}>
-                            <input type="checkbox" checked={isStocked} onChange={e => { setIsStocked(e.target.checked); if (e.target.checked) setIsTentative(false); }} style={{ margin: 0 }} />
-                            <Inbox size={12} /> 日時未定のストック（カレンダーから隠してサイドバーに貯める）
+                            <input type="checkbox" checked={isTentative} onChange={e => setIsTentative(e.target.checked)} style={{ margin: 0 }} />
+                            <CalendarIcon size={12} /> 入るかもしれない予定（仮予定として薄く表示）
                           </label>
                         </div>
                         {/* 👇 追加：仮予定の確定ボタン */}

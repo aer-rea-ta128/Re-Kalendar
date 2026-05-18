@@ -94,6 +94,8 @@ export default function Sidebar({
   const [mapZoom, setMapZoom] = useState(1);
   const mapContainerRef = React.useRef<HTMLDivElement>(null);
 
+  const [expandedKeepEventId, setExpandedKeepEventId] = useState<string | null>(null);
+
   const [incomeCalcBasis, setIncomeCalcBasis] = useState<'wage' | 'payday'>(() => {
     if (typeof window === 'undefined') return 'wage';
     return localStorage.getItem('os_incomeCalcBasis') as 'wage' | 'payday' || 'wage';
@@ -309,8 +311,6 @@ export default function Sidebar({
               })()}
             </div>
           )}
-
-          // 👇 修正するコードの始まり
           {/* 📱 アプリケーション（日常的に見る・使うもの） */}
           <div>
             <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)', marginBottom: '8px', display: 'block', paddingLeft: '4px' }}>アプリケーション</span>
@@ -336,52 +336,59 @@ export default function Sidebar({
                   return <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', textAlign: 'center', padding: '8px 0', fontWeight: 'bold' }}>キープ中の予定はありません</div>;
                 }
                 return keepEvents.map((e: any) => {
-                  const isStock = e.extendedProps?.metadata?.isStocked;
                   const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+                  const isExpanded = expandedKeepEventId === e.id;
+                  
                   return (
-                    <div key={e.id} style={{ background: 'var(--card-bg)', padding: '10px', borderRadius: '12px', borderLeft: `4px solid ${cColor}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}>
+                    <div 
+                      key={e.id} 
+                      onClick={() => setExpandedKeepEventId(isExpanded ? null : e.id)} // 👈 タップで開閉
+                      style={{ background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', borderLeft: `4px solid ${cColor}`, borderTop: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: isExpanded ? '0 4px 12px rgba(0,0,0,0.05)' : '0 2px 4px rgba(0,0,0,0.01)', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
                         <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', wordBreak: 'break-all' }}>{e.title}</div>
-                        <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: isStock ? '#8b5cf6' : '#f59e0b', background: isStock ? 'rgba(139,92,246,0.1)' : 'rgba(245,158,11,0.1)', padding: '2px 6px', borderRadius: '6px', flexShrink: 0 }}>
-                          {isStock ? '日時未定' : '仮予定'}
+                        <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '4px 8px', borderRadius: '6px', flexShrink: 0 }}>
+                          仮予定
                         </span>
                       </div>
                       
-                      {!isStock && e.start && (
+                      {e.start && (
                         <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
                           予定日: {e.start.split('T')[0].replace(/-/g, '/')}
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
-                        <button 
-                          onClick={async (evt) => {
-                            evt.stopPropagation();
-                            if (confirm(`「${e.title}」を確定予定に変更しますか？`)) {
-                              const meta = e.extendedProps?.metadata || {};
-                              await supabase.from('events').update({
-                                metadata: { ...meta, isTentative: false, isStocked: false }
-                              }).eq('id', e.id);
-                              // グローバルにカレンダーを更新させるため、一度詳細モーダルを閉じる等の処理を走らせる
+                      {/* 👇 メニューが開いた時だけ表示されるボタン群 */}
+                      {isExpanded && (
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '6px', paddingTop: '10px', borderTop: '1px dashed var(--border-color)' }}>
+                          <button 
+                            onClick={async (evt) => {
+                              evt.stopPropagation();
+                              if (confirm(`「${e.title}」を確定予定に変更しますか？`)) {
+                                const meta = e.extendedProps?.metadata || {};
+                                await supabase.from('events').update({
+                                  metadata: { ...meta, isTentative: false, isStocked: false }
+                                }).eq('id', e.id);
+                                setIsSidebarOpen(false);
+                                window.location.reload(); 
+                              }
+                            }}
+                            className="btn-pop" style={{ flex: 1, padding: '8px 0', fontSize: '0.75rem', borderRadius: '8px', background: '#10b981', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: 'auto' }}
+                          >
+                            <CheckCircle size={14} /> 確定
+                          </button>
+                          <button 
+                            onClick={(evt) => {
+                              evt.stopPropagation();
                               setIsSidebarOpen(false);
-                              window.location.reload(); // 手軽かつ確実に状態同期するためリロード、または既存のfetchEventsを叩く動線にする
-                            }
-                          }}
-                          className="btn-pop" style={{ flex: 1, padding: '4px 0', fontSize: '0.7rem', borderRadius: '6px', background: '#10b981', boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', height: '26px' }}
-                        >
-                          <CheckCircle size={12} /> 確定
-                        </button>
-                        <button 
-                          onClick={(evt) => {
-                            evt.stopPropagation();
-                            setIsSidebarOpen(false);
-                            setTimeout(() => handleEventClick({ event: e }), 100);
-                          }}
-                          className="btn-secondary" style={{ flex: 1, padding: '4px 0', fontSize: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', height: '26px' }}
-                        >
-                          <Edit3 size={12} /> 日時設定
-                        </button>
-                      </div>
+                              setTimeout(() => handleEventClick({ event: e }), 100);
+                            }}
+                            className="btn-secondary" style={{ flex: 1, padding: '8px 0', fontSize: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: 'auto' }}
+                          >
+                            <Edit3 size={14} /> 日時設定
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 });
