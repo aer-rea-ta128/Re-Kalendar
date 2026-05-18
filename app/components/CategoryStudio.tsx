@@ -53,16 +53,49 @@ export default function CategoryStudio({
   const [isGeneratingTemplate, setIsGeneratingTemplate] = useState(false);
 
   const [expandedCats, setExpandedCats] = useState<string[]>([]);
-  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  const [dragEnabledIdx, setDragEnabledIdx] = useState<number | null>(null);
+  const [dragInfo, setDragInfo] = useState<{ idx: number, startY: number, currentY: number, height: number } | null>(null);
 
-  const getVisualIndex = (originalIdx: number) => {
-    if (draggedIdx === null || dragOverIdx === null) return originalIdx;
-    if (originalIdx === draggedIdx) return dragOverIdx;
-    if (draggedIdx < dragOverIdx && originalIdx > draggedIdx && originalIdx <= dragOverIdx) return originalIdx - 1;
-    if (draggedIdx > dragOverIdx && originalIdx < draggedIdx && originalIdx >= dragOverIdx) return originalIdx + 1;
-    return originalIdx;
+  useEffect(() => {
+    if (!dragInfo) return;
+    const handlePointerMove = (e: PointerEvent) => {
+      e.preventDefault();
+      setDragInfo(prev => prev ? { ...prev, currentY: e.clientY } : null);
+    };
+    const handlePointerUp = () => {
+      setDragInfo(prev => {
+        if (prev) {
+          const offsetY = prev.currentY - prev.startY;
+          const shift = Math.round(offsetY / (prev.height + 12));
+          const hoverIdx = Math.max(0, Math.min(categories.length - 1, prev.idx + shift));
+          if (prev.idx !== hoverIdx) {
+            setCategories(cats => {
+              const newCats = [...cats];
+              const dragged = newCats.splice(prev.idx, 1)[0];
+              newCats.splice(hoverIdx, 0, dragged);
+              localStorage.setItem('os_categories', JSON.stringify(newCats));
+              return newCats;
+            });
+          }
+        }
+        return null;
+      });
+    };
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [dragInfo, categories.length, setCategories]);
+
+  const handlePointerDown = (e: React.PointerEvent, idx: number) => {
+    const target = (e.target as HTMLElement).closest('.category-item-container') as HTMLElement;
+    if (!target) return;
+    if (expandedCats.includes(categories[idx].name)) {
+        setExpandedCats(prev => prev.filter(n => n !== categories[idx].name)); // 展開中は閉じる
+    }
+    setDragInfo({ idx, startY: e.clientY, currentY: e.clientY, height: target.offsetHeight });
+    if(document.activeElement instanceof HTMLElement) document.activeElement.blur();
   };
 
   if (!isOpen) return null;
@@ -215,46 +248,37 @@ export default function CategoryStudio({
         </div>
 
         {/* ジャンル一覧 */}
-        <div style={{ marginBottom: '24px', maxHeight: '45vh', overflowY: 'auto', paddingRight: '4px' }} className="hide-scrollbar">
+        <div style={{ marginBottom: '24px', maxHeight: '45vh', overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column' }} className="hide-scrollbar">
           {categories.map((c: any, catIndex: number) => {
             const isExpanded = expandedCats.includes(c.name);
-            const isDraggingThis = draggedIdx === catIndex;
-            const visualIndex = getVisualIndex(catIndex);
             
-            // 👇 修正するコードの始まり
+            // 👇 追加：リアルタイムな位置計算 👇
+            const isDraggingThis = dragInfo?.idx === catIndex;
+            let translateY = 0;
+            if (dragInfo) {
+              const offsetY = dragInfo.currentY - dragInfo.startY;
+              const shift = Math.round(offsetY / (dragInfo.height + 12));
+              const hoverIdx = Math.max(0, Math.min(categories.length - 1, dragInfo.idx + shift));
+              
+              if (isDraggingThis) {
+                translateY = offsetY;
+              } else if (catIndex > dragInfo.idx && catIndex <= hoverIdx) {
+                translateY = -(dragInfo.height + 12);
+              } else if (catIndex < dragInfo.idx && catIndex >= hoverIdx) {
+                translateY = (dragInfo.height + 12);
+              }
+            }
+            // 👆 追加ここまで 👆
+
             return (
             <div 
               key={c.name} 
-              data-index={catIndex}
-              draggable={dragEnabledIdx === catIndex}
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = 'move';
-                // 👇 PCのドラッグがキャンセルされないよう、非同期で状態更新する
-                setTimeout(() => {
-                  setDraggedIdx(catIndex);
-                  setDragOverIdx(catIndex);
-                }, 0);
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                if (draggedIdx !== null && dragOverIdx !== catIndex) setDragOverIdx(catIndex);
-              }}
-              onDragEnd={(e) => {
-                e.preventDefault();
-                if (draggedIdx !== null && dragOverIdx !== null && draggedIdx !== dragOverIdx) {
-                  const newCats = [...categories];
-                  const dragged = newCats.splice(draggedIdx, 1)[0];
-                  newCats.splice(dragOverIdx, 0, dragged);
-                  setCategories(newCats);
-                  localStorage.setItem('os_categories', JSON.stringify(newCats));
-                }
-                setDraggedIdx(null);
-                setDragOverIdx(null);
-                setDragEnabledIdx(null);
-              }}
+              className="category-item-container" // 👈 これを追加
               style={{ 
-                order: visualIndex, // 👈 CSSの力で見た目だけ一瞬で入れ替える！
+                // 👇 アニメーションの要となるスタイル 👇
+                transform: `translateY(${translateY}px) ${isDraggingThis ? 'scale(1.02)' : 'scale(1)'}`,
+                transition: isDraggingThis ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s',
+                zIndex: isDraggingThis ? 100 : 1,
                 position: 'relative',
                 padding: '12px', 
                 marginBottom: '12px', 
@@ -262,10 +286,7 @@ export default function CategoryStudio({
                 background: 'var(--card-bg)', 
                 borderRadius: '12px', 
                 boxShadow: isDraggingThis ? '0 15px 30px rgba(0,0,0,0.15)' : '0 4px 15px rgba(0,0,0,0.02)',
-                opacity: isDraggingThis ? 0.8 : 1,
-                transform: isDraggingThis ? 'scale(1.02)' : 'scale(1)',
-                zIndex: isDraggingThis ? 100 : 1,
-                transition: isDraggingThis ? 'none' : 'transform 0.2s, box-shadow 0.2s' // 👈 浮き上がるアニメーション
+                opacity: isDraggingThis ? 0.95 : 1,
               }}
             >
               
@@ -299,37 +320,13 @@ export default function CategoryStudio({
                     
                     <div 
                       className="drag-handle" 
+                      // 👇 イベントを onPointerDown に変更 👇
+                      onPointerDown={(e) => handlePointerDown(e, catIndex)}
                       style={{ 
-                        color: 'var(--text-sub)', display: 'flex', alignItems: 'center', cursor: 'grab', padding: '12px 12px 12px 0',
-                        userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' // 👈 スマホの文字選択とスクロールを無効化
-                      }}
-                      onMouseEnter={() => setDragEnabledIdx(catIndex)}
-                      onMouseLeave={() => setDragEnabledIdx(null)}
-                      onTouchStart={(e) => {
-                        setDraggedIdx(catIndex);
-                        setDragOverIdx(catIndex);
-                      }}
-                      onTouchMove={(e) => {
-                        if (draggedIdx === null) return;
-                        const touch = e.touches[0];
-                        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-                        const dropTarget = target?.closest('[data-index]');
-                        if (dropTarget) {
-                          const hoverIndex = parseInt(dropTarget.getAttribute('data-index') || '-1', 10);
-                          if (hoverIndex !== -1 && hoverIndex !== dragOverIdx) setDragOverIdx(hoverIndex);
-                        }
-                      }}
-                      onTouchEnd={(e) => {
-                        if (draggedIdx !== null && dragOverIdx !== null && draggedIdx !== dragOverIdx) {
-                          const newCats = [...categories];
-                          const dragged = newCats.splice(draggedIdx, 1)[0];
-                          newCats.splice(dragOverIdx, 0, dragged);
-                          setCategories(newCats);
-                          localStorage.setItem('os_categories', JSON.stringify(newCats));
-                        }
-                        setDraggedIdx(null);
-                        setDragOverIdx(null);
-                        setDragEnabledIdx(null);
+                        color: 'var(--text-sub)', display: 'flex', alignItems: 'center', 
+                        cursor: isDraggingThis ? 'grabbing' : 'grab', 
+                        padding: '12px 12px 12px 0',
+                        userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' // 👈 スマホ操作のバグを防ぐ必須コード
                       }}
                     >
                       <GripVertical size={18} />
