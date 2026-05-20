@@ -5,7 +5,6 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
-import { supabase } from '@/app/lib/supabase';
 import {
   Train, Footprints, MapPin, Clock, Star, Inbox, Settings, Settings2, Trash2, TrendingUp, TrendingDown, Target,
   History, PieChart, Image as ImageIcon, Repeat, Pin, Database, Palette, Gift, Calendar as CalendarIcon, Zap,
@@ -23,6 +22,9 @@ import AuthScreen from '@/app/components/AuthScreen';
 import { requestNotificationPermission, scheduleEventNotification } from '@/app/lib/notifications';
 import { syncDataToWidget } from '@/app/lib/widgetSync';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from '@/app/lib/supabase'; // お使いのsupabaseクライアントのパスに合わせてください
+import { createDataBackup } from '@/app/lib/backup';
+
 
 export default function SmartLifeOS() {
     const [isMounted, setIsMounted] = useState(false);
@@ -4468,6 +4470,36 @@ export default function SmartLifeOS() {
                       <button onClick={syncWithCloud} className="btn-secondary" style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: `1px dashed var(--theme)`, color: 'var(--theme)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', fontWeight: 'bold', marginTop: '16px' }}>
                         <Database size={16} /> クラウド同期（手動バックアップ）
                       </button>
+
+                      <button 
+                        onClick={async () => {
+                            const userId = activeUserId; // 現在のユーザーID
+                            const result = await createDataBackup(userId);
+                            if (result.success) {
+                            alert(`引き継ぎコードを発行しました: ${result.code}\n\nこのコードを新しい端末の「読み込み」画面で入力してください。`);
+                            } else {
+                            alert('バックアップに失敗しました。');
+                            }
+                        }}
+                        style={{ 
+                            width: '100%', 
+                            marginTop: '8px', 
+                            padding: '12px', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            gap: '8px', 
+                            background: 'var(--input-bg)', 
+                            color: 'var(--theme)', 
+                            border: '1px solid var(--theme)', 
+                            borderRadius: '12px', 
+                            cursor: 'pointer', 
+                            fontWeight: 'bold' 
+                        }}
+                        >
+                        <Database size={16} /> データを書き出す（バックアップ）
+                        </button>
+    
     
                       {/* 🌟 追加：アカウント画面から確実にログアウトできるボタン */}
                       <button 
@@ -4476,6 +4508,7 @@ export default function SmartLifeOS() {
                       >
                         <Unlock size={16} /> ログアウトしてログイン画面に戻る
                       </button>
+                      
     
                       <button onClick={() => setIsProfileModalOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '16px', padding: '14px' }}>保存して閉じる</button>
                     </div>
