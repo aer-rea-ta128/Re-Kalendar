@@ -61,6 +61,19 @@ const syncAndSaveEvents = async (newEvents: any[], userId: string) => {
 };
 
 export default function SmartLifeOS() {
+  // 🌟 マウント状態を管理（この変数が最も重要）
+  const [isMounted, setIsMounted] = useState(false);
+
+  // マウント時に一度だけ実行
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // 🌟 もしマウント前ならサーバーで実行されても安全なUIを返す
+  // isMounted が false の間は、以下の useState の初期化関数などは実行されません
+  if (!isMounted) {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg-main)' }} />;
+  }
   const calendarRef = useRef<FullCalendar>(null);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
@@ -269,7 +282,14 @@ useEffect(() => {
   try { return saved ? JSON.parse(saved) : defaultData; } catch (e) { return defaultData; }
 }
 
-  const [themeColor, setThemeColor] = useState(() => loadData('os_themeColor', '#4D96FF'));  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+const [themeColor, setThemeColor] = useState('#4D96FF'); // 初期値は固定値にする
+
+useEffect(() => {
+  // ブラウザでのみ読み込む
+  const saved = localStorage.getItem('os_themeColor');
+  if (saved) setThemeColor(JSON.parse(saved));
+}, []);
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [userColors, setUserColors] = useState<string[]>(() => loadData('os_userColors', []));
   const [customColorCursor, setCustomColorCursor] = useState('#000000');
   const [isEditingColors, setIsEditingColors] = useState(false);
@@ -2354,7 +2374,6 @@ useEffect(() => {
     }
   }, [assistTimeSlots, assistMode]);
 
-  const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
   if (!isMounted || !isDataLoaded) return <div style={{ minHeight: '100vh', background: 'var(--bg-main)' }} />;
   if (!activeUserId) {
