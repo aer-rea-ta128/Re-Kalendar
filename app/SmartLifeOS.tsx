@@ -24,6 +24,7 @@ import { syncDataToWidget } from '@/app/lib/widgetSync';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/app/lib/supabase'; // お使いのsupabaseクライアントのパスに合わせてください
 import { createDataBackup } from '@/app/lib/backup';
+import { loadData, saveData } from '@/app/lib/storage';
 
 
 export default function SmartLifeOS() {
@@ -179,8 +180,17 @@ export default function SmartLifeOS() {
       const [templateForm, setTemplateForm] = useState<any>({});
     
       const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-      const [userProfile, setUserProfile] = useState(() => loadData('os_user_profile', { email: '', phone: '', avatar: '' }));
-      const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+
+      const [userProfile, setUserProfile] = useState(() => 
+  loadData('user_profile', activeUserId, { email: '', phone: '', avatar: '' })
+);
+
+useEffect(() => {
+  if (isDataLoaded) {
+    saveData('user_profile', activeUserId, userProfile);
+  }
+}, [userProfile, isDataLoaded]);
+    const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
       const [cropZoom, setCropZoom] = useState(1);
       const [cropPanX, setCropPanX] = useState(50);
       const [cropPanY, setCropPanY] = useState(50);

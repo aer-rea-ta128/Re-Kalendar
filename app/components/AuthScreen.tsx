@@ -41,30 +41,33 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
     }
   };
 
-  const handleCreateUser = async () => {
-    if (!userId.trim() || !nickname.trim() || !password.trim()) {
-      setErrorMsg('すべての項目を入力してください');
-      return;
-    }
+  // AuthScreen.tsx 内の handleCreateUser を以下のように整理
+const handleCreateUser = async () => {
+  if (!userId.trim() || !nickname.trim() || !password.trim()) {
+    setErrorMsg('すべての項目を入力してください');
+    return;
+  }
 
-    try {
-      await runRestoreIfNeeded(); // 登録前に復元
+  try {
+    // 復元処理
+    await runRestoreIfNeeded();
 
-      const { error } = await supabase.from('users').insert([{
-        id: userId.trim(),
-        nickname: nickname.trim(),
-        password: password.trim(),
-        devices: [deviceId]
-      }]);
+    // ユーザー登録処理
+    const { error } = await supabase.from('users').insert([{
+      id: userId.trim(),
+      nickname: nickname.trim(),
+      password: password.trim(),
+      devices: [deviceId]
+    }]);
 
-      if (error) throw error;
+    if (error) throw error;
 
-      onLoginSuccess(userId.trim(), nickname.trim());
-      localStorage.setItem('os_active_session', JSON.stringify({ id: userId.trim(), name: nickname.trim() }));
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    }
-  };
+    onLoginSuccess(userId.trim(), nickname.trim());
+    localStorage.setItem('os_active_session', JSON.stringify({ id: userId.trim(), name: nickname.trim() }));
+  } catch (err: any) {
+    setErrorMsg(err.message);
+  }
+};
 
   const handleLogin = async () => {
     if (!userId.trim() || !password.trim()) {
@@ -85,6 +88,13 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
         setErrorMsg('IDまたはパスワードが間違っています');
         return;
       }
+      const currentUserId = data.id;
+      Object.keys(localStorage).forEach(key => {
+        // os_ で始まり、かつ現在のユーザーIDのものではないキーを全て削除
+        if (key.startsWith('os_') && !key.startsWith(`os_${currentUserId}_`) && key !== 'os_device_id') {
+          localStorage.removeItem(key);
+        }
+      });
 
       onLoginSuccess(data.id, data.nickname);
       localStorage.setItem('os_active_session', JSON.stringify({ id: data.id, name: data.nickname }));
@@ -102,28 +112,39 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
         </div>
 
         {mode === 'welcome' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '1.4rem', color: 'var(--text-main)', fontWeight: '900', textAlign: 'center' }}>Smart LifeOS</h2>
-            
-            {/* 復元機能（引き継ぎ用チェックボックス） */}
-            <div style={{ background: 'var(--input-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                <input type="checkbox" checked={isRestoring} onChange={e => setIsRestoring(e.target.checked)} />
-                <Download size={16} /> 以前の端末からデータを引き継ぐ
-              </label>
-              {isRestoring && (
-                <input className="pop-input" value={restoreCode} onChange={e => setRestoreCode(e.target.value)} placeholder="コード (XXXX-XXXX)" style={{ marginTop: '12px', fontSize: '0.85rem' }} />
-              )}
-            </div>
-
-            <button onClick={() => { setMode('create'); setErrorMsg(''); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', background: themeColor, color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: `0 4px 15px ${themeColor}60` }}>
-              <UserPlus size={20} /> 新しくアカウントを作成
-            </button>
-            <button onClick={() => { setMode('login'); setErrorMsg(''); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', background: 'var(--input-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
-              <LogIn size={20} /> ログイン
-            </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+          <h2 style={{ textAlign: 'center', fontWeight: '900' }}>Smart LifeOS</h2>
+          
+          {/* ログイン/登録のボタンの下に配置 */}
+          <div style={{ background: 'var(--input-bg)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <input type="checkbox" checked={isRestoring} onChange={e => setIsRestoring(e.target.checked)} />
+              <Download size={16} /> 以前の端末からデータを引き継ぐ
+            </label>
+            {isRestoring && (
+              <input 
+                className="pop-input" 
+                value={restoreCode} 
+                onChange={e => {
+                  let val = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                  if (val.length > 4) val = val.slice(0, 4) + '-' + val.slice(4, 8);
+                  setRestoreCode(val);
+                }} 
+                placeholder="XXXX-XXXX"
+                maxLength={9}
+                style={{ marginTop: '8px', fontSize: '0.9rem' }}
+              />
+            )}
           </div>
-        )}
+
+          <button onClick={() => { setMode('create'); setErrorMsg(''); }} className="btn-pop">
+            <UserPlus size={20} /> 新しくアカウントを作成
+          </button>
+          <button onClick={() => { setMode('login'); setErrorMsg(''); }} className="btn-secondary">
+            <LogIn size={20} /> ログイン
+          </button>
+        </div>
+      )}
 
         {(mode === 'create' || mode === 'login') && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
