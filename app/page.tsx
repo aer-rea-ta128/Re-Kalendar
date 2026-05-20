@@ -149,17 +149,16 @@ export default function SmartLifeOS() {
 
   // 🌟 修正：実機アプリの時は「開発環境」と勘違いしないように分離し、セッションを永続化する
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
+    // 修正: if (typeof window !== 'undefined') で囲む
     if (typeof window !== 'undefined') {
       const isNativeApp = Capacitor.isNativePlatform();
-      // パソコンブラウザでの開発中(localhost)のみ、スキップを許可する
       if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
         return 'local_dev';
       }
-      // 実機アプリ、またはWeb本番環境の場合は、保存されたログイン記憶を呼び出す
       const session = localStorage.getItem('os_active_session');
       return session ? JSON.parse(session).id : null;
     }
-    return null;
+    return null; // 🌟 サーバーサイド(windowがない時)の戻り値を明記
   });
   
   const [activeUserName, setActiveUserName] = useState<string>(() => {
@@ -171,13 +170,13 @@ export default function SmartLifeOS() {
       const session = localStorage.getItem('os_active_session');
       return session ? JSON.parse(session).name : '';
     }
-    return '';
+    return ''; // 🌟 サーバーサイドの戻り値を明記
   });
   const [activeUserAvatar, setActiveUserAvatar] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('os_user_avatar') || '';
     }
-    return '';
+    return ''; // 🌟 サーバーサイドの戻り値を明記
   });
 
   // 👇 追加：収支グラフを開くための状態管理
