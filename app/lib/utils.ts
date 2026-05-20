@@ -1,3 +1,9 @@
+// app/lib/utils.ts などに追加
+import { Capacitor } from '@capacitor/core';
+
+// アプリ（iOS）で動いている時だけ true になる
+export const isNative = Capacitor.isNativePlatform();
+
 export const hexToRgba = (colorStr: string, alpha: number) => {
   if (!colorStr) return `rgba(0, 0, 0, ${alpha})`;
   let r = 0, g = 0, b = 0;

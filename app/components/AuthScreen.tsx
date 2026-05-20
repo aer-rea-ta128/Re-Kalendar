@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Lock, ShieldCheck, UserPlus, LogIn, AtSign } from 'lucide-react';
+import { supabase } from '@/lib/supabase'; // 🌟 Supabaseを読み込む
 
 interface AuthScreenProps {
   onLoginSuccess: (userId: string, userName: string) => void;
@@ -20,10 +21,7 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
   const [deviceId, setDeviceId] = useState('');
 
   useEffect(() => {
-    const savedUsers = localStorage.getItem('os_local_users');
-    if (savedUsers) setUsers(JSON.parse(savedUsers));
-
-    // 👇 追加：この端末（ブラウザ）固有の「デバイスID」を発行・取得する
+    // 👇 デバイスIDの取得・発行
     let did = localStorage.getItem('os_device_id');
     if (!did) {
       did = 'device_' + Math.random().toString(36).substring(2, 15);
@@ -32,42 +30,40 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
     setDeviceId(did);
   }, []);
 
-  const handleCreateUser = () => {
+  // 🌟 アカウント作成処理（Supabaseへ登録）
+  const handleCreateUser = async () => {
     if (!userId.trim() || !nickname.trim() || !password.trim()) { setErrorMsg('すべての項目を入力してください'); return; }
-    if (!/^[a-zA-Z0-9_]+$/.test(userId)) { setErrorMsg('ユーザーIDは半角英数字とアンダーバー(_)のみ使用できます'); return; }
-    if (nickname.trim().length > 10) { setErrorMsg('ニックネームは10文字以内で入力してください'); return; }
-    if (users.some(u => u.id === userId.trim())) { setErrorMsg('このユーザーIDはすでに使われています'); return; }
 
-    // 👇 修正：アカウント作成時に、最初の1台目として現在のデバイスIDを登録する
-    const newUser = { id: userId.trim(), nickname: nickname.trim(), password: password.trim(), devices: [deviceId] };
-    const updatedUsers = [...users, newUser];
-    localStorage.setItem('os_local_users', JSON.stringify(updatedUsers));
-    onLoginSuccess(newUser.id, newUser.nickname);
+    const { error } = await supabase
+      .from('users')
+      .insert([{ id: userId.trim(), nickname: nickname.trim(), password: password.trim(), devices: [deviceId] }]);
+
+    if (error) {
+      setErrorMsg('登録に失敗しました。IDが重複している可能性があります。');
+      return;
+    }
+
+    onLoginSuccess(userId.trim(), nickname.trim());
+    localStorage.setItem('os_active_session', JSON.stringify({ id: userId.trim(), name: nickname.trim() }));
   };
 
-  const handleLogin = () => {
+  // 🌟 ログイン処理（Supabaseから検索）
+  const handleLogin = async () => {
     if (!userId.trim() || !password.trim()) { setErrorMsg('IDとパスワードを入力してください'); return; }
-    const user = users.find(u => u.id === userId.trim());
-    
-    if (user && user.password === password.trim()) {
-      // 👇 追加：デバイス2台制限のチェック
-      const currentDevices = user.devices || [];
-      if (!currentDevices.includes(deviceId)) {
-        if (currentDevices.length >= 2) {
-          setErrorMsg('ログイン可能な端末数（2台）の上限に達しています。他の端末からログアウトしてください。');
-          return;
-        }
-        // まだ2台未満なら、新しいデバイスIDを登録リストに追加する
-        const updatedUsers = users.map(u => 
-          u.id === user.id ? { ...u, devices: [...currentDevices, deviceId] } : u
-        );
-        setUsers(updatedUsers);
-        localStorage.setItem('os_local_users', JSON.stringify(updatedUsers));
-      }
-      onLoginSuccess(user.id, user.nickname);
-    } else {
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId.trim())
+      .single();
+
+    if (error || !data || data.password !== password.trim()) {
       setErrorMsg('IDまたはパスワードが間違っています');
+      return;
     }
+
+    onLoginSuccess(data.id, data.nickname);
+    localStorage.setItem('os_active_session', JSON.stringify({ id: data.id, name: data.nickname }));
   };
 
   return (
@@ -107,7 +103,6 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
                 <User size={16} /> ニックネーム
               </label>
               <input type="text" value={nickname} onChange={e => setNickname(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: `2px solid ${themeColor}40`, background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '4px' }}>※アプリ内で表示される名前です（後から変更可能）</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '32px' }}>

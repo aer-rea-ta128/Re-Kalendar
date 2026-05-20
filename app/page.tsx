@@ -11,7 +11,7 @@ import {
   History, PieChart, Image as ImageIcon, Repeat, Pin, Database, Palette, Gift, Calendar as CalendarIcon, Zap,
   Home, Edit3, Flag, Monitor, Dumbbell, Beer, Circle, Search, Calendar, Plane, Bus, FileText, Sun, Moon, CreditCard, 
   Check, CheckCircle, Banknote, BookOpen, Users, Download, Share2, Sparkles, Unlock, Lock, Globe, Store,
-  Smartphone, Landmark, ChevronUp, ChevronDown, Handshake, User
+  Smartphone, Landmark, ChevronUp, ChevronDown, Handshake, User, Bell
 } from 'lucide-react';
 
 // ★ 分割したファイルを読み込む（パスは画像の設定に合わせています）
@@ -19,7 +19,10 @@ import { DAY_NAMES, HOURS, MINUTES, INITIAL_PRESETS, VIEW_OPTIONS, FIELD_TYPES }
 import { hexToRgba, toLocalYYYYMMDD } from '@/app/lib/utils';
 import CategoryStudio from '@/app/components/CategoryStudio';
 import Sidebar from '@/app/components/Sidebar';
-import AuthScreen from '@/app/components/AuthScreen'; // 👈 これを追加！
+import AuthScreen from '@/app/components/AuthScreen'; 
+import { requestNotificationPermission, scheduleEventNotification } from '@/app/lib/notifications';
+import { syncDataToWidget } from '@/app/lib/widgetSync';
+import { Capacitor } from '@capacitor/core';
 
 // アイコンを取得するヘルパー関数
 const getSmartIcon = (type: string, color: string) => {
@@ -35,6 +38,14 @@ const getSmartIcon = (type: string, color: string) => {
   }
 };
 
+const syncAndSaveEvents = async (newEvents: any[], userId: string) => {
+  localStorage.setItem('events', JSON.stringify(newEvents));
+  const { error } = await supabase
+    .from('events')
+    .upsert(newEvents.map(e => ({ ...e, user_id: userId })));
+  if (error) console.error("Supabaseへの同期に失敗:", error);
+};
+
 export default function SmartLifeOS() {
   const calendarRef = useRef<FullCalendar>(null);
   const touchStartX = useRef<number | null>(null);
@@ -44,6 +55,20 @@ export default function SmartLifeOS() {
   const blockCalendarClick = useRef(false);
 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // 🌟 追加: 通知のON/OFF設定状態（初期値はtrue）
+  const [isNotificationEnabled, setIsNotificationEnabled] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('user_notification_enabled');
+      return saved !== 'false';
+    }
+    return true;
+  });
+
+  // 🌟 追加: 設定が変わるたびにlocalStorageに自動保存する
+  useEffect(() => {
+    localStorage.setItem('user_notification_enabled', String(isNotificationEnabled));
+  }, [isNotificationEnabled]);
 
   // 👇==== ここから追加 ====👇
   const touchStartY = useRef<number | null>(null);
@@ -74,44 +99,49 @@ export default function SmartLifeOS() {
     }
     
     if (isSwipingRef.current) {
-      const diffX = touchEndX.current - touchStartX.current;
-      const diffY = touchEndY.current - touchStartY.current;
-      
-      if (Math.abs(diffX) > Math.abs(diffY)) {
-        // 👇 修正：左右スワイプの感度を 50 -> 35 に下げて反応しやすくする
-        if (diffX > 35) {
-          let startRelativeX = touchStartX.current;
-          const container = document.querySelector('.fixed-mobile-frame');
-          if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
-          if (startRelativeX < 40) setIsSidebarOpen(true);
-          else calendarRef.current?.getApi().prev();
-        } else if (diffX < -35) {
-          calendarRef.current?.getApi().next();
-        }
-      } else {
-        // 👇 追加：上下のスワイプ（日表示の時に、前週・次週へジャンプ！）
-        if (viewType === 'timeGridDay') {
-          if (diffY > 50) {
-            // 下スワイプ：前の週へ
-            const api = calendarRef.current?.getApi();
-            if (api) { const d = api.getDate(); d.setDate(d.getDate() - 7); api.gotoDate(d); }
-          } else if (diffY < -50) {
-            // 上スワイプ：次の週へ
-            const api = calendarRef.current?.getApi();
-            if (api) { const d = api.getDate(); d.setDate(d.getDate() + 7); api.gotoDate(d); }
-          }
+    const diffX = touchEndX.current - touchStartX.current;
+    const diffY = touchEndY.current - touchStartY.current;
+    
+    if (Math.abs(diffX) > Math.abs(diffY)) {
+      // 👇 修正：左右スワイプの感度を 50 -> 35 に下げて反応しやすくする
+      if (diffX > 35) {
+        let startRelativeX = touchStartX.current;
+        const container = document.querySelector('.fixed-mobile-frame');
+        if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
+        if (startRelativeX < 40) setIsSidebarOpen(true);
+        else calendarRef.current?.getApi().prev();
+      } else if (diffX < -35) {
+        calendarRef.current?.getApi().next();
+      }
+    } else {
+      // 👇 追加：上下のスワイプ（日表示の時に、前週・次週へジャンプ！）
+      if (viewType === 'timeGridDay') {
+        if (diffY > 50) {
+          // 下スワイプ：前の週へ
+          const api = calendarRef.current?.getApi();
+          if (api) { const d = api.getDate(); d.setDate(d.getDate() - 7); api.gotoDate(d); }
+        } else if (diffY < -50) {
+          // 上スワイプ：次の週へ
+          const api = calendarRef.current?.getApi();
+          if (api) { const d = api.getDate(); d.setDate(d.getDate() + 7); api.gotoDate(d); }
         }
       }
     }
+  }
     touchStartX.current = null; touchEndX.current = null;
     touchStartY.current = null; touchEndY.current = null;
     setTimeout(() => { isSwipingRef.current = false; }, 100);
   };
 
-  // 👇 修正：開いた瞬間に記憶を確認 ＋ ローカル環境ならスキップ！
+  // 🌟 修正：実機アプリの時は「開発環境」と勘違いしないように分離し、セッションを永続化する
   const [activeUserId, setActiveUserId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return 'local_dev';
+      const isNativeApp = Capacitor.isNativePlatform();
+      // パソコンブラウザでの開発中(localhost)のみ、スキップを許可する
+      if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return 'local_dev';
+      }
+      // 実機アプリ、またはWeb本番環境の場合は、保存されたログイン記憶を呼び出す
       const session = localStorage.getItem('os_active_session');
       return session ? JSON.parse(session).id : null;
     }
@@ -120,7 +150,10 @@ export default function SmartLifeOS() {
   
   const [activeUserName, setActiveUserName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') return '開発環境';
+      const isNativeApp = Capacitor.isNativePlatform();
+      if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return '開発環境アカウント';
+      }
       const session = localStorage.getItem('os_active_session');
       return session ? JSON.parse(session).name : '';
     }
@@ -453,24 +486,17 @@ export default function SmartLifeOS() {
   const fetchEvents = async () => {
     if (!activeUserId) return; // ログイン前は取得しない
 
-    const { data } = await supabase.from('events').select('*');
+    // 🌟 Supabase から最新の予定データを全取得する
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('user_id', activeUserId);
+
     if (data) {
-      // 🌟 魔法の処理：まだ「誰の予定か」が設定されていない古い予定を、あなたのアカウントに引き継ぐ！
-      const unownedEvents = data.filter((e: any) => !e.metadata?.user_id);
-      if (unownedEvents.length > 0) {
-        for (const ev of unownedEvents) {
-          const newMetadata = { ...(ev.metadata || {}), user_id: activeUserId };
-          await supabase.from('events').update({ metadata: newMetadata }).eq('id', ev.id);
-        }
-      }
+      // 取得したデータをローカルと同期させる
+      localStorage.setItem('events', JSON.stringify(data));
 
-      // 🌟 自分の予定（user_id が一致するもの）だけを抽出して画面に表示する！
-      const myEvents = data.filter((e: any) => {
-        const ownerId = e.metadata?.user_id;
-        return ownerId === activeUserId || !ownerId; // 今引き継いだ分も含む
-      });
-
-      setEvents(myEvents.map((e: any) => {
+      setEvents(data.map((e: any) => {
         const catObj = categories.find((c: any) => c.name === e.category);
         const catColor = catObj?.color || '#999999';
         let cColor = e.metadata?.customColor || catColor;
@@ -1114,6 +1140,10 @@ export default function SmartLifeOS() {
       reader.readAsDataURL(file);
     });
   };
+  // 起動時に許可を取る
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
 
   const handleSave = async () => {
     if (!startDate || !title) return; 
@@ -1267,14 +1297,24 @@ export default function SmartLifeOS() {
         }
       }
 
+      // 🌟 修正：選択されたすべての通知タイミング（分前）に対してループ処理を行う
+      const offsets = customFieldsData.notificationOffsets || [10];
+      for (const minutes of offsets) {
+        await scheduleEventNotification(selectedId || 'new-event', title, finalStartISO, minutes);
+      }
+
       await fetchEvents(); // 保存が終わったらカレンダー表示を更新
+      
+      // 🌟 追加：カレンダー表示が更新された最新のeventsをウィジェット用フォルダに同期
+      await syncDataToWidget(events);
+
     } catch (error) {
       alert("保存に失敗しました。");
       setIsModalOpen(true); // 失敗したらモーダルを再度開く
     } finally {
       setIsSaving(false); // 保存完了フラグを戻す
     }
-  };   
+  };
 
   
 
@@ -2316,8 +2356,14 @@ useEffect(() => {
     );
   }
 
+  // 🌟 ここで環境判定を呼び出す（utils.tsなどで定義したもの）
+  const { isNative } = require('@/app/lib/utils'); 
+
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', height: '100dvh', width: '100vw', background: 'var(--bg-main)', overflow: 'hidden' }}>
+    <div 
+      className={isNative ? 'is-native-app' : 'is-web-app'} // 🌟 環境ごとのクラスを付与
+      style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-start', height: '100dvh', width: '100vw', background: 'var(--bg-main)', overflow: 'hidden' }}
+    >
       <style>{`
         :root {
           --theme: ${themeColor};
@@ -2348,20 +2394,49 @@ useEffect(() => {
         input[type="number"] {
           -moz-appearance: textfield;
         }
-        * { box-sizing: border-box; }
         
+        * {
+          box-sizing: border-box;
+        }
+
         /* 👇 追加：画面全体のスクロールとバウンス（引っ張る動き）を完全に止める */
-        html, body { margin: 0; padding: 0; height: 100dvh; overflow: hidden; overscroll-behavior: none; }
-        
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100dvh;
+          overflow: hidden;
+          overscroll-behavior: none;
+        }
+
         body, .fixed-mobile-frame, .fc {
           color: var(--text-main);
           font-family: var(--app-font) !important;
         }
 
+        /* 🌐 Webアプリ（ブラウザ版）: 今まで通りの表示を100%維持 */
         .fixed-mobile-frame {
-          width: 100%; max-width: 460px; height: 100dvh; /* 👈 100vhを100dvhに変更 */
-          background-color: transparent;
-          display: flex; flex-direction: column; position: relative; overflow: hidden;
+          width: 100%;
+          max-width: 460px;
+          height: 100dvh;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          overflow: hidden;
+        }
+
+        /* 📱 実機アプリ（iOSネイティブ版）: 絶対にステータスバーと被らせない決定版 */
+        .is-native-app .fixed-mobile-frame {
+          /* env()が0になるバグを防ぐため、最低でも47px(iPhoneのカメラ領域)を強制確保 */
+          padding-top: max(env(safe-area-inset-top), 47px);
+          padding-bottom: max(env(safe-area-inset-bottom), 20px);
+          height: 100dvh; /* paddingを内側に含めるために100dvhで固定 */
+          box-sizing: border-box;
+          background: var(--bg-main);
+        }
+
+        .is-native-app header {
+          margin-top: 4px; /* ヘッダーをステータスバーから少し離す */
+          flex-shrink: 0;
         }
 
         .fc-event-main, .fc-v-event .fc-event-main { padding: 0 !important; color: inherit; }
@@ -3140,7 +3215,12 @@ useEffect(() => {
                           <div key={e.id} onClick={() => handleEventClick({event: e})} style={{ background: 'var(--card-bg)', borderRadius: '16px', border: `2px solid ${cColor}`, borderLeft: `8px solid ${cColor}`, padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', cursor: 'pointer' }}>
                              
                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden' }}>
-                                <div style={{ fontSize: '1.05rem', fontWeight: '900', color: 'var(--text-main)', whiteSpace: 'pre-wrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title}</div>
+                                <div style={{ fontSize: '1.05rem', fontWeight: '900', color: 'var(--text-main)', whiteSpace: 'pre-wrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {e.title}
+                                  {e.extendedProps?.metadata?.customFields?.enableNotification !== false && (
+                                    <Bell size={14} style={{ color: cColor, flexShrink: 0 }} />
+                                  )}
+                                </div>
                                 
                                 {(loc || isGatheringSet) && (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
@@ -3356,6 +3436,8 @@ useEffect(() => {
           isSidebarOpen={isSidebarOpen}
           setIsSidebarOpen={setIsSidebarOpen}
           setOpenSections={setOpenSections}
+          isNotificationEnabled={isNotificationEnabled}
+          setIsNotificationEnabled={setIsNotificationEnabled}
           themeColor={themeColor}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -4380,12 +4462,36 @@ useEffect(() => {
                       メールアドレス・電話番号を登録することで、データのバックアップとクラウド同期がより安全に行われます。
                     </span>
                   </div>
+                  
+                  <button onClick={async () => {
+                    if (!confirm('iPhoneのデータをクラウドに移行しますか？')) return;
+                    const localEvents = JSON.parse(localStorage.getItem('events') || '[]'); 
+                    if (localEvents.length > 0) {
+                      const formattedEvents = localEvents.map((e: any) => ({
+                        id: e.id, user_id: activeUserId, title: e.title, start_at: e.start, end_at: e.end, category: e.extendedProps?.category || '', metadata: e.extendedProps?.metadata || {}
+                      }));
+                      await supabase.from('events').upsert(formattedEvents);
+                      alert('移行が完了しました！');
+                    } else {
+                      alert('移行するデータがありませんでした。');
+                    }
+                  }} className="btn-pop" style={{ width: '100%', marginTop: '16px', background: '#f59e0b', padding: '14px', border: 'none', color: '#fff', fontWeight: 'bold', borderRadius: '12px', cursor: 'pointer' }}>
+                    📱 iPhoneのデータをクラウドに移行する
+                  </button>
 
                   <button onClick={syncWithCloud} className="btn-secondary" style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: `1px dashed var(--theme)`, color: 'var(--theme)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', fontWeight: 'bold', marginTop: '16px' }}>
                     <Database size={16} /> クラウド同期（手動バックアップ）
                   </button>
 
-                  <button onClick={() => setIsProfileModalOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '8px', padding: '14px' }}>保存して閉じる</button>
+                  {/* 🌟 追加：アカウント画面から確実にログアウトできるボタン */}
+                  <button 
+                    onClick={() => { setIsProfileModalOpen(false); handleLogout(); }} 
+                    style={{ width: '100%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', marginTop: '8px', transition: 'all 0.2s' }}
+                  >
+                    <Unlock size={16} /> ログアウトしてログイン画面に戻る
+                  </button>
+
+                  <button onClick={() => setIsProfileModalOpen(false)} className="btn-pop" style={{ width: '100%', marginTop: '16px', padding: '14px' }}>保存して閉じる</button>
                 </div>
               )}
             </div>
@@ -5568,6 +5674,30 @@ useEffect(() => {
                             <input type="checkbox" checked={isTentative} onChange={e => setIsTentative(e.target.checked)} style={{ margin: 0 }} />
                             <CalendarIcon size={12} /> 入るかもしれない予定（仮予定として薄く表示）
                           </label>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>通知のタイミング（複数選択可）</span>
+                            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
+                              {[0, 5, 10, 30, 60].map((minutes) => {
+                                const offsets = customFieldsData.notificationOffsets || [10]; // デフォルトは10分前
+                                const isChecked = offsets.includes(minutes);
+                                return (
+                                  <label key={minutes} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={isChecked} 
+                                      onChange={(e) => {
+                                        const nextOffsets = e.target.checked 
+                                          ? [...offsets, minutes] 
+                                          : offsets.filter((m: number) => m !== minutes);
+                                        handleCustomFieldChange('notificationOffsets', nextOffsets);
+                                      }} 
+                                    />
+                                    {minutes === 0 ? '当日の同時刻' : `${minutes}分前`}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                         {/* 👇 追加：仮予定の確定ボタン */}
                         {mode === 'detail' && isTentative && (

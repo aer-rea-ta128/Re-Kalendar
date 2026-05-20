@@ -6,7 +6,7 @@ import {
   PieChart, Image as ImageIcon, Palette, Repeat, Gift, Database, Banknote, MapPin, Home, Train, Footprints,
   ChevronDown, ChevronRight, LayoutDashboard, Zap, FolderKanban, Settings2, Globe, History as HistoryIcon, GripVertical,
   LogOut, User, TrendingUp, Users, Send, MessageSquare, Handshake, CheckCircle, Trash2,
-  CreditCard, Smartphone, Landmark, Calendar as CalendarIcon, Inbox
+  CreditCard, Smartphone, Landmark, Calendar as CalendarIcon, Inbox, Bell
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -53,6 +53,8 @@ interface SidebarProps {
   setIsTemplateModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   userProfile: any;
   setIsProfileModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  isNotificationEnabled: boolean;
+  setIsNotificationEnabled: (val: boolean) => void;
 }
 
 export default function Sidebar({
@@ -72,7 +74,8 @@ export default function Sidebar({
   displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter,
   activeUserId, activeUserName, activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, 
   setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen,
-  setIsTimetableModalOpen, setIsTemplateModalOpen, userProfile, setIsProfileModalOpen
+  setIsTimetableModalOpen, setIsTemplateModalOpen, userProfile, setIsProfileModalOpen,
+  isNotificationEnabled, setIsNotificationEnabled
 }: SidebarProps) {
 
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
@@ -210,6 +213,20 @@ export default function Sidebar({
               {isDarkMode ? <><Moon size={14} /> ダーク</> : <><Sun size={14} /> ライト</>}
             </button>
           </div>
+
+          <div className="card-box" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', marginBottom: '12px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                <Bell size={18} /> 予定の10分前通知
+              </span>
+              <label className="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  checked={isNotificationEnabled} 
+                  onChange={(e) => setIsNotificationEnabled(e.target.checked)} 
+                />
+                <span className="slider"></span>
+              </label>
+            </div>
           
           {viewType === 'dayGridMonth' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--input-bg)', borderRadius: '12px', padding: '8px', border: `1px solid var(--border-color)` }}>
