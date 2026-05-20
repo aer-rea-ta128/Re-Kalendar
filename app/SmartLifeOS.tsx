@@ -24,8 +24,7 @@ import { syncDataToWidget } from '@/app/lib/widgetSync';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/app/lib/supabase'; // お使いのsupabaseクライアントのパスに合わせてください
 import { createDataBackup } from '@/app/lib/backup';
-import { loadData, saveData } from '@/app/lib/storage';
-
+import { loadData as storageLoadData, saveData } from '@/app/lib/storage';
 
 export default function SmartLifeOS() {
     const [isMounted, setIsMounted] = useState(false);
@@ -181,9 +180,9 @@ export default function SmartLifeOS() {
     
       const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-      const [userProfile, setUserProfile] = useState(() => 
-  loadData('user_profile', activeUserId, { email: '', phone: '', avatar: '' })
-);
+      const [userProfile, setUserProfile] = useState(() => 
+        loadData('user_profile', { email: '', phone: '', avatar: '' })
+      );
 
 useEffect(() => {
   if (isDataLoaded) {
@@ -238,13 +237,9 @@ useEffect(() => {
         }
       };
     
-     function loadData(key: string, defaultData: any) {
-      // 🌟 ブラウザ環境以外（サーバーサイド）なら、即座にデフォルト値を返す
-      if (typeof window === 'undefined') return defaultData;
-      
-      const saved = localStorage.getItem(key);
-      try { return saved ? JSON.parse(saved) : defaultData; } catch (e) { return defaultData; }
-    }
+    const loadData = (key: string, defaultData: any) => {
+       return storageLoadData(key, activeUserId, defaultData);
+     };
     
     const [themeColor, setThemeColor] = useState('#4D96FF'); // 初期値は固定値にする
     
@@ -385,20 +380,18 @@ useEffect(() => {
       const [isOutline, setIsOutline] = useState(false);
       const [quickTemplates, setQuickTemplates] = useState<any[]>([]);
     
-      useEffect(() => { 
-        const saved = localStorage.getItem('quickTemplates'); 
-        if (saved) {
-          setQuickTemplates(JSON.parse(saved)); 
-        } else {
-          // 👇 追加：初めて使う人向けに、デフォルトの便利テンプレートを入れておく
-          const defaultTemplates = [
-            { title: 'プロ野球観戦', startH: '18', startM: '00', endH: '21', endM: '00', categoryName: 'スポーツ観戦', eventColor: '#f59e0b', isAllDayBackground: false },
-            { title: '飲み会', startH: '19', startM: '00', endH: '21', endM: '00', categoryName: '飲み', eventColor: '#FF6B6B', isAllDayBackground: false }
-          ];
-          setQuickTemplates(defaultTemplates);
-          localStorage.setItem('quickTemplates', JSON.stringify(defaultTemplates));
+      useEffect(() => { 
+        // 🌟 loadData に置き換え
+        const defaultTemplates = [
+          { title: 'プロ野球観戦', startH: '18', startM: '00', endH: '21', endM: '00', categoryName: 'スポーツ観戦', eventColor: '#f59e0b', isAllDayBackground: false },
+          { title: '飲み会', startH: '19', startM: '00', endH: '21', endM: '00', categoryName: '飲み', eventColor: '#FF6B6B', isAllDayBackground: false }
+        ];
+        const saved = loadData('os_quickTemplates', defaultTemplates);
+        setQuickTemplates(saved);
+        if (saved === defaultTemplates) {
+          saveData('os_quickTemplates', activeUserId, defaultTemplates);
         }
-      }, []);
+      }, [activeUserId]);
     
       const [photoUrls, setPhotoUrls] = useState<string[]>([]);
       const [memo, setMemo] = useState('');
@@ -421,9 +414,10 @@ useEffect(() => {
       const toggleBlock = (b: string) => setExpandedBlocks(prev => prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]);
     
       useEffect(() => {
-        const savedColorSetting = localStorage.getItem('useEventColorForTitle');
-        if (savedColorSetting === 'true') setUseEventColorForTitle(true);
-      }, []);
+        // 🌟 loadData に置き換え
+        const savedColorSetting = loadData('os_useEventColorForTitle', false);
+        setUseEventColorForTitle(savedColorSetting);
+      }, [activeUserId]);
     
       const [targetType, setTargetType] = useState('money_month');
       const [targetValue, setTargetValue] = useState('50000');
@@ -456,22 +450,22 @@ useEffect(() => {
       }, []);
     
       useEffect(() => {
-        if (!isDataLoaded) return;
-        localStorage.setItem('os_categories', JSON.stringify(categories));
-        localStorage.setItem('os_themeColor', JSON.stringify(themeColor));
-        localStorage.setItem('os_userColors', JSON.stringify(userColors));
-        localStorage.setItem('os_subs', JSON.stringify(subs));
-        localStorage.setItem('os_anniversaries', JSON.stringify(anniversaries));
-        localStorage.setItem('os_routines', JSON.stringify(monthlyRoutines));
-        localStorage.setItem('os_home', JSON.stringify(homeLocation));
-        localStorage.setItem('os_station', JSON.stringify(nearestStation));
-        localStorage.setItem('os_walkTime', JSON.stringify(walkTime));
-        localStorage.setItem('os_startPointType', JSON.stringify(startPointType));
-        localStorage.setItem('os_customPayees', JSON.stringify(customPayees));
-        localStorage.setItem('os_timetables', JSON.stringify(weeklyTimetables));
-        localStorage.setItem('os_timetableTerms', JSON.stringify(timetableTerms)); // 👈 変更
-        localStorage.setItem('os_exceptionDays', JSON.stringify(exceptionDays));
-      }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees, weeklyTimetables, timetableTerms, exceptionDays]); // 👈 変更
+        if (!isDataLoaded) return;
+        saveData('os_categories', activeUserId, categories);
+        saveData('os_themeColor', activeUserId, themeColor);
+        saveData('os_userColors', activeUserId, userColors);
+        saveData('os_subs', activeUserId, subs);
+        saveData('os_anniversaries', activeUserId, anniversaries);
+        saveData('os_routines', activeUserId, monthlyRoutines);
+        saveData('os_home', activeUserId, homeLocation);
+        saveData('os_station', activeUserId, nearestStation);
+        saveData('os_walkTime', activeUserId, walkTime);
+        saveData('os_startPointType', activeUserId, startPointType);
+        saveData('os_customPayees', activeUserId, customPayees);
+        saveData('os_timetables', activeUserId, weeklyTimetables);
+        saveData('os_timetableTerms', activeUserId, timetableTerms);
+        saveData('os_exceptionDays', activeUserId, exceptionDays);
+      }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees, weeklyTimetables, timetableTerms, exceptionDays, activeUserId]);
     
       const activePresets: string[] = [...INITIAL_PRESETS, ...userColors];
     
@@ -3536,7 +3530,7 @@ useEffect(() => {
                             <button onClick={() => {
                               const updated = quickTemplates.filter((_, idx) => idx !== i);
                               setQuickTemplates(updated);
-                              localStorage.setItem('quickTemplates', JSON.stringify(updated));
+                              saveData('os_quickTemplates', activeUserId, updated);
                             }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px' }}><Trash2 size={16} /></button>
                           </div>
                         </div>
@@ -6093,5 +6087,3 @@ useEffect(() => {
         </div>
       );
     }
-          
-    

@@ -5,7 +5,8 @@ export const getStorageKey = (key: string, userId: string | null) => {
 };
 
 // app/lib/storage.ts
-// app/lib/storage.ts
+
+// 引数を3つにする定義
 export const loadData = (key: string, userId: string | null, defaultData: any) => {
   if (typeof window === 'undefined') return defaultData;
   const storageKey = `os_${userId || 'guest'}_${key}`;
