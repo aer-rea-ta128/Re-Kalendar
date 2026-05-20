@@ -10,7 +10,15 @@ export const generateBackupCode = (): string => {
   return code;
 };
 
-export const createDataBackup = async (userId: string | null) => {
+export type BackupResult = { 
+  success: boolean; 
+  code?: string; 
+  message?: string; 
+  error?: any 
+};
+
+// 2. createDataBackup 関数をこれに置き換えてください
+export const createDataBackup = async (userId: string | null): Promise<BackupResult> => {
   try {
     const categories = localStorage.getItem('os_categories');
     const timetables = localStorage.getItem('os_timetables');
@@ -24,10 +32,10 @@ export const createDataBackup = async (userId: string | null) => {
 
     const code = generateBackupCode();
 
-    // ★重要: userId が 'local_dev' なら null に強制変換してDBに送る
+    // IDが 'local_dev' の場合は null を送ることで、SupabaseのUUID制約を回避
     const finalUserId = userId === 'local_dev' ? null : userId;
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('backups')
       .insert([
         {
@@ -40,14 +48,14 @@ export const createDataBackup = async (userId: string | null) => {
     if (error) throw error;
 
     return { success: true, code: code };
+
   } catch (err: any) {
-    // ★ここが一番重要: エラーの全貌をログに出す
-    console.error('--- バックアップエラー詳細 ---');
-    console.error('Message:', err.message);
-    console.error('Details:', err.details);
-    console.error('Hint:', err.hint);
-    console.error('Raw Error:', err);
-    return { success: false, error: err };
+    // iPhoneでも確認できるよう、alertを追加しました
+    const errorMessage = err.message || JSON.stringify(err);
+    console.error('--- バックアップエラー詳細 ---', err);
+    alert('バックアップ失敗: ' + errorMessage); 
+    
+    return { success: false, message: errorMessage, error: err };
   }
 };
 export const restoreDataFromBackup = async (code: string) => {
