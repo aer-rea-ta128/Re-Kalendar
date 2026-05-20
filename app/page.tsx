@@ -260,9 +260,10 @@ export default function SmartLifeOS() {
     }
   };
 
-  // --- 状態管理 ---
-  function loadData(key: string, defaultData: any) {
+ function loadData(key: string, defaultData: any) {
+    // 🌟 これがサーバーサイドでの「安全な防波堤」になります
     if (typeof window === 'undefined') return defaultData;
+    
     const saved = localStorage.getItem(key);
     try { return saved ? JSON.parse(saved) : defaultData; } catch (e) { return defaultData; }
   }
