@@ -5,7 +5,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/app/lib/supabase';
 import {
   Train, Footprints, MapPin, Clock, Star, Inbox, Settings, Settings2, Trash2, TrendingUp, TrendingDown, Target,
   History, PieChart, Image as ImageIcon, Repeat, Pin, Database, Palette, Gift, Calendar as CalendarIcon, Zap,
@@ -38,12 +38,26 @@ const getSmartIcon = (type: string, color: string) => {
   }
 };
 
+// 🌟 ローカルに保存しつつ、裏側でクラウドにもコピーする関数
 const syncAndSaveEvents = async (newEvents: any[], userId: string) => {
+  // 1. まずiPhone内で爆速保存
   localStorage.setItem('events', JSON.stringify(newEvents));
-  const { error } = await supabase
+
+  // 2. クラウドにコピー（バックグラウンド処理）
+  supabase
     .from('events')
-    .upsert(newEvents.map(e => ({ ...e, user_id: userId })));
-  if (error) console.error("Supabaseへの同期に失敗:", error);
+    .upsert(newEvents.map(e => ({
+      id: e.id,
+      user_id: userId,
+      title: e.title,
+      start_at: e.start,
+      end_at: e.end,
+      category: e.extendedProps?.category || e.category || '',
+      metadata: e.extendedProps?.metadata || e.metadata || {}
+    })))
+    .then(({ error }) => {
+       if (error) console.error("クラウド同期エラー:", error);
+    });
 };
 
 export default function SmartLifeOS() {
@@ -4462,7 +4476,7 @@ useEffect(() => {
                       メールアドレス・電話番号を登録することで、データのバックアップとクラウド同期がより安全に行われます。
                     </span>
                   </div>
-                  
+
                   <button onClick={async () => {
                     if (!confirm('iPhoneのデータをクラウドに移行しますか？')) return;
                     const localEvents = JSON.parse(localStorage.getItem('events') || '[]'); 

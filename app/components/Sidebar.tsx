@@ -9,7 +9,7 @@ import {
   CreditCard, Smartphone, Landmark, Calendar as CalendarIcon, Inbox, Bell
 } from 'lucide-react';
 import { toLocalYYYYMMDD, hexToRgba } from '@/app/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/app/lib/supabase';
 
 interface SidebarProps {
   isSidebarOpen: boolean; setIsSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;

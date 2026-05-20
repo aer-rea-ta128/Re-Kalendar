@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Lock, ShieldCheck, UserPlus, LogIn, AtSign } from 'lucide-react';
-import { supabase } from '@/lib/supabase'; // 🌟 Supabaseを読み込む
+import { supabase } from '@/app/lib/supabase'; // 🌟 Supabaseを読み込む
 
 interface AuthScreenProps {
   onLoginSuccess: (userId: string, userName: string) => void;
@@ -30,21 +30,42 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
     setDeviceId(did);
   }, []);
 
-  // 🌟 アカウント作成処理（Supabaseへ登録）
   const handleCreateUser = async () => {
-    if (!userId.trim() || !nickname.trim() || !password.trim()) { setErrorMsg('すべての項目を入力してください'); return; }
+    console.log("【デバッグ】新規登録開始: ID =", userId.trim());
 
-    const { error } = await supabase
-      .from('users')
-      .insert([{ id: userId.trim(), nickname: nickname.trim(), password: password.trim(), devices: [deviceId] }]);
-
-    if (error) {
-      setErrorMsg('登録に失敗しました。IDが重複している可能性があります。');
-      return;
+    if (!userId.trim() || !nickname.trim() || !password.trim()) { 
+      console.log("【デバッグ】入力チェックエラー: 未入力あり");
+      setErrorMsg('すべての項目を入力してください'); 
+      return; 
     }
 
-    onLoginSuccess(userId.trim(), nickname.trim());
-    localStorage.setItem('os_active_session', JSON.stringify({ id: userId.trim(), name: nickname.trim() }));
+    try {
+      console.log("【デバッグ】SupabaseへINSERT実行中...");
+
+      const { error } = await supabase
+        .from('users')
+        .insert([{ 
+          id: userId.trim(), 
+          nickname: nickname.trim(), 
+          password: password.trim(), 
+          devices: [deviceId] 
+        }]);
+
+      if (error) {
+        // 🌟 ここでSupabaseからのエラー詳細をログに出す
+        console.error("【デバッグ】Supabase INSERTエラー:", error);
+        setErrorMsg(`登録失敗 (コード: ${error.code}, 詳細: ${error.message})`);
+        return;
+      }
+
+      console.log("【デバッグ】登録成功！");
+      onLoginSuccess(userId.trim(), nickname.trim());
+      localStorage.setItem('os_active_session', JSON.stringify({ id: userId.trim(), name: nickname.trim() }));
+      
+    } catch (err) {
+      console.error("【デバッグ】予期せぬ通信エラー:", err);
+      setErrorMsg('予期せぬ通信エラーが発生しました');
+    }
   };
 
   // 🌟 ログイン処理（Supabaseから検索）
@@ -64,11 +85,27 @@ export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenPro
 
     onLoginSuccess(data.id, data.nickname);
     localStorage.setItem('os_active_session', JSON.stringify({ id: data.id, name: data.nickname }));
-  };
+  }; // ← ここで閉じます
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', background: 'var(--bg-main)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-      <div style={{ background: 'var(--card-bg)', width: '100%', maxWidth: '400px', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100vw', 
+            height: '100dvh', 
+            background: 'var(--bg-main)', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            zIndex: 9999, 
+            padding: '20px',
+            // 🌟 追加：キーボード表示時の挙動を安定させる設定
+            overflowY: 'auto', 
+            WebkitOverflowScrolling: 'touch' 
+          }}>
+        <div style={{ background: 'var(--card-bg)', width: '100%', maxWidth: '400px', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         
         <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: `linear-gradient(135deg, ${themeColor}, ${themeColor}80)`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', boxShadow: `0 8px 24px ${themeColor}40` }}>
           <ShieldCheck size={32} color="#fff" />
