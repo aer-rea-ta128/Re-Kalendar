@@ -70,14 +70,15 @@ export default function SmartLifeOS() {
 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // 🌟 追加: 通知のON/OFF設定状態（初期値はtrue）
-  const [isNotificationEnabled, setIsNotificationEnabled] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('user_notification_enabled');
-      return saved !== 'false';
-    }
-    return true;
-  });
+  const [isNotificationEnabled, setIsNotificationEnabled] = useState<boolean>(true); // 初期値はとりあえずtrue
+
+useEffect(() => {
+  // 🌟 ブラウザにマウントされた後に読み込む
+  const saved = localStorage.getItem('user_notification_enabled');
+  if (saved !== null) {
+    setIsNotificationEnabled(saved !== 'false');
+  }
+}, []);
 
   // 🌟 追加: 設定が変わるたびにlocalStorageに自動保存する
   useEffect(() => {
@@ -261,12 +262,12 @@ export default function SmartLifeOS() {
   };
 
  function loadData(key: string, defaultData: any) {
-    // 🌟 これがサーバーサイドでの「安全な防波堤」になります
-    if (typeof window === 'undefined') return defaultData;
-    
-    const saved = localStorage.getItem(key);
-    try { return saved ? JSON.parse(saved) : defaultData; } catch (e) { return defaultData; }
-  }
+  // 🌟 ブラウザ環境以外（サーバーサイド）なら、即座にデフォルト値を返す
+  if (typeof window === 'undefined') return defaultData;
+  
+  const saved = localStorage.getItem(key);
+  try { return saved ? JSON.parse(saved) : defaultData; } catch (e) { return defaultData; }
+}
 
   const [themeColor, setThemeColor] = useState(() => loadData('os_themeColor', '#4D96FF'));  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
   const [userColors, setUserColors] = useState<string[]>(() => loadData('os_userColors', []));
