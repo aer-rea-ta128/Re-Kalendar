@@ -33,12 +33,22 @@ export default function DataSyncModal({ onClose }: Props) {
           引き継ぎコードを入力して、データを復元してください。
         </p>
         <input 
-          className="pop-input" 
-          value={code} 
-          onChange={(e) => setCode(e.target.value)} 
-          placeholder="引き継ぎコード (例: XXXX-XXXX)" 
-          style={{ marginBottom: '16px' }}
-        />
+            className="pop-input"
+            value={code}
+            maxLength={9} // ハイフン込みの最大文字数
+            placeholder="XXXX-XXXX"
+            onChange={(e) => {
+                // 1. 全角を半角に、小文字を大文字に変換し、不要な文字を除去
+                let value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                
+                // 2. 4文字を超えていたらハイフンを挿入
+                if (value.length > 4) {
+                value = value.slice(0, 4) + '-' + value.slice(4, 8);
+                }
+                
+                setCode(value);
+            }}
+            />
         <button 
           onClick={handleRestore} 
           className="btn-pop" 

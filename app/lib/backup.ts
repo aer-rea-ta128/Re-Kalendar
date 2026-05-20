@@ -1,13 +1,15 @@
 import { supabase } from '@/app/lib/supabase';
 
+// app/lib/backup.ts
 export const generateBackupCode = (): string => {
-  const chars = 'CHARS23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  let code = '';
-  for (let i = 0; i < 8; i++) {
-    if (i === 4) code += '-';
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
+  // 読み間違いを防ぐため、紛らわしい文字(0, O, 1, I等)を除外した候補
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  
+  const generatePart = () => 
+    Array.from({ length: 4 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+  
+  // XXXX-XXXX 形式で返す
+  return `${generatePart()}-${generatePart()}`;
 };
 
 export type BackupResult = { 
@@ -17,48 +19,42 @@ export type BackupResult = {
   error?: any 
 };
 
-// 2. createDataBackup 関数をこれに置き換えてください
+// app/lib/backup.ts
 export const createDataBackup = async (userId: string | null): Promise<BackupResult> => {
   try {
-    const categories = localStorage.getItem('os_categories');
-    const timetables = localStorage.getItem('os_timetables');
-    const appSettings = localStorage.getItem('os_full_settings');
-
-    const backupData = {
-      categories: categories ? JSON.parse(categories) : null,
-      timetables: timetables ? JSON.parse(timetables) : null,
-      settings: appSettings ? JSON.parse(appSettings) : null,
-    };
+    // 1. localStorage から os_ で始まるデータをすべて取得
+    const backupData: Record<string, any> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('os_')) {
+        const val = localStorage.getItem(key);
+        try {
+          backupData[key] = JSON.parse(val || 'null');
+        } catch {
+          backupData[key] = val; // JSONじゃない場合はそのまま文字列で保存
+        }
+      }
+    }
 
     const code = generateBackupCode();
-
-    // IDが 'local_dev' の場合は null を送ることで、SupabaseのUUID制約を回避
     const finalUserId = userId === 'local_dev' ? null : userId;
 
     const { error } = await supabase
       .from('backups')
-      .insert([
-        {
-          backup_code: code,
-          user_id: finalUserId,
-          app_data: backupData,
-        }
-      ]);
+      .insert([{
+        backup_code: code,
+        user_id: finalUserId,
+        app_data: backupData, // まとめてJSONbとして保存
+      }]);
 
     if (error) throw error;
-
     return { success: true, code: code };
-
   } catch (err: any) {
-    // iPhoneでも確認できるよう、alertを追加しました
-    const errorMessage = err.message || JSON.stringify(err);
-    console.error('--- バックアップエラー詳細 ---', err);
-    alert('バックアップ失敗: ' + errorMessage); 
-    
-    return { success: false, message: errorMessage, error: err };
+    return { success: false, message: err.message };
   }
 };
-export const restoreDataFromBackup = async (code: string) => {
+
+export const restoreDataFromBackup = async (code: string): Promise<BackupResult> => {
   try {
     const { data, error } = await supabase
       .from('backups')
@@ -66,17 +62,17 @@ export const restoreDataFromBackup = async (code: string) => {
       .eq('backup_code', code)
       .single();
 
-    if (error) throw error;
-    if (!data) throw new Error('コードが見つかりません');
+    if (error || !data) throw new Error('バックアップコードが見つかりません');
 
+    // 2. 取得したデータをすべて localStorage に書き戻す
     const { app_data } = data;
-    if (app_data.categories) localStorage.setItem('os_categories', JSON.stringify(app_data.categories));
-    if (app_data.timetables) localStorage.setItem('os_timetables', JSON.stringify(app_data.timetables));
-    if (app_data.settings) localStorage.setItem('os_full_settings', JSON.stringify(app_data.settings));
+    Object.entries(app_data).forEach(([key, val]) => {
+      localStorage.setItem(key, JSON.stringify(val));
+    });
 
+    window.location.reload(); // 状態を更新
     return { success: true };
   } catch (err: any) {
-    console.error('復元失敗:', err);
     return { success: false, message: err.message };
   }
 };
