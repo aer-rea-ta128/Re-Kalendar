@@ -7,10 +7,11 @@ import { restoreDataFromBackup } from '@/app/lib/backup';
 
 interface AuthScreenProps {
   onLoginSuccess: (userId: string, userName: string) => void;
+  onLogout: () => void; // 🌟 これを追加
   themeColor: string;
 }
 
-export default function AuthScreen({ onLoginSuccess, themeColor }: AuthScreenProps) {
+export default function AuthScreen({ onLoginSuccess, onLogout, themeColor }: AuthScreenProps) {
   const [mode, setMode] = useState<'welcome' | 'login' | 'create'>('welcome');
   const [userId, setUserId] = useState('');
   const [nickname, setNickname] = useState('');
@@ -120,6 +121,10 @@ const handleCreateUser = async () => {
     // ログイン状態を保存
     localStorage.setItem('os_active_session', JSON.stringify({ id: userId, name: nickname }));
     onLoginSuccess(userId, nickname);
+  };
+
+  const handleLogout = () => {
+    onLogout(); // 🌟 親（SmartLifeOS）から渡されたログアウト処理を呼び出す
   };
 
   return (

@@ -18,6 +18,17 @@ export const loadData = (key: string, userId: string | null, defaultData: any) =
   }
 };
 
+// app/lib/storage.ts
+export const getDeviceId = (): string => {
+  let deviceId = localStorage.getItem('os_device_id');
+  if (!deviceId) {
+    // uuidの代わりに簡易的なランダム文字列を生成
+    deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem('os_device_id', deviceId);
+  }
+  return deviceId;
+};
+
 export const saveData = (key: string, userId: string | null, data: any) => {
   if (typeof window === 'undefined') return;
   const storageKey = `os_${userId || 'guest'}_${key}`;

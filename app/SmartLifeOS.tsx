@@ -2339,6 +2339,11 @@ useEffect(() => {
               // 👇 修正：タブを閉じてもログイン状態をずっと維持する
               localStorage.setItem('os_active_session', JSON.stringify({ id, name }));
             }} 
+            onLogout={() => {
+              localStorage.removeItem('os_active_session');
+              setActiveUserId(null);
+              setActiveUserName('');
+             }}
           />
         );
       }
