@@ -102,6 +102,25 @@ const handleCreateUser = async () => {
       setErrorMsg(err.message);
     }
   };
+  // AuthScreen.tsx の handleLogin 成功後の処理
+
+  const handleLoginSuccess = async (userId: string, nickname: string) => {
+    const deviceId = localStorage.getItem('os_device_id');
+    // Supabaseのusersテーブルを更新（または作成）
+    const { error } = await supabase
+      .from('users')
+      .upsert({ 
+        id: userId, 
+        current_device_id: deviceId, // このユーザーが現在使っている端末IDを記録
+        last_login: new Date().toISOString()
+      });
+
+    if (error) console.error("デバイス登録エラー:", error);
+
+    // ログイン状態を保存
+    localStorage.setItem('os_active_session', JSON.stringify({ id: userId, name: nickname }));
+    onLoginSuccess(userId, nickname);
+  };
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', background: 'var(--bg-main)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
