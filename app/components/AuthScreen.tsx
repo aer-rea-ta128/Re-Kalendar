@@ -69,40 +69,6 @@ const handleCreateUser = async () => {
     setErrorMsg(err.message);
   }
 };
-
-  const handleLogin = async () => {
-    if (!userId.trim() || !password.trim()) {
-      setErrorMsg('IDとパスワードを入力してください');
-      return;
-    }
-
-    try {
-      await runRestoreIfNeeded(); // ログイン前に復元
-
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId.trim())
-        .single();
-
-      if (error || !data || data.password !== password.trim()) {
-        setErrorMsg('IDまたはパスワードが間違っています');
-        return;
-      }
-      const currentUserId = data.id;
-      Object.keys(localStorage).forEach(key => {
-        // os_ で始まり、かつ現在のユーザーIDのものではないキーを全て削除
-        if (key.startsWith('os_') && !key.startsWith(`os_${currentUserId}_`) && key !== 'os_device_id') {
-          localStorage.removeItem(key);
-        }
-      });
-
-      onLoginSuccess(data.id, data.nickname);
-      localStorage.setItem('os_active_session', JSON.stringify({ id: data.id, name: data.nickname }));
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    }
-  };
   // AuthScreen.tsx の handleLogin 成功後の処理
 
   const handleLoginSuccess = async (userId: string, nickname: string) => {
@@ -123,8 +89,44 @@ const handleCreateUser = async () => {
     onLoginSuccess(userId, nickname);
   };
 
-  const handleLogout = () => {
-    onLogout(); // 🌟 親（SmartLifeOS）から渡されたログアウト処理を呼び出す
+  const handleLogin = async () => {
+    if (!userId.trim() || !password.trim()) {
+      setErrorMsg('IDとパスワードを入力してください');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId.trim())
+        .single();
+
+      if (error || !data || data.password !== password.trim()) {
+        setErrorMsg('IDまたはパスワードが間違っています');
+        return;
+      }
+
+      // 🌟 ここが「二重ログイン防止」のガード処理
+      const currentDeviceId = localStorage.getItem('os_device_id');
+      
+      // もしDBに端末IDが登録済みで、かつ今の端末IDと違っていたらログイン拒否
+      if (data.current_device_id && data.current_device_id !== currentDeviceId) {
+        setErrorMsg('このアカウントは別の端末でログイン中です。同時に使用することはできません。');
+        return; // ログイン処理をここで止める
+      }
+
+      // ログイン成功時に初めて自分の端末IDをDBに書き込む
+      await supabase
+        .from('users')
+        .update({ current_device_id: currentDeviceId })
+        .eq('id', userId.trim());
+
+      onLoginSuccess(data.id, data.nickname);
+      localStorage.setItem('os_active_session', JSON.stringify({ id: data.id, name: data.nickname }));
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    }
   };
 
   return (

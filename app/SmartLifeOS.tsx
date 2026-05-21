@@ -140,23 +140,9 @@ export default function SmartLifeOS() {
 useEffect(() => {
   const checkDeviceAuth = async () => {
     if (!activeUserId || activeUserId === 'local_dev') return;
-
-  const deviceId = localStorage.getItem('os_device_id');    
-    // DBからこのユーザーの現在の許可端末IDを取得
-    const { data } = await supabase
-      .from('users')
-      .select('current_device_id')
-      .eq('id', activeUserId)
-      .single();
-
-    // 🌟 一致しない場合：別の端末からログインされた、または不正利用と判断
-    if (data && data.current_device_id !== deviceId) {
-      alert("別の端末でログインされたか、端末が変更されました。データを初期化します。");
-      localStorage.clear(); // 完全に初期化
-      window.location.reload();
-    }
+    
+    // ...ロジック...
   };
-
   checkDeviceAuth();
 }, [activeUserId]);
   
