@@ -61,7 +61,10 @@ const handleCreateUser = async () => {
       devices: [deviceId]
     }]);
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505') throw new Error('このユーザーIDは既に使用されています');
+      throw error;
+    }
 
     onLoginSuccess(userId.trim(), nickname.trim());
     localStorage.setItem('os_active_session', JSON.stringify({ id: userId.trim(), name: nickname.trim() }));
@@ -182,8 +185,27 @@ const handleCreateUser = async () => {
               <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <AtSign size={16} /> ユーザーID
               </label>
-              <input type="text" value={userId} onChange={e => setUserId(e.target.value)} style={{ width: '100%', height: '48px', padding: '0 16px', borderRadius: '12px', border: `2px solid ${themeColor}40`, background: 'var(--input-bg)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
+              <input 
+                type="text" 
+                value={userId} 
+                onChange={e => setUserId(e.target.value.replace(/[^a-zA-Z0-9]/g, ''))} 
+                inputMode="email"
+                // 🌟 ここにスタイルを記述します
+                style={{ 
+                  width: '100%', 
+                  height: '48px', 
+                  padding: '0 16px', 
+                  borderRadius: '12px', 
+                  border: `2px solid ${themeColor}40`, 
+                  background: 'var(--input-bg)', 
+                  color: 'var(--text-main)', 
+                  outline: 'none', 
+                  fontWeight: 'bold',
+                  fontSize: '1rem' // 文字サイズを調整
+                }} 
+              />
             </div>
+            
 
             {mode === 'create' && (
               <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '20px' }}>

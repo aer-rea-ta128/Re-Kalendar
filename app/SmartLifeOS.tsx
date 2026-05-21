@@ -138,12 +138,6 @@ export default function SmartLifeOS() {
   // SmartLifeOS.tsx 内の useEffect
 
 useEffect(() => {
-  const checkDeviceAuth = async () => {
-    if (!activeUserId || activeUserId === 'local_dev') return;
-    
-    // ...ロジック...
-  };
-  checkDeviceAuth();
 }, [activeUserId]);
   
   const [activeUserAvatar, setActiveUserAvatar] = useState<string>(() => loadData('user_avatar', ''));
