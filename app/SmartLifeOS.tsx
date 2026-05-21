@@ -13,7 +13,6 @@ import {
   Smartphone, Landmark, ChevronUp, ChevronDown, Handshake, User, Bell
 } from 'lucide-react';
 
-// ★ 分割したファイルを読み込む（パスは画像の設定に合わせています）
 import { DAY_NAMES, HOURS, MINUTES, INITIAL_PRESETS, VIEW_OPTIONS, FIELD_TYPES } from '@/app/lib/constants';
 import { hexToRgba, toLocalYYYYMMDD } from '@/app/lib/utils';
 import CategoryStudio from '@/app/components/CategoryStudio';
@@ -22,224 +21,195 @@ import AuthScreen from '@/app/components/AuthScreen';
 import { requestNotificationPermission, scheduleEventNotification } from '@/app/lib/notifications';
 import { syncDataToWidget } from '@/app/lib/widgetSync';
 import { Capacitor } from '@capacitor/core';
-import { supabase } from '@/app/lib/supabase'; // お使いのsupabaseクライアントのパスに合わせてください
+import { supabase } from '@/app/lib/supabase';
 import { createDataBackup } from '@/app/lib/backup';
+// 🌟 修正1: 正しいインポートを一番上にまとめる
 import { loadData as storageLoadData, saveData } from '@/app/lib/storage';
 
 export default function SmartLifeOS() {
-    const [isMounted, setIsMounted] = useState(false);
-      const calendarRef = useRef<FullCalendar>(null);
-      const touchStartX = useRef<number | null>(null);
-      const touchEndX = useRef<number | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const calendarRef = useRef<FullCalendar>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
+  
+  const isSwipingRef = useRef(false);
+  const blockCalendarClick = useRef(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isNotificationEnabled, setIsNotificationEnabled] = useState<boolean>(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('user_notification_enabled');
+    if (saved !== null) {
+      setIsNotificationEnabled(saved !== 'false');
+    }
+  }, []);
+  
+  useEffect(() => {
+    localStorage.setItem('user_notification_enabled', String(isNotificationEnabled));
+  }, [isNotificationEnabled]);
+
+  const handleTouchStart = (e: React.TouchEvent) => { 
+    touchStartX.current = e.targetTouches[0].clientX; 
+    touchStartY.current = e.targetTouches[0].clientY; 
+    isSwipingRef.current = false;
+  };
+  
+  const handleTouchMove = (e: React.TouchEvent) => { 
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
     
-      const isSwipingRef = useRef(false);
-      const blockCalendarClick = useRef(false);
+    const diffX = touchEndX.current - touchStartX.current;
+    const diffY = touchEndY.current - touchStartY.current;
+    if (Math.abs(diffX) > 15 || Math.abs(diffY) > 15) isSwipingRef.current = true; 
+  };
+  
+  const handleTouchEnd = () => { 
+    if (touchStartX.current === null || touchEndX.current === null || touchStartY.current === null || touchEndY.current === null) {
+      touchStartX.current = null; touchEndX.current = null;
+      touchStartY.current = null; touchEndY.current = null;
+      setTimeout(() => { isSwipingRef.current = false; }, 100);
+      return;
+    }
     
-      const [isDataLoaded, setIsDataLoaded] = useState(false);
-    
-      const [isNotificationEnabled, setIsNotificationEnabled] = useState<boolean>(true); // 初期値はとりあえずtrue
-    
-    useEffect(() => {
-      // 🌟 ブラウザにマウントされた後に読み込む
-      const saved = localStorage.getItem('user_notification_enabled');
-      if (saved !== null) {
-        setIsNotificationEnabled(saved !== 'false');
-      }
-    }, []);
-    
-      // 🌟 追加: 設定が変わるたびにlocalStorageに自動保存する
-      useEffect(() => {
-        localStorage.setItem('user_notification_enabled', String(isNotificationEnabled));
-      }, [isNotificationEnabled]);
-    
-      // 👇==== ここから追加 ====👇
-      const touchStartY = useRef<number | null>(null);
-      const touchEndY = useRef<number | null>(null);
-    
-      const handleTouchStart = (e: React.TouchEvent) => { 
-        touchStartX.current = e.targetTouches[0].clientX; 
-        touchStartY.current = e.targetTouches[0].clientY; 
-        isSwipingRef.current = false;
-      };
-    
-      const handleTouchMove = (e: React.TouchEvent) => { 
-        if (touchStartX.current === null || touchStartY.current === null) return;
-        touchEndX.current = e.targetTouches[0].clientX;
-        touchEndY.current = e.targetTouches[0].clientY;
-        
-        const diffX = touchEndX.current - touchStartX.current;
-        const diffY = touchEndY.current - touchStartY.current;
-        if (Math.abs(diffX) > 15 || Math.abs(diffY) > 15) isSwipingRef.current = true; 
-      };
-    
-      const handleTouchEnd = () => { 
-        if (touchStartX.current === null || touchEndX.current === null || touchStartY.current === null || touchEndY.current === null) {
-          touchStartX.current = null; touchEndX.current = null;
-          touchStartY.current = null; touchEndY.current = null;
-          setTimeout(() => { isSwipingRef.current = false; }, 100);
-          return;
+    if (isSwipingRef.current) {
+      const diffX = touchEndX.current - touchStartX.current;
+      const diffY = touchEndY.current - touchStartY.current;
+      
+      if (Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX > 35) {
+          let startRelativeX = touchStartX.current;
+          const container = document.querySelector('.fixed-mobile-frame');
+          if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
+          if (startRelativeX < 40) setIsSidebarOpen(true);
+          else calendarRef.current?.getApi().prev();
+        } else if (diffX < -35) {
+          calendarRef.current?.getApi().next();
         }
-        
-        if (isSwipingRef.current) {
-        const diffX = touchEndX.current - touchStartX.current;
-        const diffY = touchEndY.current - touchStartY.current;
-        
-        if (Math.abs(diffX) > Math.abs(diffY)) {
-          // 👇 修正：左右スワイプの感度を 50 -> 35 に下げて反応しやすくする
-          if (diffX > 35) {
-            let startRelativeX = touchStartX.current;
-            const container = document.querySelector('.fixed-mobile-frame');
-            if (container) startRelativeX = touchStartX.current - container.getBoundingClientRect().left;
-            if (startRelativeX < 40) setIsSidebarOpen(true);
-            else calendarRef.current?.getApi().prev();
-          } else if (diffX < -35) {
-            calendarRef.current?.getApi().next();
-          }
-        } else {
-          // 👇 追加：上下のスワイプ（日表示の時に、前週・次週へジャンプ！）
-          if (viewType === 'timeGridDay') {
-            if (diffY > 50) {
-              // 下スワイプ：前の週へ
-              const api = calendarRef.current?.getApi();
-              if (api) { const d = api.getDate(); d.setDate(d.getDate() - 7); api.gotoDate(d); }
-            } else if (diffY < -50) {
-              // 上スワイプ：次の週へ
-              const api = calendarRef.current?.getApi();
-              if (api) { const d = api.getDate(); d.setDate(d.getDate() + 7); api.gotoDate(d); }
-            }
+      } else {
+        if (viewType === 'timeGridDay') {
+          if (diffY > 50) {
+            const api = calendarRef.current?.getApi();
+            if (api) { const d = api.getDate(); d.setDate(d.getDate() - 7); api.gotoDate(d); }
+          } else if (diffY < -50) {
+            const api = calendarRef.current?.getApi();
+            if (api) { const d = api.getDate(); d.setDate(d.getDate() + 7); api.gotoDate(d); }
           }
         }
       }
-        touchStartX.current = null; touchEndX.current = null;
-        touchStartY.current = null; touchEndY.current = null;
-        setTimeout(() => { isSwipingRef.current = false; }, 100);
-      };
-    
-      // 🌟 修正：実機アプリの時は「開発環境」と勘違いしないように分離し、セッションを永続化する
-      const [activeUserId, setActiveUserId] = useState<string | null>(() => {
-        // 修正: if (typeof window !== 'undefined') で囲む
-        if (typeof window !== 'undefined') {
-          const isNativeApp = Capacitor.isNativePlatform();
-          if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-            return 'local_dev';
-          }
-          const session = localStorage.getItem('os_active_session');
-          return session ? JSON.parse(session).id : null;
-        }
-        return null; // 🌟 サーバーサイド(windowがない時)の戻り値を明記
-      });
-      
-      const [activeUserName, setActiveUserName] = useState<string>(() => {
-        if (typeof window !== 'undefined') {
-          const isNativeApp = Capacitor.isNativePlatform();
-          if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-            return '開発環境アカウント';
-          }
-          const session = localStorage.getItem('os_active_session');
-          return session ? JSON.parse(session).name : '';
-        }
-        return ''; // 🌟 サーバーサイドの戻り値を明記
-      });
-      const [activeUserAvatar, setActiveUserAvatar] = useState<string>(() => {
-        if (typeof window !== 'undefined') {
-          return localStorage.getItem('os_user_avatar') || '';
-        }
-        return ''; // 🌟 サーバーサイドの戻り値を明記
-      });
-    
-      // 👇 追加：収支グラフを開くための状態管理
-      const [isFinanceGraphOpen, setIsFinanceGraphOpen] = useState(false);
-      const [isScheduleAssistantOpen, setIsScheduleAssistantOpen] = useState(false);
-      const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
-      const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
-      const [weeklyTimetables, setWeeklyTimetables] = useState<any[]>([]);
-      const [timetableTab, setTimetableTab] = useState<number>(1); // 1:月曜スタート
-    
-      // 👇 修正：時間割の期間を「複数」登録できるように配列に変更！
-      const [timetableTerms, setTimetableTerms] = useState<any[]>([]);
-      const [newTermStart, setNewTermStart] = useState('');
-      const [newTermEnd, setNewTermEnd] = useState('');
-      const [exceptionDays, setExceptionDays] = useState<Record<string, 'class' | 'off'>>(() => loadData('os_exceptionDays', {}));
-      const [canceledClasses, setCanceledClasses] = useState<string[]>(() => loadData('os_canceledClasses', []));
-    
-      useEffect(() => {
-        localStorage.setItem('os_canceledClasses', JSON.stringify(canceledClasses));
-      }, [canceledClasses]);
-      // 👆 ここまで
-    
-      const [companions, setCompanions] = useState<string[]>([]); // 同行者リスト
-      const [companionInput, setCompanionInput] = useState(''); // 同行者入力用
-      const [isStoryModalOpen, setIsStoryModalOpen] = useState(false); // ストーリー表示用
-      const [storyDate, setStoryDate] = useState<string | null>(null); // ストーリーの日付
-    
-      const [newTermName, setNewTermName] = useState(''); 
-      const [editTimetableId, setEditTimetableId] = useState<string | null>(null);
-      const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-      const [editTemplateIndex, setEditTemplateIndex] = useState<number | null>(null);
-      const [templateForm, setTemplateForm] = useState<any>({});
-    
-      const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    }
+    touchStartX.current = null; touchEndX.current = null;
+    touchStartY.current = null; touchEndY.current = null;
+    setTimeout(() => { isSwipingRef.current = false; }, 100);
+  };
 
-      const [userProfile, setUserProfile] = useState(() => 
-        loadData('user_profile', { email: '', phone: '', avatar: '' })
-      );
+  // 🌟 修正2: 「誰のアカウントか」を一番最初に特定する
+  const [activeUserId, setActiveUserId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const isNativeApp = Capacitor.isNativePlatform();
+      if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return 'local_dev';
+      }
+      const session = localStorage.getItem('os_active_session');
+      return session ? JSON.parse(session).id : null;
+    }
+    return null;
+  });
 
-useEffect(() => {
-  if (isDataLoaded) {
-    saveData('user_profile', activeUserId, userProfile);
-  }
-}, [userProfile, isDataLoaded]);
-    const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
-      const [cropZoom, setCropZoom] = useState(1);
-      const [cropPanX, setCropPanX] = useState(50);
-      const [cropPanY, setCropPanY] = useState(50);
-      const [cropDragStart, setCropDragStart] = useState<{x: number, y: number} | null>(null);
-      const [touchDist, setTouchDistance] = useState<number | null>(null);
-    
-      useEffect(() => {
-        if (isDataLoaded) localStorage.setItem('os_user_profile', JSON.stringify(userProfile));
-      }, [userProfile, isDataLoaded]);
-    
-      const [advanceTab, setAdvanceTab] = useState<'unsettled' | 'settled' | 'partners'>('unsettled');
-      const [viewingPartner, setViewingPartner] = useState<string | null>(null); 
-      const [customPayees, setCustomPayees] = useState<string[]>(() => loadData('os_customPayees', []));
-      const [newPayeeName, setNewPayeeName] = useState('');
-      const [isTentative, setIsTentative] = useState(false);
-      const [graphSpan, setGraphSpan] = useState<'month' | 'week'>('month');
-      const [assistMode, setAssistMode] = useState<'send' | 'receive'>('send');
-      
-      // 👇 修正：ドラッグして時間を指定できるように変更
-      const [assistTimeSlots, setAssistTimeSlots] = useState<string[]>([]);
-      const [generatedText, setGeneratedText] = useState('');
-      const [receiveText, setReceiveText] = useState('');
-    
-      // 👇 追加：ログアウト機能（記憶を消してログイン画面に戻す）
-      const handleLogout = () => {
-        if (confirm('ログアウトしますか？（ログアウトすると端末枠が1つ空きます）')) {
-          
-          // 👇 追加：ログアウト時にデバイス情報を解除し、他の端末でログインできるようにする
-          const savedUsers = localStorage.getItem('os_local_users');
-          const deviceId = localStorage.getItem('os_device_id');
-          if (savedUsers && deviceId && activeUserId) {
-            const users = JSON.parse(savedUsers);
-            const updatedUsers = users.map((u: any) => {
-              if (u.id === activeUserId) {
-                return { ...u, devices: (u.devices || []).filter((d: string) => d !== deviceId) };
-              }
-              return u;
-            });
-            localStorage.setItem('os_local_users', JSON.stringify(updatedUsers));
+  // 🌟 修正3: 「引数2つ」で自動的にアカウントを振り分ける関数をここで定義する
+  const loadData = (key: string, defaultData: any) => {
+    return storageLoadData(key, activeUserId, defaultData);
+  };
+
+  const [activeUserName, setActiveUserName] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const isNativeApp = Capacitor.isNativePlatform();
+      if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return '開発環境アカウント';
+      }
+      const session = localStorage.getItem('os_active_session');
+      return session ? JSON.parse(session).name : '';
+    }
+    return ''; 
+  });
+  
+  const [activeUserAvatar, setActiveUserAvatar] = useState<string>(() => loadData('user_avatar', ''));
+
+  const [isFinanceGraphOpen, setIsFinanceGraphOpen] = useState(false);
+  const [isScheduleAssistantOpen, setIsScheduleAssistantOpen] = useState(false);
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
+  const [weeklyTimetables, setWeeklyTimetables] = useState<any[]>([]);
+  const [timetableTab, setTimetableTab] = useState<number>(1);
+  const [timetableTerms, setTimetableTerms] = useState<any[]>([]);
+  const [newTermStart, setNewTermStart] = useState('');
+  const [newTermEnd, setNewTermEnd] = useState('');
+  
+  const [exceptionDays, setExceptionDays] = useState<Record<string, 'class' | 'off'>>(() => loadData('os_exceptionDays', {}));
+  const [canceledClasses, setCanceledClasses] = useState<string[]>(() => loadData('os_canceledClasses', []));
+
+  useEffect(() => {
+    if (isDataLoaded) saveData('os_canceledClasses', activeUserId, canceledClasses);
+  }, [canceledClasses, isDataLoaded, activeUserId]);
+
+  const [companions, setCompanions] = useState<string[]>([]);
+  const [companionInput, setCompanionInput] = useState('');
+  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
+  const [storyDate, setStoryDate] = useState<string | null>(null);
+
+  const [newTermName, setNewTermName] = useState(''); 
+  const [editTimetableId, setEditTimetableId] = useState<string | null>(null);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [editTemplateIndex, setEditTemplateIndex] = useState<number | null>(null);
+  const [templateForm, setTemplateForm] = useState<any>({});
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // 🌟 修正4: エラーになっていたユーザープロフィールを統合・修正
+  const [userProfile, setUserProfile] = useState(() => loadData('user_profile', { email: '', phone: '', avatar: '' }));
+
+  useEffect(() => {
+    if (isDataLoaded) saveData('user_profile', activeUserId, userProfile);
+  }, [userProfile, isDataLoaded, activeUserId]);
+
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropPanX, setCropPanX] = useState(50);
+  const [cropPanY, setCropPanY] = useState(50);
+  const [cropDragStart, setCropDragStart] = useState<{x: number, y: number} | null>(null);
+  const [touchDist, setTouchDistance] = useState<number | null>(null);
+
+  const [advanceTab, setAdvanceTab] = useState<'unsettled' | 'settled' | 'partners'>('unsettled');
+  const [viewingPartner, setViewingPartner] = useState<string | null>(null); 
+  const [customPayees, setCustomPayees] = useState<string[]>(() => loadData('os_customPayees', []));
+  const [newPayeeName, setNewPayeeName] = useState('');
+  const [isTentative, setIsTentative] = useState(false);
+  const [graphSpan, setGraphSpan] = useState<'month' | 'week'>('month');
+  const [assistMode, setAssistMode] = useState<'send' | 'receive'>('send');
+  const [assistTimeSlots, setAssistTimeSlots] = useState<string[]>([]);
+  const [generatedText, setGeneratedText] = useState('');
+  const [receiveText, setReceiveText] = useState('');
+
+  const handleLogout = () => {
+    if (confirm('ログアウトしますか？（ログアウトすると端末枠が1つ空きます）')) {
+      const savedUsers = localStorage.getItem('os_local_users');
+      const deviceId = localStorage.getItem('os_device_id');
+      if (savedUsers && deviceId && activeUserId) {
+        const users = JSON.parse(savedUsers);
+        const updatedUsers = users.map((u: any) => {
+          if (u.id === activeUserId) {
+            return { ...u, devices: (u.devices || []).filter((d: string) => d !== deviceId) };
           }
-    
-          localStorage.removeItem('os_active_session');
-          setActiveUserId(null);
-          setActiveUserName('');
-        }
-      };
-    
-    const loadData = (key: string, defaultData: any) => {
-       return storageLoadData(key, activeUserId, defaultData);
-     };
+          return u;
+        });
+        localStorage.setItem('os_local_users', JSON.stringify(updatedUsers));
+      }
+      localStorage.removeItem('os_active_session');
+      setActiveUserId(null);
+      setActiveUserName('');
+    }
+  };
     
     const [themeColor, setThemeColor] = useState('#4D96FF'); // 初期値は固定値にする
     
