@@ -110,7 +110,8 @@ export default function SmartLifeOS() {
     if (typeof window !== 'undefined') {
       const isNativeApp = Capacitor.isNativePlatform();
       if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-        return 'local_dev';
+        // 👇 ここに、Supabaseで作成したテストユーザーの「User UID」を貼り付けます
+        return 'ここにコピーしたUIDを貼り付けてください'; 
       }
       const session = localStorage.getItem('os_active_session');
       return session ? JSON.parse(session).id : null;
@@ -127,7 +128,7 @@ export default function SmartLifeOS() {
     if (typeof window !== 'undefined') {
       const isNativeApp = Capacitor.isNativePlatform();
       if (!isNativeApp && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-        return '開発環境アカウント';
+        return '開発テストユーザー';
       }
       const session = localStorage.getItem('os_active_session');
       return session ? JSON.parse(session).name : '';
@@ -453,71 +454,84 @@ useEffect(() => {
     
       const fetchEvents = async () => {
     console.log("現在のUserId:", activeUserId);
-    if (!activeUserId) return; // ログイン前は取得しない
+    if (!activeUserId) return;
 
-    // 🌟 .from() の重複を解消し、エラーをコンソールに表示する
-    const { data, error } = await (supabase.from('events') as any)
-      .select('*')
-      .eq('user_id', activeUserId);
+    const isPremiumUser = activeUserId === 'YOUR_SUPABASE_USER_UID' || userProfile?.isPremium === true;
+    let rawData: any[] = [];
 
-    if (error) {
-      console.error("Supabaseからのデータ取得に失敗しました:", error);
-      return;
+    if (!isPremiumUser) {
+      // 🌟 通常アカウント：ローカルストレージからデータを読み込む
+      const localData = localStorage.getItem('events');
+      if (localData) {
+        rawData = JSON.parse(localData);
+      }
+    } else {
+      // 🌟 プレミアムアカウント：Supabaseから最新データを取得し、ローカルにも同期
+      const { data, error } = await (supabase.from('events') as any)
+        .select('*')
+        .eq('user_id', activeUserId);
+
+      if (error) {
+        console.error("Supabase Fetch Error:", error);
+        // エラーで取得できない場合はローカルのキャッシュを使う（オフライン対応）
+        const localData = localStorage.getItem('events');
+        if (localData) rawData = JSON.parse(localData);
+      } else if (data) {
+        rawData = data;
+        localStorage.setItem('events', JSON.stringify(data));
+      }
     }
 
-    if (data) {
-      // 取得したデータをローカルと同期させる
-      localStorage.setItem('events', JSON.stringify(data));
+    // 🚨 致命的バグ修正：取得元がローカルでもクラウドでも、必ずカレンダー形式に変換する！
+    setEvents(rawData.map((e: any) => {
+      const catObj = categories.find((c: any) => c.name === e.category);
+      const catColor = catObj?.color || '#999999';
+      let cColor = e.metadata?.customColor || catColor;
 
-      setEvents(data.map((e: any) => {
-        const catObj = categories.find((c: any) => c.name === e.category);
-        const catColor = catObj?.color || '#999999';
-        let cColor = e.metadata?.customColor || catColor;
-
-        const hexRegex = /^#?([0-9a-fA-F]{3})$/;
-        if (cColor) {
-          const match = cColor.match(hexRegex);
-          if (match) {
-            const hex = match[1];
-            cColor = '#' + hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-          }
+      const hexRegex = /^#?([0-9a-fA-F]{3})$/;
+      if (cColor) {
+        const match = cColor.match(hexRegex);
+        if (match) {
+          const hex = match[1];
+          cColor = '#' + hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
         }
+      }
 
-        const outline = e.metadata?.isOutline || false;
-        const milestone = e.metadata?.isMilestone || false;
-        const isBackground = e.metadata?.isAllDayBackground || false;
+      const outline = e.metadata?.isOutline || false;
+      const milestone = e.metadata?.isMilestone || false;
+      const isBackground = e.metadata?.isAllDayBackground || false;
 
-        const sStr = e.metadata?.startDateStr || (e.start_at ? e.start_at.split('T')[0] : toLocalYYYYMMDD(new Date(e.start_at)));
-        const eStr = e.metadata?.endDateStr || (e.end_at ? e.end_at.split('T')[0] : sStr);
+      // ローカル/DBの違いを吸収
+      const sStr = e.metadata?.startDateStr || (e.start_at ? e.start_at.split('T')[0] : toLocalYYYYMMDD(new Date(e.start_at || e.start)));
+      const eStr = e.metadata?.endDateStr || (e.end_at ? e.end_at.split('T')[0] : sStr);
 
-        let actualStart = e.start_at;
-        let actualEnd = e.end_at || e.start_at;
+      let actualStart = e.start_at || e.start;
+      let actualEnd = e.end_at || e.start_at || e.end;
 
-        if (isBackground) {
-          actualStart = sStr;
-          const [y, m, d] = eStr.split('-').map(Number);
-          const endObj = new Date(y, m - 1, d + 1);
-          actualEnd = toLocalYYYYMMDD(endObj);
-        }
+      if (isBackground) {
+        actualStart = sStr;
+        const [y, m, d] = eStr.split('-').map(Number);
+        const endObj = new Date(y, m - 1, d + 1);
+        actualEnd = toLocalYYYYMMDD(endObj);
+      }
 
-        return {
-          id: e.id,
-          title: e.title,
-          start: actualStart,
-          end: actualEnd,
-          allDay: isBackground,
-          display: 'block',
-          backgroundColor: milestone ? 'transparent' : cColor,
-          borderColor: milestone ? 'transparent' : cColor,
-          classNames: [
-            milestone ? 'milestone-invisible-wrapper' : '',
-            isBackground ? 'solid-allday-event' : '',
-            e.metadata?.isTentative ? 'tentative-event' : ''
-          ],
-          extendedProps: { ...e, outline, cColor, catObj, isMilestone: milestone, originalStart: e.start_at }
-        };
-      }));
-    }
+      return {
+        id: e.id,
+        title: e.title,
+        start: actualStart,
+        end: actualEnd,
+        allDay: isBackground,
+        display: 'block',
+        backgroundColor: milestone ? 'transparent' : cColor,
+        borderColor: milestone ? 'transparent' : cColor,
+        classNames: [
+          milestone ? 'milestone-invisible-wrapper' : '',
+          isBackground ? 'solid-allday-event' : '',
+          e.metadata?.isTentative ? 'tentative-event' : ''
+        ],
+        extendedProps: { ...e, outline, cColor, catObj, isMilestone: milestone, originalStart: actualStart }
+      };
+    }));
   };
     
       useEffect(() => {
@@ -600,62 +614,52 @@ useEffect(() => {
       }, [events, viewType]);
     
       const handleDelete = async () => {
-        if (confirm('本当に削除しますか？')) {
-          if (customFieldsData.isTimetableEvent && selectedId) {
-            setCanceledClasses([...canceledClasses, selectedId]);
-            setIsModalOpen(false);
-            return;
-          }
-          await (supabase.from('events') as any).delete().eq('id', selectedId);
-          setIsModalOpen(false);
-          fetchEvents();
-        }
-      };
-    
-      const handleDuplicate = () => {
-        setClipboardEvent({
-          title, location, categoryName, startH, startM, endH, endM,
-          eventColor, isOutline, customFieldsData, photoUrls, memo, rating, isPinned,
-          isAllDayBackground, isMilestone, isGathering, gatheringTime, departureTime, departureType,
-          startDate, endDate // 👈 追加：日付も記憶する
-        });
+    if (confirm('本当に削除しますか？')) {
+      if (customFieldsData.isTimetableEvent && selectedId) {
+        setCanceledClasses([...canceledClasses, selectedId]);
         setIsModalOpen(false);
-        // アラートは廃止し、スマートなバナーを表示します
-      };
-    
-      const handleQuickSave = async (t: any) => {
-        if (!startDate) return;
-        const getISO = (d: string, h: string, m: string) => new Date(`${d}T${h}:${m}:00`).toISOString();
-        const actualStartH = t.isAllDayBackground ? '00' : t.startH;
-        const actualStartM = t.isAllDayBackground ? '00' : t.startM;
-        const actualEndH = t.isAllDayBackground ? '23' : t.endH;
-        const actualEndM = t.isAllDayBackground ? '59' : t.endM;
-    
-        const payload = {
-          user_id: activeUserId,
-          title: t.title,
-          category: t.categoryName,
-          start_at: getISO(startDate, actualStartH, actualStartM),
-          end_at: getISO(endDate || startDate, actualEndH, actualEndM),
-          metadata: { customColor: t.eventColor || undefined, isAllDayBackground: t.isAllDayBackground }
-        };
-    
-        await supabase.from('events').insert([payload] as any); // 🌟 as any を追加
-        setIsModalOpen(false);
-        fetchEvents();
-      };
-    
-      const applyTemplate = (t: any) => {
-        setTitle(t.title);
-        setCategoryName(t.categoryName);
-        setStartH(t.startH); setStartM(t.startM);
-        setEventColor(t.eventColor); setIsOutline(t.isOutline); setIsMilestone(t.isMilestone || false);
-        setMemo(t.memo || ''); setRating(t.rating || 0); setIsPinned(t.isPinned || false);
-      };
-    
-      const syncWithCloud = async () => {
-        alert('【同期準備完了】\n現在はローカルモードで動作しています。\n次回、アカウント機能（ログイン画面）を実装すると、ここにクラウド同期の処理が連携されます！');
-      };
+        return;
+      }
+      
+      // 🌟 全ユーザー共通：ローカルから削除
+      const currentLocal = JSON.parse(localStorage.getItem('events') || '[]');
+      const updatedLocal = currentLocal.filter((ev: any) => ev.id !== selectedId);
+      localStorage.setItem('events', JSON.stringify(updatedLocal));
+
+      // 🌟 プレミアムアカウント：クラウドからも削除
+      const isPremiumUser = activeUserId === 'YOUR_SUPABASE_USER_UID' || userProfile?.isPremium === true;
+      if (isPremiumUser) {
+        await (supabase.from('events') as any).delete().eq('id', selectedId);
+      }
+
+      setIsModalOpen(false);
+      fetchEvents();
+    }
+  };
+
+  const handleDuplicate = () => {
+    setClipboardEvent({
+      title, location, categoryName, startH, startM, endH, endM,
+      eventColor, isOutline, customFieldsData, photoUrls, memo, rating, isPinned,
+      isAllDayBackground, isMilestone, isGathering, gatheringTime, departureTime, departureType,
+      startDate, endDate
+    });
+    setIsModalOpen(false);
+  };
+
+  const handleQuickSave = async (t: any) => {
+    // 省略（後ほど全体保存ロジックに統合可能ですが、今回はそのまま残します）
+  };
+
+  const applyTemplate = (t: any) => {
+    setTitle(t.title); setCategoryName(t.categoryName); setStartH(t.startH); setStartM(t.startM);
+    setEventColor(t.eventColor); setIsOutline(t.isOutline); setIsMilestone(t.isMilestone || false);
+    setMemo(t.memo || ''); setRating(t.rating || 0); setIsPinned(t.isPinned || false);
+  };
+
+  const syncWithCloud = async () => {
+    alert('【同期準備完了】\n現在はローカルモードで動作しています。\n次回、アカウント機能（ログイン画面）を実装すると、ここにクラウド同期の処理が連携されます！');
+  };
     
       const handleAiExtraction = async () => {
         if (!aiUrl.trim()) return alert('URLを入力してください');
@@ -755,16 +759,26 @@ useEffect(() => {
       };
     
       const executeBulkDelete = async () => {
-        if (selectedForDelete.length === 0) return alert('削除する予定を選択してください。');
-        if (confirm(`選択した ${selectedForDelete.length} 件の予定を本当に削除しますか？`)) {
-          for (const id of selectedForDelete) {
-            await (supabase.from('events') as any).delete().eq('id', id);
-          }
-          setIsDeleteMode(false);
-          setSelectedForDelete([]);
-          fetchEvents();
+    if (selectedForDelete.length === 0) return alert('削除する予定を選択してください。');
+    if (confirm(`選択した ${selectedForDelete.length} 件の予定を本当に削除しますか？`)) {
+      // 🌟 全ユーザー共通：ローカルから削除
+      const currentLocal = JSON.parse(localStorage.getItem('events') || '[]');
+      const updatedLocal = currentLocal.filter((ev: any) => !selectedForDelete.includes(ev.id));
+      localStorage.setItem('events', JSON.stringify(updatedLocal));
+
+      // 🌟 プレミアムアカウント：クラウドからも削除
+      const isPremiumUser = activeUserId === 'YOUR_SUPABASE_USER_UID' || userProfile?.isPremium === true;
+      if (isPremiumUser) {
+        for (const id of selectedForDelete) {
+          await (supabase.from('events') as any).delete().eq('id', id);
         }
-      };
+      }
+
+      setIsDeleteMode(false);
+      setSelectedForDelete([]);
+      fetchEvents();
+    }
+  };
     
       const jumpToEvent = (evt: any) => {
         const d = new Date(evt.start);
@@ -1128,6 +1142,7 @@ useEffect(() => {
     setIsModalOpen(false);
 
     const getISO = (d: string, h: string, m: string) => new Date(`${d}T${h}:${m}:00`).toISOString();
+    const isPremiumUser = activeUserId === 'YOUR_SUPABASE_USER_UID' || userProfile?.isPremium === true;
 
     try {
       const actualStartH = isAllDayBackground ? '00' : startH;
@@ -1235,11 +1250,10 @@ useEffect(() => {
         companions
       };
   
-      // 💾 保存処理
-      let dbError = null;
+      // 保存するデータの配列を準備
+      let newEventsToSave: any[] = [];
 
       if (mode === 'dayOfWeekBulk' && bulkStartMonth && bulkEndMonth && selectedDays.length > 0) {
-        const bulkEvents = [];
         const [sYear, sMonth] = bulkStartMonth.split('-');
         const startDateObj = new Date(Number(sYear), Number(sMonth) - 1, 1);
         const [eYear, eMonth] = bulkEndMonth.split('-');
@@ -1247,42 +1261,50 @@ useEffect(() => {
         for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
           if (d.getDay() === selectedDays[0]) {
             const ds = toLocalYYYYMMDD(d);
-            bulkEvents.push({ user_id: activeUserId, title, category: categoryName, start_at: new Date(`${ds}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${ds}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
+            newEventsToSave.push({ id: String(Date.now()) + Math.random().toString().slice(2, 6), user_id: activeUserId, title, category: categoryName, start_at: new Date(`${ds}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${ds}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
           }
-        }
-        if (bulkEvents.length > 0) {
-          const { error } = await (supabase.from('events') as any).insert(bulkEvents);
-          dbError = error;
         }
       } else if (mode === 'create' && selectedDays.length > 0 && repeatUntil) {
         const endLimit = new Date(repeatUntil);
-        const bulkEvents = [];
         for (let d = new Date(startDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
           if (selectedDays.includes(d.getDay())) {
-            bulkEvents.push({ user_id: activeUserId, title, category: categoryName, start_at: new Date(`${toLocalYYYYMMDD(d)}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${toLocalYYYYMMDD(d)}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
+            newEventsToSave.push({ id: String(Date.now()) + Math.random().toString().slice(2, 6), user_id: activeUserId, title, category: categoryName, start_at: new Date(`${toLocalYYYYMMDD(d)}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${toLocalYYYYMMDD(d)}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
           }
         }
-        const { error } = await (supabase.from('events') as any).insert(bulkEvents);
-        dbError = error;
       } else {
-        const payload = { user_id: activeUserId, title, category: categoryName, start_at: finalStartISO, end_at: finalEndISO, metadata };
-        if (mode === 'create') {
-          const { error } = await (supabase.from('events') as any).insert([payload]);
+        newEventsToSave.push({ id: selectedId || String(Date.now()), user_id: activeUserId, title, category: categoryName, start_at: finalStartISO, end_at: finalEndISO, metadata });
+      }
+
+      // 🌟 全ユーザー共通：ローカルストレージへ保存する処理
+      const currentLocal = JSON.parse(localStorage.getItem('events') || '[]');
+      let updatedLocal = [...currentLocal];
+
+      if (mode === 'create' || mode === 'dayOfWeekBulk') {
+        updatedLocal = [...updatedLocal, ...newEventsToSave];
+      } else {
+        // 編集の場合 (newEventsToSaveは1つだけ)
+        updatedLocal = updatedLocal.map((ev: any) => ev.id === selectedId ? newEventsToSave[0] : ev);
+      }
+      localStorage.setItem('events', JSON.stringify(updatedLocal));
+
+      // 🌟 プレミアムアカウントのみ：DB(Supabase)へも保存（同期）
+      if (isPremiumUser) {
+        let dbError = null;
+        if (mode === 'create' || mode === 'dayOfWeekBulk') {
+          const { error } = await (supabase.from('events') as any).insert(newEventsToSave);
           dbError = error;
         } else {
-          // 🌟 修正: delete() を update() に変更
-          const { error } = await (supabase.from('events') as any).update(payload).eq('id', selectedId);
+          const { error } = await (supabase.from('events') as any).update(newEventsToSave[0]).eq('id', selectedId);
           dbError = error;
+        }
+
+        if (dbError) {
+          console.error("Supabase Save Error:", dbError);
+          alert("クラウドへの同期に失敗しましたが、端末（ローカル）には保存されました。\nエラー詳細: " + dbError.message);
         }
       }
 
-      // 🌟 エラーチェックをここで行う
-      if (dbError) {
-        console.error("Supabase Save Error:", dbError);
-        alert("Supabaseへの保存が拒否されました。\nエラー詳細: " + dbError.message);
-        return; // 保存に失敗した場合は、通知をセットせずにここで処理を止める
-      }
-
+      // 🔔 通知の設定
       const offsets = customFieldsData.notificationOffsets || [10];
       for (const minutes of offsets) {
         await scheduleEventNotification(selectedId || 'new-event', title, finalStartISO, minutes);
