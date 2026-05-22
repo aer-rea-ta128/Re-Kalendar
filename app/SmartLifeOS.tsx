@@ -452,68 +452,73 @@ useEffect(() => {
       }, [currentSearchIndex]);
     
       const fetchEvents = async () => {
-        if (!activeUserId) return; // ログイン前は取得しない
-    
-        // 🌟 Supabase から最新の予定データを全取得する
-        const { data, error } = await supabase
-          .from('events')
-          .select('*')
-          .eq('user_id', activeUserId);
-    
-        if (data) {
-          // 取得したデータをローカルと同期させる
-          localStorage.setItem('events', JSON.stringify(data));
-    
-          setEvents(data.map((e: any) => {
-            const catObj = categories.find((c: any) => c.name === e.category);
-            const catColor = catObj?.color || '#999999';
-            let cColor = e.metadata?.customColor || catColor;
-    
-            const hexRegex = /^#?([0-9a-fA-F]{3})$/;
-            if (cColor) {
-              const match = cColor.match(hexRegex);
-              if (match) {
-                const hex = match[1];
-                cColor = '#' + hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-              }
-            }
-    
-            const outline = e.metadata?.isOutline || false;
-            const milestone = e.metadata?.isMilestone || false;
-            const isBackground = e.metadata?.isAllDayBackground || false;
-    
-            const sStr = e.metadata?.startDateStr || (e.start_at ? e.start_at.split('T')[0] : toLocalYYYYMMDD(new Date(e.start_at)));
-            const eStr = e.metadata?.endDateStr || (e.end_at ? e.end_at.split('T')[0] : sStr);
-    
-            let actualStart = e.start_at;
-            let actualEnd = e.end_at || e.start_at;
-    
-            if (isBackground) {
-              actualStart = sStr;
-              const [y, m, d] = eStr.split('-').map(Number);
-              const endObj = new Date(y, m - 1, d + 1);
-              actualEnd = toLocalYYYYMMDD(endObj);
-            }
-    
-            return {
-              id: e.id,
-              title: e.title,
-              start: actualStart,
-              end: actualEnd,
-              allDay: isBackground,
-              display: 'block',
-              backgroundColor: milestone ? 'transparent' : cColor,
-              borderColor: milestone ? 'transparent' : cColor,
-              classNames: [
-                milestone ? 'milestone-invisible-wrapper' : '',
-                isBackground ? 'solid-allday-event' : '',
-                e.metadata?.isTentative ? 'tentative-event' : ''
-              ],
-              extendedProps: { ...e, outline, cColor, catObj, isMilestone: milestone, originalStart: e.start_at }
-            };
-          }));
+    console.log("現在のUserId:", activeUserId);
+    if (!activeUserId) return; // ログイン前は取得しない
+
+    // 🌟 .from() の重複を解消し、エラーをコンソールに表示する
+    const { data, error } = await (supabase.from('events') as any)
+      .select('*')
+      .eq('user_id', activeUserId);
+
+    if (error) {
+      console.error("Supabaseからのデータ取得に失敗しました:", error);
+      return;
+    }
+
+    if (data) {
+      // 取得したデータをローカルと同期させる
+      localStorage.setItem('events', JSON.stringify(data));
+
+      setEvents(data.map((e: any) => {
+        const catObj = categories.find((c: any) => c.name === e.category);
+        const catColor = catObj?.color || '#999999';
+        let cColor = e.metadata?.customColor || catColor;
+
+        const hexRegex = /^#?([0-9a-fA-F]{3})$/;
+        if (cColor) {
+          const match = cColor.match(hexRegex);
+          if (match) {
+            const hex = match[1];
+            cColor = '#' + hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+          }
         }
-      };
+
+        const outline = e.metadata?.isOutline || false;
+        const milestone = e.metadata?.isMilestone || false;
+        const isBackground = e.metadata?.isAllDayBackground || false;
+
+        const sStr = e.metadata?.startDateStr || (e.start_at ? e.start_at.split('T')[0] : toLocalYYYYMMDD(new Date(e.start_at)));
+        const eStr = e.metadata?.endDateStr || (e.end_at ? e.end_at.split('T')[0] : sStr);
+
+        let actualStart = e.start_at;
+        let actualEnd = e.end_at || e.start_at;
+
+        if (isBackground) {
+          actualStart = sStr;
+          const [y, m, d] = eStr.split('-').map(Number);
+          const endObj = new Date(y, m - 1, d + 1);
+          actualEnd = toLocalYYYYMMDD(endObj);
+        }
+
+        return {
+          id: e.id,
+          title: e.title,
+          start: actualStart,
+          end: actualEnd,
+          allDay: isBackground,
+          display: 'block',
+          backgroundColor: milestone ? 'transparent' : cColor,
+          borderColor: milestone ? 'transparent' : cColor,
+          classNames: [
+            milestone ? 'milestone-invisible-wrapper' : '',
+            isBackground ? 'solid-allday-event' : '',
+            e.metadata?.isTentative ? 'tentative-event' : ''
+          ],
+          extendedProps: { ...e, outline, cColor, catObj, isMilestone: milestone, originalStart: e.start_at }
+        };
+      }));
+    }
+  };
     
       useEffect(() => {
         fetchEvents();
@@ -601,7 +606,7 @@ useEffect(() => {
             setIsModalOpen(false);
             return;
           }
-          await supabase.from('events').delete().eq('id', selectedId);
+          await (supabase.from('events') as any).delete().eq('id', selectedId);
           setIsModalOpen(false);
           fetchEvents();
         }
@@ -627,6 +632,7 @@ useEffect(() => {
         const actualEndM = t.isAllDayBackground ? '59' : t.endM;
     
         const payload = {
+          user_id: activeUserId,
           title: t.title,
           category: t.categoryName,
           start_at: getISO(startDate, actualStartH, actualStartM),
@@ -634,7 +640,7 @@ useEffect(() => {
           metadata: { customColor: t.eventColor || undefined, isAllDayBackground: t.isAllDayBackground }
         };
     
-        await supabase.from('events').insert([payload]);
+        await supabase.from('events').insert([payload] as any); // 🌟 as any を追加
         setIsModalOpen(false);
         fetchEvents();
       };
@@ -706,18 +712,19 @@ useEffect(() => {
       };
     
       const handleCompleteRoutine = async () => {
-        const todayStr = toLocalYYYYMMDD(new Date());
-        const payload = {
-          title: `${title} (達成)`,
-          category: 'ルーティン達成',
-          start_at: new Date(`${todayStr}T12:00:00`).toISOString(),
-          end_at: new Date(`${todayStr}T13:00:00`).toISOString(),
-          metadata: { isRoutineCompletion: true, routineTitle: title }
-        };
-        await supabase.from('events').insert([payload]);
-        setIsModalOpen(false);
-        fetchEvents();
+      const todayStr = toLocalYYYYMMDD(new Date());
+      const payload = {
+        user_id: activeUserId, // 🌟 追加：誰の予定かを指定
+        title: `${title} (達成)`,
+        category: 'ルーティン達成',
+        start_at: new Date(`${todayStr}T12:00:00`).toISOString(),
+        end_at: new Date(`${todayStr}T13:00:00`).toISOString(),
+        metadata: { isRoutineCompletion: true, routineTitle: title }
       };
+      await supabase.from('events').insert([payload] as any); // 🌟
+      setIsModalOpen(false);
+      fetchEvents();
+    };
     
       const handleRecordRoutineMoney = async () => {
         const totalAmount = Number(routineAmount || 0) + Number(routineBonusAmount || 0);
@@ -726,6 +733,7 @@ useEffect(() => {
         const todayStr = toLocalYYYYMMDD(new Date());
         const isIncome = customFieldsData.routineType === 'income';
         const payload = {
+          user_id: activeUserId,
           title: `${title}${routineBonusAmount ? ' (特別支給含む)' : ''}`, category: '収支記録',
           start_at: new Date(`${todayStr}T10:00:00`).toISOString(), end_at: new Date(`${todayStr}T11:00:00`).toISOString(),
           metadata: {
@@ -740,7 +748,7 @@ useEffect(() => {
             }
           }
         };
-        await supabase.from('events').insert([payload]);
+        await supabase.from('events').insert([payload] as any); // 🌟 as any を追加        
         setIsModalOpen(false); fetchEvents();
         setRoutineAmount(''); setRoutineBonusAmount('');
         alert(`${isIncome ? '収入' : '支出'}を帳簿に記録しました！`);
@@ -750,7 +758,7 @@ useEffect(() => {
         if (selectedForDelete.length === 0) return alert('削除する予定を選択してください。');
         if (confirm(`選択した ${selectedForDelete.length} 件の予定を本当に削除しますか？`)) {
           for (const id of selectedForDelete) {
-            await supabase.from('events').delete().eq('id', id);
+            await (supabase.from('events') as any).delete().eq('id', id);
           }
           setIsDeleteMode(false);
           setSelectedForDelete([]);
@@ -1114,175 +1122,183 @@ useEffect(() => {
       }, []);
     
       const handleSave = async () => {
-        if (!startDate || !title) return; 
-        if (isSaving) return; // 👈 連打防止：すでに保存中なら何もしない
-        setIsSaving(true);    // 👈 保存スタート
-        
-        // 👇 ラグ解消：データベースに送る前に、まずは画面(モーダル)をサッと閉じる！
-        setIsModalOpen(false);
-    
-        const getISO = (d: string, h: string, m: string) => new Date(`${d}T${h}:${m}:00`).toISOString();
-    
-        try {
-          const actualStartH = isAllDayBackground ? '00' : startH;
-          const actualStartM = isAllDayBackground ? '00' : startM;
-          const actualEndH = isAllDayBackground ? '23' : (isMilestone ? startH : endH);
-          const actualEndM = isAllDayBackground ? '59' : (isMilestone ? startM : endM);
-          const actualEndDate = isAllDayBackground ? endDate : (isMilestone ? startDate : endDate);
-    
-          const finalStartObj = new Date(`${startDate}T${actualStartH}:${actualStartM}:00`);
-          const finalEndObj = new Date(`${actualEndDate}T${actualEndH}:${actualEndM}:00`);
-          if (finalEndObj <= finalStartObj && !isAllDayBackground) {
-            finalEndObj.setDate(finalEndObj.getDate() + 1);
+    if (!startDate || !title) return; 
+    if (isSaving) return;
+    setIsSaving(true);
+    setIsModalOpen(false);
+
+    const getISO = (d: string, h: string, m: string) => new Date(`${d}T${h}:${m}:00`).toISOString();
+
+    try {
+      const actualStartH = isAllDayBackground ? '00' : startH;
+      const actualStartM = isAllDayBackground ? '00' : startM;
+      const actualEndH = isAllDayBackground ? '23' : (isMilestone ? startH : endH);
+      const actualEndM = isAllDayBackground ? '59' : (isMilestone ? startM : endM);
+      const actualEndDate = isAllDayBackground ? endDate : (isMilestone ? startDate : endDate);
+
+      const finalStartObj = new Date(`${startDate}T${actualStartH}:${actualStartM}:00`);
+      const finalEndObj = new Date(`${actualEndDate}T${actualEndH}:${actualEndM}:00`);
+      if (finalEndObj <= finalStartObj && !isAllDayBackground) {
+        finalEndObj.setDate(finalEndObj.getDate() + 1);
+      }
+      const finalStartISO = finalStartObj.toISOString();
+      const finalEndISO = finalEndObj.toISOString();
+
+      const newCustomFields = { ...customFieldsData };
+      const catObj = categories.find((c: any) => c.name === categoryName);
+  
+      // 💰 給与計算ロジック
+      catObj?.fields?.forEach((f: any) => {
+        if (f.type === 'wage' && f.wageRules) {
+          let workStart = parseInt(actualStartH) * 60 + parseInt(actualStartM);
+          let workEnd = parseInt(actualEndH) * 60 + parseInt(actualEndM);
+          if (workEnd <= workStart) workEnd += 1440;
+
+          let breakTime = parseInt(newCustomFields[f.id]?.breakTime || '0', 10);
+          let stayMinutes = workEnd - workStart;
+          if (breakTime > stayMinutes) breakTime = stayMinutes;
+
+          let minuteWages: number[] = [];
+          for (let m = workStart; m < workEnd; m++) {
+            let dayM = m % 1440;
+            let matchedWage = 0;
+            f.wageRules.forEach((rule: any) => {
+              if(!rule.start || !rule.end || !rule.wage) return;
+              let rs = parseInt(rule.start.split(':')[0]) * 60 + parseInt(rule.start.split(':')[1].replace('59', '00'));
+              let re = parseInt(rule.end.split(':')[0]) * 60 + parseInt(rule.end.split(':')[1].replace('59', '00'));
+              if (re <= rs) re += 1440;
+              let inRule = false;
+              if (re > 1440) {
+                if ((dayM >= rs && dayM < 1440) || (dayM >= 0 && dayM < re - 1440)) inRule = true;
+              } else {
+                if (dayM >= rs && dayM < re) inRule = true;
+              }
+              if (inRule) matchedWage = Math.max(matchedWage, parseInt(rule.wage));
+            });
+            minuteWages.push(matchedWage);
           }
-          const finalStartISO = finalStartObj.toISOString();
-          const finalEndISO = finalEndObj.toISOString();
-    
-          const newCustomFields = { ...customFieldsData };
-          const catObj = categories.find((c: any) => c.name === categoryName);
-    
-          // 💰 給与計算ロジック
-          catObj?.fields?.forEach((f: any) => {
-            if (f.type === 'wage' && f.wageRules) {
-              let workStart = parseInt(actualStartH) * 60 + parseInt(actualStartM);
-              let workEnd = parseInt(actualEndH) * 60 + parseInt(actualEndM);
-              if (workEnd <= workStart) workEnd += 1440;
-    
-              let breakTime = parseInt(newCustomFields[f.id]?.breakTime || '0', 10);
-              let stayMinutes = workEnd - workStart;
-              if (breakTime > stayMinutes) breakTime = stayMinutes;
-    
-              let minuteWages: number[] = [];
-              for (let m = workStart; m < workEnd; m++) {
-                let dayM = m % 1440;
-                let matchedWage = 0;
-                f.wageRules.forEach((rule: any) => {
-                  if(!rule.start || !rule.end || !rule.wage) return;
-                  let rs = parseInt(rule.start.split(':')[0]) * 60 + parseInt(rule.start.split(':')[1].replace('59', '00'));
-                  let re = parseInt(rule.end.split(':')[0]) * 60 + parseInt(rule.end.split(':')[1].replace('59', '00'));
-                  if (re <= rs) re += 1440;
-                  let inRule = false;
-                  if (re > 1440) {
-                    if ((dayM >= rs && dayM < 1440) || (dayM >= 0 && dayM < re - 1440)) inRule = true;
-                  } else {
-                    if (dayM >= rs && dayM < re) inRule = true;
-                  }
-                  if (inRule) matchedWage = Math.max(matchedWage, parseInt(rule.wage));
-                });
-                minuteWages.push(matchedWage);
+
+          let breakStartIdx = Math.floor((stayMinutes - breakTime) / 2);
+          for (let i = 0; i < breakTime; i++) {
+            minuteWages[breakStartIdx + i] = 0;
+          }
+
+          let pastWorkMinutes = 0;
+          events.forEach((ev: any) => {
+            if (ev.id === selectedId) return; 
+            const evDate = toLocalYYYYMMDD(new Date(ev.start));
+            if (evDate === startDate && ev.extendedProps?.category === categoryName) {
+              const evStartObj = new Date(ev.start);
+              const evStartMin = evStartObj.getHours() * 60 + evStartObj.getMinutes();
+              if (evStartMin < workStart) {
+                const prevHours = ev.extendedProps?.metadata?.customFields?.[f.id]?.hours || 0;
+                pastWorkMinutes += Math.round(Number(prevHours) * 60);
               }
-    
-              let breakStartIdx = Math.floor((stayMinutes - breakTime) / 2);
-              for (let i = 0; i < breakTime; i++) {
-                minuteWages[breakStartIdx + i] = 0;
-              }
-    
-              let pastWorkMinutes = 0;
-              events.forEach((ev: any) => {
-                if (ev.id === selectedId) return; 
-                const evDate = toLocalYYYYMMDD(new Date(ev.start));
-                if (evDate === startDate && ev.extendedProps?.category === categoryName) {
-                  const evStartObj = new Date(ev.start);
-                  const evStartMin = evStartObj.getHours() * 60 + evStartObj.getMinutes();
-                  if (evStartMin < workStart) {
-                    const prevHours = ev.extendedProps?.metadata?.customFields?.[f.id]?.hours || 0;
-                    pastWorkMinutes += Math.round(Number(prevHours) * 60);
-                  }
-                }
-              });
-    
-              let totalWage = 0;
-              let actualWorkCount = pastWorkMinutes;
-              const applyOvertime = newCustomFields[f.id]?.overtimePremium !== false;
-              const applyNight = newCustomFields[f.id]?.nightPremium !== false;
-    
-              for (let i = 0; i < stayMinutes; i++) {
-                let currentMin = (workStart + i) % 1440;
-                let w = minuteWages[i];
-                if (w > 0) {
-                  actualWorkCount++;
-                  let multiplier = 1.0;
-                  if (applyOvertime && actualWorkCount > 480) multiplier += 0.25;
-                  if (applyNight && (currentMin >= 1320 || currentMin < 300)) multiplier += 0.25;
-                  totalWage += (w * multiplier) / 60;
-                }
-              }
-    
-              let actualHours = Math.round((actualWorkCount / 60) * 100) / 100;
-              newCustomFields[f.id] = { ...newCustomFields[f.id], calculatedWage: Math.round(totalWage), hours: actualHours };
             }
           });
-    
-          const finalGatheringTime = gatheringTime || `${startH}:${startM}`;
-          const finalDepartureTime = departureTime || `${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`;
-    
-          const metadata = {
-            location, isGathering, 
-            gatheringTime: isGathering ? finalGatheringTime : '', 
-            departureTime: isGathering ? finalDepartureTime : '', 
-            departureType, walkTime,
-            customColor: eventColor || undefined, isOutline, customFields: newCustomFields,
-            photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
-            startDateStr: startDate, endDateStr: endDate,
-            user_id: activeUserId,
-            isTentative,
-            companions
-          };
-    
-          // 💾 保存処理
-          if (mode === 'dayOfWeekBulk' && bulkStartMonth && bulkEndMonth && selectedDays.length > 0) {
-            const bulkEvents = [];
-            const [sYear, sMonth] = bulkStartMonth.split('-');
-            const startDateObj = new Date(Number(sYear), Number(sMonth) - 1, 1);
-            const [eYear, eMonth] = bulkEndMonth.split('-');
-            const endDateObj = new Date(Number(eYear), Number(eMonth), 0, 23, 59, 59);
-    
-            for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
-              if (d.getDay() === selectedDays[0]) {
-                const ds = toLocalYYYYMMDD(d);
-                bulkEvents.push({ title, category: categoryName, start_at: new Date(`${ds}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${ds}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
-              }
-            }
-            if (bulkEvents.length > 0) await supabase.from('events').insert(bulkEvents);
-          }
-          else if (mode === 'create' && selectedDays.length > 0 && repeatUntil) {
-            const endLimit = new Date(repeatUntil);
-            const bulkEvents = [];
-            for (let d = new Date(startDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
-              if (selectedDays.includes(d.getDay())) {
-                bulkEvents.push({ title, category: categoryName, start_at: new Date(`${toLocalYYYYMMDD(d)}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${toLocalYYYYMMDD(d)}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
-              }
-            }
-            await supabase.from('events').insert(bulkEvents);
-          }
-          else {
-            // 👇 ここが重要！
-            const payload = { title, category: categoryName, start_at: finalStartISO, end_at: finalEndISO, metadata };
-            if (mode === 'create') {
-              await supabase.from('events').insert([payload]);
-            } else {
-              await supabase.from('events').update(payload).eq('id', selectedId);
+
+          let totalWage = 0;
+          let actualWorkCount = pastWorkMinutes;
+          const applyOvertime = newCustomFields[f.id]?.overtimePremium !== false;
+          const applyNight = newCustomFields[f.id]?.nightPremium !== false;
+
+          for (let i = 0; i < stayMinutes; i++) {
+            let currentMin = (workStart + i) % 1440;
+            let w = minuteWages[i];
+            if (w > 0) {
+              actualWorkCount++;
+              let multiplier = 1.0;
+              if (applyOvertime && actualWorkCount > 480) multiplier += 0.25;
+              if (applyNight && (currentMin >= 1320 || currentMin < 300)) multiplier += 0.25;
+              totalWage += (w * multiplier) / 60;
             }
           }
-    
-          // 🌟 修正：選択されたすべての通知タイミング（分前）に対してループ処理を行う
-          const offsets = customFieldsData.notificationOffsets || [10];
-          for (const minutes of offsets) {
-            await scheduleEventNotification(selectedId || 'new-event', title, finalStartISO, minutes);
-          }
-    
-          await fetchEvents(); // 保存が終わったらカレンダー表示を更新
-          
-          // 🌟 追加：カレンダー表示が更新された最新のeventsをウィジェット用フォルダに同期
-          await syncDataToWidget(events);
-    
-        } catch (error) {
-          alert("保存に失敗しました。");
-          setIsModalOpen(true); // 失敗したらモーダルを再度開く
-        } finally {
-          setIsSaving(false); // 保存完了フラグを戻す
+
+          let actualHours = Math.round((actualWorkCount / 60) * 100) / 100;
+          newCustomFields[f.id] = { ...newCustomFields[f.id], calculatedWage: Math.round(totalWage), hours: actualHours };
         }
+      });
+  
+      const finalGatheringTime = gatheringTime || `${startH}:${startM}`;
+      const finalDepartureTime = departureTime || `${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`;
+  
+      const metadata = {
+        location, isGathering, 
+        gatheringTime: isGathering ? (gatheringTime || `${startH}:${startM}`) : '', 
+        departureTime: isGathering ? (departureTime || `${String(Math.max(0, Number(startH) - 1)).padStart(2, '0')}:${startM}`) : '', 
+        departureType, walkTime,
+        customColor: eventColor || undefined, isOutline, customFields: newCustomFields,
+        photoUrls, isMilestone, memo, rating, isPinned, isStocked, isAllDayBackground,
+        startDateStr: startDate, endDateStr: endDate,
+        user_id: activeUserId,
+        isTentative,
+        companions
       };
+  
+      // 💾 保存処理
+      let dbError = null;
+
+      if (mode === 'dayOfWeekBulk' && bulkStartMonth && bulkEndMonth && selectedDays.length > 0) {
+        const bulkEvents = [];
+        const [sYear, sMonth] = bulkStartMonth.split('-');
+        const startDateObj = new Date(Number(sYear), Number(sMonth) - 1, 1);
+        const [eYear, eMonth] = bulkEndMonth.split('-');
+        const endDateObj = new Date(Number(eYear), Number(eMonth), 0, 23, 59, 59);
+        for (let d = new Date(startDateObj); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+          if (d.getDay() === selectedDays[0]) {
+            const ds = toLocalYYYYMMDD(d);
+            bulkEvents.push({ user_id: activeUserId, title, category: categoryName, start_at: new Date(`${ds}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${ds}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
+          }
+        }
+        if (bulkEvents.length > 0) {
+          const { error } = await (supabase.from('events') as any).insert(bulkEvents);
+          dbError = error;
+        }
+      } else if (mode === 'create' && selectedDays.length > 0 && repeatUntil) {
+        const endLimit = new Date(repeatUntil);
+        const bulkEvents = [];
+        for (let d = new Date(startDate); d <= endLimit; d.setDate(d.getDate() + 1)) {
+          if (selectedDays.includes(d.getDay())) {
+            bulkEvents.push({ user_id: activeUserId, title, category: categoryName, start_at: new Date(`${toLocalYYYYMMDD(d)}T${actualStartH}:${actualStartM}:00`).toISOString(), end_at: new Date(`${toLocalYYYYMMDD(d)}T${actualEndH}:${actualEndM}:00`).toISOString(), metadata });
+          }
+        }
+        const { error } = await (supabase.from('events') as any).insert(bulkEvents);
+        dbError = error;
+      } else {
+        const payload = { user_id: activeUserId, title, category: categoryName, start_at: finalStartISO, end_at: finalEndISO, metadata };
+        if (mode === 'create') {
+          const { error } = await (supabase.from('events') as any).insert([payload]);
+          dbError = error;
+        } else {
+          // 🌟 修正: delete() を update() に変更
+          const { error } = await (supabase.from('events') as any).update(payload).eq('id', selectedId);
+          dbError = error;
+        }
+      }
+
+      // 🌟 エラーチェックをここで行う
+      if (dbError) {
+        console.error("Supabase Save Error:", dbError);
+        alert("Supabaseへの保存が拒否されました。\nエラー詳細: " + dbError.message);
+        return; // 保存に失敗した場合は、通知をセットせずにここで処理を止める
+      }
+
+      const offsets = customFieldsData.notificationOffsets || [10];
+      for (const minutes of offsets) {
+        await scheduleEventNotification(selectedId || 'new-event', title, finalStartISO, minutes);
+      }
+
+      await fetchEvents();
+      await syncDataToWidget(events);
+
+    } catch (error) {
+      console.error("Save Error:", error);
+      alert("システムエラーにより保存に失敗しました。");
+      setIsModalOpen(true);
+    } finally {
+      setIsSaving(false);
+    }
+  };
     
       
     
@@ -2800,21 +2816,6 @@ useEffect(() => {
     
               {/* 右側：今日・月週日切替 */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 20, height: '44px' }}>
-                
-                {viewType !== 'dayGridMonth' && (
-                  <button 
-                    onClick={() => {
-                      const currentApiDate = calendarRef.current?.getApi().getDate();
-                      if (currentApiDate) {
-                        setStoryDate(toLocalYYYYMMDD(currentApiDate));
-                        setIsStoryModalOpen(true);
-                      }
-                    }}
-                    style={{ height: '44px', padding: '0 12px', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: '900', background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 10px rgba(220, 39, 67, 0.3)', flexShrink: 0 }}
-                  >
-                    <ImageIcon size={16} /> ストーリー
-                  </button>
-                )}
                 {!isViewSelectorExpanded && (
                   <button onClick={() => calendarRef.current?.getApi().today()} style={{ background: 'var(--card-bg)', border: `1px solid var(--theme)`, width: '44px', height: '44px', borderRadius: '14px', cursor: 'pointer', color: 'var(--theme)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 10px var(--theme-shadow)`, padding: 0, animation: 'fadeIn 0.2s', flexShrink: 0 }}>
                     <Calendar size={18} />
@@ -3270,7 +3271,7 @@ useEffect(() => {
                         await supabase.from('events').update({
                           start_at: getISO(event.start!),
                           end_at: event.end ? getISO(event.end) : getISO(event.start!)
-                        }).eq('id', dbId);
+                        } as any).eq('id', dbId);
                         fetchEvents(); // 再取得して画面を更新
                       } catch (e) {
                         alert('移動に失敗しました');
@@ -4221,6 +4222,7 @@ useEffect(() => {
                                                           
                                                           const today = toLocalYYYYMMDD(new Date());
                                                           await supabase.from('events').insert([{
+                                                            user_id: activeUserId,
                                                             title: `✅ ${adv.payee || '相手'} との立替精算`, category: '収支記録',
                                                             start_at: new Date(`${today}T12:00:00`).toISOString(), end_at: new Date(`${today}T13:00:00`).toISOString(),
                                                             metadata: {
@@ -4231,7 +4233,7 @@ useEffect(() => {
                                                                 paymentMethod: 'cash'
                                                               }
                                                             }
-                                                          }]);
+                                                          }] as any);
                                                           alert('精算を完了として記録しました！');
                                                           fetchEvents();
                                                         }
@@ -4271,7 +4273,7 @@ useEffect(() => {
                                                           );
                                                           await supabase.from('events').update({
                                                             metadata: { ...targetEvent.extendedProps.metadata, customFields: { ...targetEvent.extendedProps.metadata.customFields, expenses: updatedExpenses } }
-                                                          }).eq('id', adv.eventId);
+                                                          } as any).eq('id', adv.eventId);
                                                           alert('未精算に戻しました。');
                                                           fetchEvents();
                                                         }
@@ -4674,7 +4676,7 @@ useEffect(() => {
                               }
                             }
                           };
-                          await supabase.from('events').insert([payload]);
+                          await (supabase.from('events') as any).insert([payload] as any);
                           setIsModalOpen(false); fetchEvents(); setExpenseAmount('');
                         }} className="btn-pop" style={{ flex: 1.5, background: customFieldsData.transactionMode === 'income' ? '#10b981' : '#ef4444', boxShadow: `0 4px 15px rgba(${customFieldsData.transactionMode === 'income' ? '16,185,129' : '239,68,68'},0.4)` }}>記録する</button>
                       </div>
