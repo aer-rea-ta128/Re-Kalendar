@@ -136,11 +136,7 @@ export default function SmartLifeOS() {
     return ''; 
   });
 
-  // SmartLifeOS.tsx 内の useEffect
 
-useEffect(() => {
-}, [activeUserId]);
-  
   const [activeUserAvatar, setActiveUserAvatar] = useState<string>(() => loadData('user_avatar', ''));
 
   const [isFinanceGraphOpen, setIsFinanceGraphOpen] = useState(false);
@@ -217,13 +213,7 @@ useEffect(() => {
     }
   };
     
-    const [themeColor, setThemeColor] = useState('#4D96FF'); // 初期値は固定値にする
-    
-    useEffect(() => {
-      // ブラウザでのみ読み込む
-      const saved = localStorage.getItem('os_themeColor');
-      if (saved) setThemeColor(JSON.parse(saved));
-    }, []);
+      const [themeColor, setThemeColor] = useState<string>(() => loadData('os_themeColor', '#4D96FF'));
       const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
       const [userColors, setUserColors] = useState<string[]>(() => loadData('os_userColors', []));
       const [customColorCursor, setCustomColorCursor] = useState('#000000');
@@ -255,6 +245,12 @@ useEffect(() => {
       const [selectedForDelete, setSelectedForDelete] = useState<string[]>([]);
     
       const [events, setEvents] = useState<any[]>([]);
+
+
+
+  
+
+
       const DEFAULT_CATEGORIES = [
         { 
           name: '仕事', 
@@ -391,6 +387,8 @@ useEffect(() => {
     
       useEffect(() => {
         // 🌟 loadData に置き換え
+
+        
         const savedColorSetting = loadData('os_useEventColorForTitle', false);
         setUseEventColorForTitle(savedColorSetting);
       }, [activeUserId]);
@@ -571,6 +569,20 @@ useEffect(() => {
         };
         fetchHolidays();
       }, []);
+
+    // 🚨 致命的バグ修正：IDがセットされたら必ずデータを取得する
+      useEffect(() => {
+        if (activeUserId) {
+          fetchEvents();
+        }
+      }, [activeUserId]);
+
+      // 🚨 追加：データが更新されるたびにウィジェットへ最新状態を送信する
+      useEffect(() => {
+        if (events.length > 0) {
+          syncDataToWidget(events);
+        }
+      }, [events]);
     
     // 👇 カレンダー描画後に、移動ブロックの幅を本体ブロックに強制同期させる
       useEffect(() => {
@@ -2179,12 +2191,84 @@ useEffect(() => {
       })();
       // 👆==== ここまで ====👆
     
+    
+    useEffect(() => {
+        if (viewType !== 'timeGridWeek' && viewType !== 'timeGridDay') return;
+        const syncWidths = () => {
+          const calendarEl = document.querySelector('.fc');
+          if (!calendarEl) return;
+          const transitEls = calendarEl.querySelectorAll('[data-travel-target]');
+          transitEls.forEach(tEl => {
+            const targetId = tEl.getAttribute('data-travel-target');
+            const mainEl = calendarEl.querySelector(`[data-main-id="${targetId}"]`);
+            if (mainEl && tEl) {
+              const tHarness = tEl.closest('.fc-timegrid-event-harness') as HTMLElement;
+              const mainHarness = mainEl.closest('.fc-timegrid-event-harness') as HTMLElement;
+              if (tHarness && mainHarness) {
+                // 本体の幅と位置（left/right）を、そのまま移動枠にコピー
+                tHarness.style.left = mainHarness.style.left;
+                tHarness.style.right = mainHarness.style.right;
+                tHarness.style.width = mainHarness.style.width;
+                tHarness.style.marginLeft = mainHarness.style.marginLeft;
+                tHarness.style.marginRight = mainHarness.style.marginRight;
+                tHarness.style.zIndex = mainHarness.style.zIndex;
+              }
+            }
+          });
+        };
+        const observer = new MutationObserver(() => syncWidths());
+        const container = document.querySelector('.fc');
+        if (container) observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+        setTimeout(syncWidths, 50);
+        return () => observer.disconnect();
+      }, [events, viewType, currentWeekStartStr]);
+    
+      // 🚨 エラー修正＆機能強化：文章生成のロジック
+      useEffect(() => {
+        if (assistMode === 'send') {
+          if (assistTimeSlots.length === 0) {
+            setGeneratedText('カレンダーから空き時間を追加するか、下から日付を選択してください。');
+            return;
+          }
+          let text = "以下の日程でご都合はいかがでしょうか？\n\n";
+          assistTimeSlots.forEach(slot => {
+            text += `・${slot}\n`;
+          });
+          text += "\n上記以外でも調整可能ですので、お知らせください！\n※都合の悪い時間帯があれば追記して送ってください。";
+          setGeneratedText(text);
+        }
+      }, [assistTimeSlots, assistMode]);
+    
+      useEffect(() => { setIsMounted(true); }, []);
+      if (!isMounted || !isDataLoaded) return <div style={{ minHeight: '100vh', background: 'var(--bg-main)' }} />;
+      if (!activeUserId) {
+        return (
+          <AuthScreen 
+            themeColor={themeColor} 
+            onLoginSuccess={(id, name) => {
+              setActiveUserId(id);
+              setActiveUserName(name);
+              // 👇 修正：タブを閉じてもログイン状態をずっと維持する
+              localStorage.setItem('os_active_session', JSON.stringify({ id, name }));
+            }} 
+            onLogout={() => {
+              localStorage.removeItem('os_active_session');
+              setActiveUserId(null);
+              setActiveUserName('');
+             }}
+          />
+        );
+      }
+    
+      // 🌟 ここで環境判定を呼び出す（utils.tsなどで定義したもの）
+      const { isNative } = require('@/app/lib/utils'); 
+
       // 👇修正：timetableEvents を結合配列に追加する
       const displayEvents = [...events, ...anniversaryEvents, ...routineEvents, ...subEvents, ...timetableEvents].flatMap((e: any) => {
         
-        // 👇 修正：...subEvents を追加し、月カレンダーでのブロック表示を制御する
-          const metadata = e.extendedProps?.metadata || {};
-          const cColor = e.extendedProps?.cColor || e.backgroundColor || 'var(--theme)';
+        // 🚨 修正：ローカルデータとクラウドデータの構造の違いを吸収する
+          const metadata = e.extendedProps?.metadata || e.metadata || {};
+          const cColor = e.extendedProps?.cColor || e.backgroundColor || metadata.customColor || 'var(--theme)';
           const results = [];
     
           // 出発・集合ブロックの生成
@@ -2292,82 +2376,11 @@ useEffect(() => {
         
         return true;
       });
-    
+
       const currentCategoryObj = categories.find((c: any) => c.name === categoryName);
       const currentMonthStr = `${currentYear}-${currentMonthNum.padStart(2, '0')}`;
       const currentMonthEvents = displayEvents.filter((e: any) => e.start && e.start.startsWith(currentMonthStr) && !e.extendedProps.isAnniversary);
       const currentYearEvents = displayEvents.filter((e: any) => e.start && e.start.startsWith(currentYear));
-    
-    useEffect(() => {
-        if (viewType !== 'timeGridWeek' && viewType !== 'timeGridDay') return;
-        const syncWidths = () => {
-          const calendarEl = document.querySelector('.fc');
-          if (!calendarEl) return;
-          const transitEls = calendarEl.querySelectorAll('[data-travel-target]');
-          transitEls.forEach(tEl => {
-            const targetId = tEl.getAttribute('data-travel-target');
-            const mainEl = calendarEl.querySelector(`[data-main-id="${targetId}"]`);
-            if (mainEl && tEl) {
-              const tHarness = tEl.closest('.fc-timegrid-event-harness') as HTMLElement;
-              const mainHarness = mainEl.closest('.fc-timegrid-event-harness') as HTMLElement;
-              if (tHarness && mainHarness) {
-                // 本体の幅と位置（left/right）を、そのまま移動枠にコピー
-                tHarness.style.left = mainHarness.style.left;
-                tHarness.style.right = mainHarness.style.right;
-                tHarness.style.width = mainHarness.style.width;
-                tHarness.style.marginLeft = mainHarness.style.marginLeft;
-                tHarness.style.marginRight = mainHarness.style.marginRight;
-                tHarness.style.zIndex = mainHarness.style.zIndex;
-              }
-            }
-          });
-        };
-        const observer = new MutationObserver(() => syncWidths());
-        const container = document.querySelector('.fc');
-        if (container) observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
-        setTimeout(syncWidths, 50);
-        return () => observer.disconnect();
-      }, [events, viewType, currentWeekStartStr]);
-    
-      // 🚨 エラー修正＆機能強化：文章生成のロジック
-      useEffect(() => {
-        if (assistMode === 'send') {
-          if (assistTimeSlots.length === 0) {
-            setGeneratedText('カレンダーから空き時間を追加するか、下から日付を選択してください。');
-            return;
-          }
-          let text = "以下の日程でご都合はいかがでしょうか？\n\n";
-          assistTimeSlots.forEach(slot => {
-            text += `・${slot}\n`;
-          });
-          text += "\n上記以外でも調整可能ですので、お知らせください！\n※都合の悪い時間帯があれば追記して送ってください。";
-          setGeneratedText(text);
-        }
-      }, [assistTimeSlots, assistMode]);
-    
-      useEffect(() => { setIsMounted(true); }, []);
-      if (!isMounted || !isDataLoaded) return <div style={{ minHeight: '100vh', background: 'var(--bg-main)' }} />;
-      if (!activeUserId) {
-        return (
-          <AuthScreen 
-            themeColor={themeColor} 
-            onLoginSuccess={(id, name) => {
-              setActiveUserId(id);
-              setActiveUserName(name);
-              // 👇 修正：タブを閉じてもログイン状態をずっと維持する
-              localStorage.setItem('os_active_session', JSON.stringify({ id, name }));
-            }} 
-            onLogout={() => {
-              localStorage.removeItem('os_active_session');
-              setActiveUserId(null);
-              setActiveUserName('');
-             }}
-          />
-        );
-      }
-    
-      // 🌟 ここで環境判定を呼び出す（utils.tsなどで定義したもの）
-      const { isNative } = require('@/app/lib/utils'); 
     
       return (
         <div 
@@ -4368,8 +4381,8 @@ useEffect(() => {
                           if (!cropDragStart) return;
                           const dx = e.clientX - cropDragStart.x;
                           const dy = e.clientY - cropDragStart.y;
-                          setCropPanX(prev => Math.max(0, Math.min(100, prev - dx * 0.2)));
-                          setCropPanY(prev => Math.max(0, Math.min(100, prev - dy * 0.2)));
+                          setCropPanX(prev => Math.max(0, Math.min(100, prev - dx * 1.0)));
+                          setCropPanY(prev => Math.max(0, Math.min(100, prev - dy * 1.0)));
                           setCropDragStart({ x: e.clientX, y: e.clientY });
                         }}
                         onPointerUp={(e) => {
@@ -4398,7 +4411,7 @@ useEffect(() => {
                       </div>
                       
                       <div style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>
-                        👆 画像をドラッグして移動 / ピンチ（スクロール）でズーム
+                        画像をドラッグして移動 / ピンチ（スクロール）でズーム
                       </div>
                       {/* 👆 ここまで直感的なトリミングUI 👆 */}
     

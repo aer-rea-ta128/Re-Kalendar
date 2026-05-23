@@ -315,37 +315,24 @@ export default function CategoryStudio({
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1 }}>
-                    
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                     <div 
                       className="drag-handle" 
-                      // 👇 イベントを onPointerDown に変更 👇
                       onPointerDown={(e) => handlePointerDown(e, catIndex)}
-                      style={{ 
-                        color: 'var(--text-sub)', display: 'flex', alignItems: 'center', 
-                        cursor: isDraggingThis ? 'grabbing' : 'grab', 
-                        padding: '12px 12px 12px 0',
-                        userSelect: 'none', WebkitUserSelect: 'none', touchAction: 'none' // 👈 スマホ操作のバグを防ぐ必須コード
-                      }}
+                      style={{ color: 'var(--text-sub)', display: 'flex', alignItems: 'center', cursor: isDraggingThis ? 'grabbing' : 'grab', padding: '12px 0', userSelect: 'none', touchAction: 'none' }}
                     >
                       <GripVertical size={18} />
                     </div>
-                    
-                    <div 
-                      onClick={() => setExpandedCats(prev => isExpanded ? prev.filter(n => n !== c.name) : [...prev, c.name])}
-                      style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', padding: '4px 0' }}
-                    >
+                    <div onClick={() => setExpandedCats(prev => isExpanded ? prev.filter(n => n !== c.name) : [...prev, c.name])} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, cursor: 'pointer', padding: '12px 0' }}>
                       <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: c.color, flexShrink: 0 }} />
-                      <span style={{ fontWeight: '900', fontSize: '1.05rem', color: 'var(--text-main)', wordBreak: 'break-word', lineHeight: 1.2 }}>{c.name}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginLeft: '4px', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+                      <span style={{ fontWeight: '900', fontSize: '1.1rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', flexShrink: 0, transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', marginLeft: '8px' }}>
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setEditCatAllowPhoto(c.allowPhoto || false); setEditCatShowInDashboard(c.hideFromDashboard !== true); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
-                      <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ color: '#ef4444', border: 'none', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer' }}>削除</button>
-                    </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flexShrink: 0 }}>
+                    <button onClick={() => { setEditingCategoryNameOrigin(c.name); setEditCatNameInput(c.name); setEditCatColorInput(c.color); setEditCatAllowPhoto(c.allowPhoto || false); setEditCatShowInDashboard(c.hideFromDashboard !== true); setExpandedCats(prev => prev.includes(c.name) ? prev : [...prev, c.name]); }} style={{ width: '64px', padding: '6px 0', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', background: 'var(--input-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', cursor: 'pointer' }}>編集</button>
+                    <button onClick={() => { if(confirm(`「${c.name}」を本当に削除しますか？`)) setCategories(categories.filter((cat: any) => cat.name !== c.name)); }} style={{ width: '64px', padding: '6px 0', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 'bold', background: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer', boxShadow: '0 2px 4px rgba(239,68,68,0.2)' }}>削除</button>
                   </div>
                 </div>
               )}
