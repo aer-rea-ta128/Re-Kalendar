@@ -71,23 +71,39 @@ struct SimpleEntry: TimelineEntry {
     let events: [SharedEvent]
 }
 
-// MARK: - ウィジェット UI 本体
+// MARK: - ウィジェット UI 本体 (iOS 17対応版)
 struct CalendarWidgetEntryView : View {
     var entry: Provider.Entry
     @Environment(\.widgetFamily) var family
 
     var body: some View {
+        // 🌟 修正: 全てのViewに対して個別に .containerBackground を適用する
         switch family {
         case .systemSmall:
-            CircularDayView(entry: entry) // 🌟 1日の円形タイムライン
+            CircularDayView(entry: entry)
+                .containerBackground(for: .widget) {
+                    Color("WidgetBackground").ignoresSafeArea() // 背景色をここで指定
+                }
         case .systemMedium:
-            WeeklyCalendarView(entry: entry) // 🌟 1週間の予定表示
-        case .accessoryCircular: // 🌟 ロック画面用（円）
-            LockScreenCircularView(entry: entry)
-        case .accessoryRectangular: // 🌟 ロック画面用（長方形）
+            WeeklyCalendarView(entry: entry)
+                .containerBackground(for: .widget) {
+                    Color("WidgetBackground").ignoresSafeArea()
+                }
+        case .accessoryCircular: // 🌟 ロック画面用（ショートカット追加）
+            LockScreenAddShortcutView(entry: entry)
+                .containerBackground(for: .widget) {
+                    Color.clear
+                }
+        case .accessoryRectangular: // 🌟 ロック画面用（長方形・次の予定）
             LockScreenRectangularView(entry: entry)
+                .containerBackground(for: .widget) {
+                    Color.clear
+                }
         default:
             Text("対応していません")
+                .containerBackground(for: .widget) {
+                    Color.clear
+                }
         }
     }
 }
@@ -103,8 +119,6 @@ struct CircularDayView: View {
         }
         
         ZStack {
-            Color("WidgetBackground").ignoresSafeArea()
-            
             // 時計のベース円
             Circle()
                 .stroke(Color.gray.opacity(0.2), lineWidth: 12)
@@ -179,20 +193,22 @@ struct WeeklyCalendarView: View {
     }
 }
 
-// MARK: - 🔒 ロック画面用ウィジェット
-struct LockScreenCircularView: View {
+// MARK: - 🔒 ロック画面用ショートカットウィジェット (予定追加)
+struct LockScreenAddShortcutView: View {
     var entry: Provider.Entry
     var body: some View {
-        let todaysEvents = entry.events.filter { Calendar.current.isDate($0.startDate ?? Date(), inSameDayAs: entry.date) }
-        Gauge(value: Double(todaysEvents.count), in: 0...5) {
-            Image(systemName: "calendar")
-        } currentValueLabel: {
-            Text("\(todaysEvents.count)")
+        ZStack {
+            Image(systemName: "plus.circle.fill")
+                .resizable()
+                .scaledToFit()
+                .padding(4)
         }
-        .gaugeStyle(.accessoryCircular)
+        // 🌟 修正: ここをタップすると、アプリが smartlifeos://add-event のURLで起動します
+        .widgetURL(URL(string: "smartlifeos://add-event"))
     }
 }
 
+// MARK: - 🔒 ロック画面用ウィジェット (次の予定)
 struct LockScreenRectangularView: View {
     var entry: Provider.Entry
     var body: some View {

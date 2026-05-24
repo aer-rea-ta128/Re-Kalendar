@@ -419,8 +419,12 @@ export default function SmartLifeOS() {
         setNearestStation(get('os_station', ''));
         setWalkTime(get('os_walkTime', '10'));
         setStartPointType(get('os_startPointType', 'address'));
-        setIsDataLoaded(true);
         setSubs(get('os_subs', [])); // 👈 これを追加！
+      }, []);
+      useEffect(() => {
+        // 🌟 修正：localStorage.getItemを直接叩くとアップデート時にデータが消えるため削除。
+        // データは既に各 useState の初期値として loadData で安全に取得されている。
+        setIsDataLoaded(true);
       }, []);
     
       useEffect(() => {
@@ -953,6 +957,7 @@ export default function SmartLifeOS() {
         }
     
         setMode('create'); setStartDate(toLocalYYYYMMDD(info.start));
+        setSelectedId(null);
         const adjEnd = new Date(info.end); if (info.allDay) adjEnd.setDate(adjEnd.getDate() - 1); setEndDate(toLocalYYYYMMDD(adjEnd));
         
         // 👇 修正：ジャンル・色・写真・メモなども確実にリセットする
@@ -4381,8 +4386,8 @@ export default function SmartLifeOS() {
                           if (!cropDragStart) return;
                           const dx = e.clientX - cropDragStart.x;
                           const dy = e.clientY - cropDragStart.y;
-                          setCropPanX(prev => Math.max(0, Math.min(100, prev - dx * 1.0)));
-                          setCropPanY(prev => Math.max(0, Math.min(100, prev - dy * 1.0)));
+                          setCropPanX(prev => Math.max(0, Math.min(100, prev - dx * 1.5)));
+                          setCropPanY(prev => Math.max(0, Math.min(100, prev - dy * 1.5)));
                           setCropDragStart({ x: e.clientX, y: e.clientY });
                         }}
                         onPointerUp={(e) => {
@@ -4419,7 +4424,10 @@ export default function SmartLifeOS() {
                         <button onClick={() => setCropImageSrc(null)} className="btn-secondary" style={{ flex: 1, padding: '12px', borderRadius: '12px' }}>戻る</button>
                         <button 
                           onClick={() => {
-                            setUserProfile({ ...userProfile, avatar: cropImageSrc, avatarScale: cropZoom, avatarPanX: cropPanX, avatarPanY: cropPanY });
+                            // 🌟 修正：設定を即座に保存して反映させる
+                            const updatedProfile = { ...userProfile, avatar: cropImageSrc, avatarScale: cropZoom, avatarPanX: cropPanX, avatarPanY: cropPanY };
+                            setUserProfile(updatedProfile);
+                            saveData('user_profile', activeUserId, updatedProfile); 
                             setCropImageSrc(null);
                           }} 
                           className="btn-pop" style={{ flex: 1, padding: '12px', borderRadius: '12px' }}
@@ -4654,7 +4662,8 @@ export default function SmartLifeOS() {
                       <div>
                         <label className="form-label">金額</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <input type="number" className="pop-input no-spin" style={{ flex: 1, textAlign: 'right', fontSize: '1.6rem', fontWeight: '900', color: customFieldsData.transactionMode === 'income' ? '#10b981' : '#ef4444' }} placeholder="0" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} autoFocus />
+                          {/* 🌟 修正: 末尾にあった autoFocus を削除しました */}
+                          <input type="number" className="pop-input no-spin" style={{ flex: 1, textAlign: 'right', fontSize: '1.6rem', fontWeight: '900', color: customFieldsData.transactionMode === 'income' ? '#10b981' : '#ef4444' }} placeholder="0" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} />
                           <span style={{ fontWeight: 'bold', color: 'var(--text-sub)' }}>円</span>
                         </div>
                       </div>
@@ -4749,15 +4758,26 @@ export default function SmartLifeOS() {
                           <div style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }} className="hide-scrollbar">
                             {subs.map((sub, idx) => (
                               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                {/* 👇 修正：文字が長すぎても突き破らないように minWidth: 0 と textOverflow を設定 */}
-                                <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
-                                  <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub.name}</div>
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub.cycle === 'monthly' ? `毎月 ${sub.date}日` : `毎年 ${sub.date.replace('-', '月')}日`}支払{sub.category ? ` / ${sub.category}` : ''}</div>
+                                {/* 🌟 修正: minWidth をなくし、文字が長い場合は折り返して表示させる */}
+                                <div style={{ flex: 1, paddingRight: '8px', overflow: 'hidden' }}>
+                                  <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '2px', whiteSpace: 'normal', wordBreak: 'break-all' }}>{sub.name}</div>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-sub)', fontWeight: 'bold', whiteSpace: 'normal' }}>{sub.cycle === 'monthly' ? `毎月 ${sub.date}日` : `毎年 ${sub.date.replace('-', '月')}日`}支払{sub.category ? ` / ${sub.category}` : ''}</div>
                                 </div>
-                                {/* 👇 修正：金額エリアの幅を固定し、はみ出しを防ぐ */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                                  <span style={{ fontWeight: '900', color: '#ef4444', fontSize: '1rem' }}>¥{Number(sub.amount).toLocaleString()}</span>
-                                  <button onClick={() => setSubs(subs.filter((_, i) => i !== idx))} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash2 size={16}/></button>
+                                {/* 🌟 修正: 金額エリアが潰れないように flexShrink: 0 を徹底し、編集ボタンを追加 */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                  <span style={{ fontWeight: '900', color: '#ef4444', fontSize: '1rem', whiteSpace: 'nowrap' }}>¥{Number(sub.amount).toLocaleString()}</span>
+                                  
+                                  <button onClick={() => {
+                                    // フォームに値を戻し、既存のリストから削除する（編集モード）
+                                    setSubName(sub.name); setSubAmount(sub.amount); setSubCycle(sub.cycle); setSubDate(sub.date); setCategoryName(sub.category);
+                                    setSubs(subs.filter((_, i) => i !== idx));
+                                  }} style={{ background: 'rgba(59,130,246,0.1)', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Edit3 size={16}/>
+                                  </button>
+                                  
+                                  <button onClick={() => setSubs(subs.filter((_, i) => i !== idx))} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Trash2 size={16}/>
+                                  </button>
                                 </div>
                               </div>
                             ))}
