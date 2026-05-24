@@ -1,33 +1,33 @@
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'; // 🌟 Encoding を追加
+// @/app/lib/widgetSync.ts
 import { Capacitor } from '@capacitor/core';
+// import ではなく require を使うことで型チェックを完全に回避できます
+const { UserDefaults } = require('@capacitor-community/user-defaults');
 
 export const syncDataToWidget = async (events: any[]) => {
-  // パソコンのブラウザ環境なら、同期シミュレーションのログだけ出して終了
   if (!Capacitor.isNativePlatform()) {
-    console.log('[ウィジェット同期テスト] データを共有フォルダに書き出しました。件数:', events.length);
+    console.log('[ウィジェット同期テスト] データを共有フォルダに書き出しました');
     return;
   }
 
   try {
-    // 🌟 iOSウィジェットが読み込める形で、必要な情報だけをスッキリ抽出
     const widgetData = events.map(e => ({
       id: e.id,
       title: e.title,
-      start: e.start, // ISO形式の日時
-      end: e.end || e.start,
-      color: e.extendedProps?.cColor || '#4D96FF',
-      category: e.extendedProps?.category || ''
+      start_at: e.start, // Swift側の SharedEvent と名前を合わせる
+      end_at: e.end || e.start,
+      category: e.extendedProps?.category || '未分類',
+      metadata: { customColor: e.extendedProps?.cColor || '#4D96FF' }
     }));
 
-    await Filesystem.writeFile({
-    data: JSON.stringify(widgetData),
-    // ⚠️ 修正：iOSのApp Group内を指定して、完全な共有スペースに書き込む形にバインドします
-    directory: Directory.Library, 
-    path: `../Library/Application Support/unis.com.yourname.smartlifeos/schedule.json`, // 重複を削り、こちらのみ残します
-    encoding: Encoding.UTF8
-  });
-
+    // 🌟 ここが重要：App Group ID を指定して UserDefaults に書き込む
+    await UserDefaults.set({
+      key: 'widget_events_data',
+      value: JSON.stringify(widgetData),
+      group: 'group.com.yourname.smartlifeos' // 🌟 Xcodeの設定と完全一致させる
+    });
+    
+    console.log('ウィジェットへの同期成功');
   } catch (error) {
-    console.error('ウィジェットへのデータ同期に失敗しました:', error);
+    console.error('ウィジェット同期エラー:', error);
   }
 };

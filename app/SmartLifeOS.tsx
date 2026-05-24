@@ -676,6 +676,17 @@ export default function SmartLifeOS() {
         await (supabase.from('events') as any).delete().eq('id', selectedId);
       }
 
+      // 🔔 追加：予定に紐づく通知をキャンセルする
+      try {
+        const { LocalNotifications } = require('@capacitor/local-notifications');
+        if (selectedId) {
+          // 通知登録時に使っているIDの規則に合わせてキャンセルします（通常は数値変換したもの）
+          await LocalNotifications.cancel({ notifications: [{ id: parseInt(selectedId.replace(/\D/g, '') || '0') }] });
+        }
+      } catch (error) {
+        console.warn('通知のキャンセルに失敗しました', error);
+      }
+
       setIsModalOpen(false);
       fetchEvents();
     }
@@ -818,6 +829,19 @@ export default function SmartLifeOS() {
         }
       }
 
+      // 🔔 追加：一括削除した予定の通知も全てキャンセルする
+      try {
+        const { LocalNotifications } = require('@capacitor/local-notifications');
+        const notificationsToCancel = selectedForDelete.map(id => ({
+          id: parseInt(id.replace(/\D/g, '') || '0')
+        }));
+        if (notificationsToCancel.length > 0) {
+          await LocalNotifications.cancel({ notifications: notificationsToCancel });
+        }
+      } catch (error) {
+        console.warn('通知の一括キャンセルに失敗しました', error);
+      }
+
       setIsDeleteMode(false);
       setSelectedForDelete([]);
       fetchEvents();
@@ -874,7 +898,8 @@ export default function SmartLifeOS() {
     
       const getWeeksOfMonth = () => {
         if (!currentYear || !currentMonthNum) return [];
-        const weeks = []; const start = new Date(Number(currentYear), Number(currentMonthNum) - 1, 1);
+        const weeks: { dateStr: string; label: string }[] = [];        
+        const start = new Date(Number(currentYear), Number(currentMonthNum) - 1, 1);
         start.setDate(start.getDate() - ((start.getDay() - firstDayOfWeek + 7) % 7));
         let current = new Date(start); let weekNum = 1;
         while (current.getMonth() === Number(currentMonthNum) - 1 || weekNum === 1) {
@@ -1345,7 +1370,9 @@ export default function SmartLifeOS() {
 
         if (dbError) {
           console.error("Supabase Save Error:", dbError);
-          alert("クラウドへの同期に失敗しましたが、端末（ローカル）には保存されました。\nエラー詳細: " + dbError.message);
+          // 🌟 修正: dbError を any 型として扱うか、message プロパティがあるかチェックする
+          const errorMessage = (dbError as any).message || "不明なエラー";
+          alert("クラウドへの同期に失敗しましたが、端末（ローカル）には保存されました。\nエラー詳細: " + errorMessage);
         }
       }
 
@@ -2027,7 +2054,7 @@ export default function SmartLifeOS() {
       })));
       
       const routineEvents = monthlyRoutines.flatMap((r: any) => {
-        const evts = [];
+        const evts: any[] = [];        
         const baseDate = new Date(`${currentY - 1}-01-01`);
         const endDate = new Date(`${currentY + 1}-12-31`);
     
@@ -2297,13 +2324,11 @@ export default function SmartLifeOS() {
       const { isNative } = require('@/app/lib/utils'); 
 
       // 👇修正：timetableEvents を結合配列に追加する
-      const displayEvents = [...events, ...anniversaryEvents, ...routineEvents, ...subEvents, ...timetableEvents].flatMap((e: any) => {
-        
+      const displayEvents: any[] = [...events, ...anniversaryEvents, ...routineEvents, ...subEvents, ...timetableEvents].flatMap((e: any) => {        
         // 🚨 修正：ローカルデータとクラウドデータの構造の違いを吸収する
           const metadata = e.extendedProps?.metadata || e.metadata || {};
           const cColor = e.extendedProps?.cColor || e.backgroundColor || metadata.customColor || 'var(--theme)';
-          const results = [];
-    
+          const results: any[] = [];    
           // 出発・集合ブロックの生成
           if (metadata.isGathering && metadata.departureTime) {
             const [dh, dm] = metadata.departureTime.split(':').map(Number);
@@ -3081,15 +3106,13 @@ export default function SmartLifeOS() {
                             })}
                             
                             {/* 👇 移動時間は「枠線」、予定本体は「塗りつぶし」で繋げて描画 */}
-                            {/* 👇 移動時間は「枠線」、予定本体は「塗りつぶし」で繋げて描画 */}
                             <g transform="rotate(-90 80 80)">
                               {dayEvents.map((e: any, idx: number) => {
                                 if (e.extendedProps.isTransitEvent) return null;
     
                                 const metadata = e.extendedProps?.metadata || {};
                                 const cColor = e.extendedProps?.cColor || "var(--theme)";
-                                const elements = [];
-    
+                                const elements: React.ReactNode[] = [];    
                                 if (metadata.isGathering && metadata.departureTime && metadata.gatheringTime) {
                                     const [dh, dm] = metadata.departureTime.split(":").map(Number);
                                     const [gh, gm] = metadata.gatheringTime.split(":").map(Number);
@@ -4072,7 +4095,7 @@ export default function SmartLifeOS() {
                               const currentY = parseInt(currentYear || String(new Date().getFullYear()));
                               const currentM = parseInt(currentMonthNum || String(new Date().getMonth() + 1));
     
-                              let graphData = [];
+                              let graphData: any[] = [];
                               if (graphSpan === 'month') {
                                 graphData = Array.from({length: 12}, (_, i) => {
                                   const mStr = `${currentY}-${String(i + 1).padStart(2, '0')}`;
@@ -5250,114 +5273,6 @@ export default function SmartLifeOS() {
                               })()}
                             </div>
     
-                            {/* 📊 収支グラフ（棒グラフ）モーダル */}
-                            {isFinanceGraphOpen && (() => {
-                              const currentY = parseInt(currentYear || String(new Date().getFullYear()));
-                              const currentM = parseInt(currentMonthNum || String(new Date().getMonth() + 1));
-    
-                              let graphData = [];
-                              if (graphSpan === 'month') {
-                                graphData = Array.from({length: 12}, (_, i) => {
-                                  const mStr = `${currentY}-${String(i + 1).padStart(2, '0')}`;
-                                  const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(mStr));
-                                  let inc = 0; let exp = 0;
-                                  targetEvts.forEach((e: any) => {
-                                    const cf = e.extendedProps?.metadata?.customFields || {};
-                                    if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
-                                    if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
-                                  });
-                                  return { label: `${i + 1}月`, inc, exp };
-                                });
-                              } else {
-                                graphData = Array.from({length: 5}, (_, i) => {
-                                  let inc = 0; let exp = 0;
-                                  const targetEvts = events.filter((e: any) => e.start && e.start.startsWith(`${currentY}-${String(currentM).padStart(2, '0')}`));
-                                  targetEvts.forEach((e: any) => {
-                                    const dateDay = new Date(e.start).getDate();
-                                    const weekNum = Math.ceil(dateDay / 7);
-                                    if (weekNum === i + 1 || (i === 4 && weekNum > 5)) {
-                                      const cf = e.extendedProps?.metadata?.customFields || {};
-                                      if (cf.isExpenseSet) exp += Number(cf.standardExpenseAmount || 0);
-                                      if (cf.isIncomeSet) inc += Number(cf.standardIncomeAmount || 0);
-                                    }
-                                  });
-                                  return { label: `第${i + 1}週`, inc, exp };
-                                });
-                              }
-    
-                              const maxAmount = Math.max(...graphData.map(d => Math.max(d.inc, d.exp)), 1000);
-    
-                              return (
-                                <div className="modal-overlay" onClick={() => setIsFinanceGraphOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-                                  <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
-                                    <ModalHeader title="収支推移グラフ" onClose={() => setIsFinanceGraphOpen(false)} />
-                                    
-                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-                                      <button onClick={() => setGraphSpan('month')} className={graphSpan === 'month' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>月間推移 ({currentY}年)</button>
-                                      <button onClick={() => setGraphSpan('week')} className={graphSpan === 'week' ? 'btn-pop' : 'btn-secondary'} style={{ flex: 1, padding: '10px', fontSize: '0.85rem', borderRadius: '12px' }}>週間推移 ({currentM}月)</button>
-                                    </div>
-    
-                                    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '16px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981' }} /> 収入</span>
-                                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}><div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }} /> 支出</span>
-                                    </div>
-    
-                                    <div className="hide-scrollbar" style={{ height: '220px', display: 'flex', alignItems: 'flex-end', gap: '12px', overflowX: 'auto', paddingBottom: '8px', borderBottom: '2px solid var(--border-color)' }}>
-                                      {graphData.map((d, idx) => (
-                                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end', minWidth: '40px' }}>
-                                          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '100%' }}>
-                                            <div style={{ position: 'relative', width: '14px', height: `${(d.inc / maxAmount) * 100}%`, background: '#10b981', borderRadius: '4px 4px 0 0', minHeight: d.inc > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
-                                              {d.inc > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#10b981', fontWeight: 'bold' }}>{d.inc >= 10000 ? `${Math.floor(d.inc/1000)}k` : d.inc}</span>}
-                                            </div>
-                                            <div style={{ position: 'relative', width: '14px', height: `${(d.exp / maxAmount) * 100}%`, background: '#ef4444', borderRadius: '4px 4px 0 0', minHeight: d.exp > 0 ? '4px' : '0', transition: 'all 0.4s' }}>
-                                              {d.exp > 0 && <span style={{ position: 'absolute', top: '-18px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.55rem', color: '#ef4444', fontWeight: 'bold' }}>{d.exp >= 10000 ? `${Math.floor(d.exp/1000)}k` : d.exp}</span>}
-                                            </div>
-                                          </div>
-                                          <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-sub)' }}>{d.label}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-    
-                            {/* 🖼 思い出ギャラリー モーダル */}
-                            {isGalleryOpen && (
-                              <div className="modal-overlay" onClick={() => setIsGalleryOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '15px' }}>
-                                <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '420px', borderRadius: '28px', border: '1px solid var(--glass-border)', padding: '24px', background: 'var(--bg-main)', color: 'var(--text-main)', height: '70vh', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
-                                  
-                                  <div style={{ flexShrink: 0 }}>
-                                    <ModalHeader title="思い出ギャラリー" onClose={() => setIsGalleryOpen(false)} />
-                                  </div>
-                                  
-                                  <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '15px', flexShrink: 0, paddingBottom: '4px', whiteSpace: 'nowrap' }}>
-                                    <button onClick={() => setGalleryCategory('すべて')} style={{ background: galleryCategory === 'すべて' ? themeColor : 'var(--input-bg)', color: galleryCategory === 'すべて' ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>すべて</button>
-                                    {categories.filter((c: any) => c.allowPhoto).map((c: any) => (
-                                      <button key={c.name} onClick={() => setGalleryCategory(c.name)} style={{ background: galleryCategory === c.name ? c.color : 'var(--input-bg)', color: galleryCategory === c.name ? '#fff' : 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: '20px', padding: '8px 16px', fontSize: '0.85rem', fontWeight: '900', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>{c.name}</button>
-                                    ))}
-                                  </div>
-    
-                                  <div className="hide-scrollbar" style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', paddingRight: '4px', alignContent: 'start' }}>
-                                    {events
-                                      .filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0)
-                                      .filter((e: any) => galleryCategory === 'すべて' || e.extendedProps.category === galleryCategory)
-                                      .sort((a: any, b: any) => new Date(b.start).getTime() - new Date(a.start).getTime())
-                                      .flatMap((e: any) =>
-                                      e.extendedProps.metadata.photoUrls.map((url: string, index: number) => (
-                                        <div key={`${e.id}-${index}`} style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--input-bg)', border: '1px solid var(--border-color)', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                                          <img src={url} alt="memory" onClick={() => { setIsGalleryOpen(false); handleEventClick({event: e}); }} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer', transition: 'transform 0.3s' }} onMouseOver={ev => ev.currentTarget.style.transform = 'scale(1.05)'} onMouseOut={ev => ev.currentTarget.style.transform = 'scale(1)'} />
-                                        </div>
-                                      ))
-                                    )}
-                                    {events.filter((e: any) => e.extendedProps?.metadata?.photoUrls && e.extendedProps.metadata.photoUrls.length > 0).length === 0 && (
-                                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px 20px', color: 'var(--text-sub)', fontWeight: '900', fontSize: '0.9rem' }}>思い出の写真を追加しましょう</div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-    
                             {/* 🤝 立替・貸し借り管理 モーダル */}
                             {isAdvanceModalOpen && (() => {
                               const unsettledAdvances = events.flatMap(e => {
@@ -5841,8 +5756,7 @@ export default function SmartLifeOS() {
                                     const oppScore = customFieldsData[f.id]?.opp || '';
                                     const result = customFieldsData[f.id]?.res || '';
                                     
-                                    let resultBadge = null;
-                                    if (result === 'win') resultBadge = <span style={{ background: '#10b981', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Sparkles size={20} /> WIN</span>;
+                                    let resultBadge: React.ReactNode = null;                                    if (result === 'win') resultBadge = <span style={{ background: '#10b981', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Sparkles size={20} /> WIN</span>;
                                     else if (result === 'lose') resultBadge = <span style={{ background: '#ef4444', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', boxShadow: '0 4px 10px rgba(239,68,68,0.3)', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><ChevronDown size={20} /> LOSE</span>;
                                     else if (result === 'draw') resultBadge = <span style={{ background: '#94a3b8', color: '#fff', padding: '6px 16px', borderRadius: '16px', fontWeight: '900', fontSize: '1.2rem', letterSpacing: '2px', animation: 'popIn 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}><Circle size={20} /> DRAW</span>;
     
