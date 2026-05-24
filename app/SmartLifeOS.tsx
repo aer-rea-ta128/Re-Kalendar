@@ -581,6 +581,34 @@ export default function SmartLifeOS() {
         }
       }, [activeUserId]);
 
+      // 🌟 追加：外部からURL（ディープリンク）で起動されたときの処理
+  useEffect(() => {
+    if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+      const { App } = require('@capacitor/app');
+      
+      const listener = App.addListener('appUrlOpen', (data: any) => {
+        // url: "smartlifeos://add-event" のような形で飛んでくる
+        if (data.url && data.url.includes('add-event')) {
+          setMode('create');
+          const today = toLocalYYYYMMDD(new Date());
+          setStartDate(today);
+          setEndDate(today);
+          
+          const nowH = new Date().getHours(); 
+          setStartH(String(nowH).padStart(2, '0')); setStartM('00'); 
+          setEndH(String(Math.min(nowH + 1, 23)).padStart(2, '0')); setEndM('00');
+          
+          setTitle(''); setLocation(''); setMemo(''); setEventColor('');
+          setIsModalOpen(true);
+        }
+      });
+      
+      return () => {
+        listener.remove();
+      };
+    }
+  }, []);
+
       // 🚨 追加：データが更新されるたびにウィジェットへ最新状態を送信する
       useEffect(() => {
         if (events.length > 0) {
@@ -4386,8 +4414,13 @@ export default function SmartLifeOS() {
                           if (!cropDragStart) return;
                           const dx = e.clientX - cropDragStart.x;
                           const dy = e.clientY - cropDragStart.y;
-                          setCropPanX(prev => Math.max(0, Math.min(100, prev - dx * 1.5)));
-                          setCropPanY(prev => Math.max(0, Math.min(100, prev - dy * 1.5)));
+                          
+                          // 🌟 修正：移動方向を直感的にし、感度を調整
+                          // prev から「引く」のではなく「足す」ことで、指を動かした方向に画像がついてくるようになります。
+                          // または、画像の基準点（objectPosition）の仕様に合わせて符号を調整します。
+                          setCropPanX(prev => Math.max(0, Math.min(100, prev - (dx * 0.5))));
+                          setCropPanY(prev => Math.max(0, Math.min(100, prev - (dy * 0.5))));
+                          
                           setCropDragStart({ x: e.clientX, y: e.clientY });
                         }}
                         onPointerUp={(e) => {
