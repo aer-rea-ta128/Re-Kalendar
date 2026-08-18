@@ -15,29 +15,29 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
-		DF7C39F92FBCB06C003095F5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF7C39F82FBCB06C003095F5 /* WidgetKit.framework */; };
-		DF7C39FB2FBCB06C003095F5 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF7C39FA2FBCB06C003095F5 /* SwiftUI.framework */; };
-		DF7C3A062FBCB06E003095F5 /* Re-CalendarWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DF7C39F62FBCB06C003095F5 /* Re-CalendarWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DF7C3A4E2FD83CFB003095F5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF7C3A4D2FD83CFB003095F5 /* WidgetKit.framework */; };
+		DF7C3A502FD83CFB003095F5 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF7C3A4F2FD83CFB003095F5 /* SwiftUI.framework */; };
+		DF7C3A5B2FD83CFD003095F5 /* CalendarWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DF7C3A4B2FD83CFB003095F5 /* CalendarWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		DF7C3A042FBCB06E003095F5 /* PBXContainerItemProxy */ = {
+		DF7C3A592FD83CFD003095F5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = DF7C39F52FBCB06C003095F5;
-			remoteInfo = "Re-CalendarWidgetExtension";
+			remoteGlobalIDString = DF7C3A4A2FD83CFB003095F5;
+			remoteInfo = CalendarWidgetExtension;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		DF7C3A072FBCB06E003095F5 /* Embed Foundation Extensions */ = {
+		DF7C3A602FD83CFD003095F5 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				DF7C3A062FBCB06E003095F5 /* Re-CalendarWidgetExtension.appex in Embed Foundation Extensions */,
+				DF7C3A5B2FD83CFD003095F5 /* CalendarWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -55,25 +55,24 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
-		DF7C39F62FBCB06C003095F5 /* Re-CalendarWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Re-CalendarWidgetExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
-		DF7C39F82FBCB06C003095F5 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
-		DF7C39FA2FBCB06C003095F5 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		DF7C3A0C2FBCB09A003095F5 /* Re-CalendarWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Re-CalendarWidgetExtension.entitlements"; sourceTree = "<group>"; };
-		DF7C3A0D2FBCCD08003095F5 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		DF7C3A4B2FD83CFB003095F5 /* CalendarWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CalendarWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF7C3A4D2FD83CFB003095F5 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		DF7C3A4F2FD83CFB003095F5 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		DF7C3A612FD83D63003095F5 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DF7C3A0A2FBCB06E003095F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		DF7C3A5C2FD83CFD003095F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = DF7C39F52FBCB06C003095F5 /* Re-CalendarWidgetExtension */;
+			target = DF7C3A4A2FD83CFB003095F5 /* CalendarWidgetExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		DF7C39FC2FBCB06C003095F5 /* Re-CalendarWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (DF7C3A0A2FBCB06E003095F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = "Re-CalendarWidget"; sourceTree = "<group>"; };
+		DF7C3A512FD83CFB003095F5 /* CalendarWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (DF7C3A5C2FD83CFD003095F5 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = CalendarWidget; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,12 +84,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		DF7C39F32FBCB06C003095F5 /* Frameworks */ = {
+		DF7C3A482FD83CFB003095F5 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DF7C39FB2FBCB06C003095F5 /* SwiftUI.framework in Frameworks */,
-				DF7C39F92FBCB06C003095F5 /* WidgetKit.framework in Frameworks */,
+				DF7C3A502FD83CFB003095F5 /* SwiftUI.framework in Frameworks */,
+				DF7C3A4E2FD83CFB003095F5 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,11 +99,10 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
-				DF7C3A0C2FBCB09A003095F5 /* Re-CalendarWidgetExtension.entitlements */,
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
-				DF7C39FC2FBCB06C003095F5 /* Re-CalendarWidget */,
-				DF7C39F72FBCB06C003095F5 /* Frameworks */,
+				DF7C3A512FD83CFB003095F5 /* CalendarWidget */,
+				DF7C3A4C2FD83CFB003095F5 /* Frameworks */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -113,7 +111,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
-				DF7C39F62FBCB06C003095F5 /* Re-CalendarWidgetExtension.appex */,
+				DF7C3A4B2FD83CFB003095F5 /* CalendarWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,7 +119,7 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
-				DF7C3A0D2FBCCD08003095F5 /* App.entitlements */,
+				DF7C3A612FD83D63003095F5 /* App.entitlements */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -134,11 +132,11 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		DF7C39F72FBCB06C003095F5 /* Frameworks */ = {
+		DF7C3A4C2FD83CFB003095F5 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				DF7C39F82FBCB06C003095F5 /* WidgetKit.framework */,
-				DF7C39FA2FBCB06C003095F5 /* SwiftUI.framework */,
+				DF7C3A4D2FD83CFB003095F5 /* WidgetKit.framework */,
+				DF7C3A4F2FD83CFB003095F5 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -153,12 +151,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
-				DF7C3A072FBCB06E003095F5 /* Embed Foundation Extensions */,
+				DF7C3A602FD83CFD003095F5 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				DF7C3A052FBCB06E003095F5 /* PBXTargetDependency */,
+				DF7C3A5A2FD83CFD003095F5 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -168,26 +166,26 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
-		DF7C39F52FBCB06C003095F5 /* Re-CalendarWidgetExtension */ = {
+		DF7C3A4A2FD83CFB003095F5 /* CalendarWidgetExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DF7C3A0B2FBCB06E003095F5 /* Build configuration list for PBXNativeTarget "Re-CalendarWidgetExtension" */;
+			buildConfigurationList = DF7C3A5D2FD83CFD003095F5 /* Build configuration list for PBXNativeTarget "CalendarWidgetExtension" */;
 			buildPhases = (
-				DF7C39F22FBCB06C003095F5 /* Sources */,
-				DF7C39F32FBCB06C003095F5 /* Frameworks */,
-				DF7C39F42FBCB06C003095F5 /* Resources */,
+				DF7C3A472FD83CFB003095F5 /* Sources */,
+				DF7C3A482FD83CFB003095F5 /* Frameworks */,
+				DF7C3A492FD83CFB003095F5 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				DF7C39FC2FBCB06C003095F5 /* Re-CalendarWidget */,
+				DF7C3A512FD83CFB003095F5 /* CalendarWidget */,
 			);
-			name = "Re-CalendarWidgetExtension";
+			name = CalendarWidgetExtension;
 			packageProductDependencies = (
 			);
-			productName = "Re-CalendarWidgetExtension";
-			productReference = DF7C39F62FBCB06C003095F5 /* Re-CalendarWidgetExtension.appex */;
+			productName = CalendarWidgetExtension;
+			productReference = DF7C3A4B2FD83CFB003095F5 /* CalendarWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -202,10 +200,10 @@
 				TargetAttributes = {
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
-						LastSwiftMigration = 1100;
+						LastSwiftMigration = 2650;
 						ProvisioningStyle = Automatic;
 					};
-					DF7C39F52FBCB06C003095F5 = {
+					DF7C3A4A2FD83CFB003095F5 = {
 						CreatedOnToolsVersion = 26.5;
 					};
 				};
@@ -227,7 +225,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
-				DF7C39F52FBCB06C003095F5 /* Re-CalendarWidgetExtension */,
+				DF7C3A4A2FD83CFB003095F5 /* CalendarWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -246,7 +244,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		DF7C39F42FBCB06C003095F5 /* Resources */ = {
+		DF7C3A492FD83CFB003095F5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -264,7 +262,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		DF7C39F22FBCB06C003095F5 /* Sources */ = {
+		DF7C3A472FD83CFB003095F5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -274,10 +272,10 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		DF7C3A052FBCB06E003095F5 /* PBXTargetDependency */ = {
+		DF7C3A5A2FD83CFD003095F5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = DF7C39F52FBCB06C003095F5 /* Re-CalendarWidgetExtension */;
-			targetProxy = DF7C3A042FBCB06E003095F5 /* PBXContainerItemProxy */;
+			target = DF7C3A4A2FD83CFB003095F5 /* CalendarWidgetExtension */;
+			targetProxy = DF7C3A592FD83CFD003095F5 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -425,6 +423,7 @@
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -435,10 +434,13 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.re-calendat26102204.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.taiyo.smartlifeos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OBJC_BRIDGING_HEADER = "CalendarWidget/App-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -448,6 +450,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -458,15 +461,17 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.re-calendat26102204.app";
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_BUNDLE_IDENTIFIER = com.taiyo.smartlifeos;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_OBJC_BRIDGING_HEADER = "CalendarWidget/App-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
-		DF7C3A082FBCB06E003095F5 /* Debug */ = {
+		DF7C3A5E2FD83CFD003095F5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -477,16 +482,16 @@
 				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CODE_SIGN_ENTITLEMENTS = "Re-CalendarWidgetExtension.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "/Users/taiyo/Desktop/my-lifestyle-app/ios/App/CalendarWidget/CalendarWidgetExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Re-CalendarWidget/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Re-CalendarWidget";
+				INFOPLIST_FILE = CalendarWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CalendarWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -496,7 +501,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.re-calendat26102204.app.Re-CalendarWidget";
+				PRODUCT_BUNDLE_IDENTIFIER = com.taiyo.smartlifeos.CalendarWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -509,7 +514,7 @@
 			};
 			name = Debug;
 		};
-		DF7C3A092FBCB06E003095F5 /* Release */ = {
+		DF7C3A5F2FD83CFD003095F5 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -520,16 +525,16 @@
 				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CODE_SIGN_ENTITLEMENTS = "Re-CalendarWidgetExtension.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "/Users/taiyo/Desktop/my-lifestyle-app/ios/App/CalendarWidget/CalendarWidgetExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Re-CalendarWidget/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "Re-CalendarWidget";
+				INFOPLIST_FILE = CalendarWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CalendarWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -538,7 +543,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.0;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.re-calendat26102204.app.Re-CalendarWidget";
+				PRODUCT_BUNDLE_IDENTIFIER = com.taiyo.smartlifeos.CalendarWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -571,11 +576,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DF7C3A0B2FBCB06E003095F5 /* Build configuration list for PBXNativeTarget "Re-CalendarWidgetExtension" */ = {
+		DF7C3A5D2FD83CFD003095F5 /* Build configuration list for PBXNativeTarget "CalendarWidgetExtension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				DF7C3A082FBCB06E003095F5 /* Debug */,
-				DF7C3A092FBCB06E003095F5 /* Release */,
+				DF7C3A5E2FD83CFD003095F5 /* Debug */,
+				DF7C3A5F2FD83CFD003095F5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

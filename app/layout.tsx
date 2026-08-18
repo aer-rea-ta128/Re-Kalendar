@@ -7,6 +7,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  colorScheme: "light", // アプリ全体のダークモード影響を避ける設定のみ残します
 };
 
 export const metadata: Metadata = {
@@ -31,9 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
