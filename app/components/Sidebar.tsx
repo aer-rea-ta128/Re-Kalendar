@@ -82,9 +82,11 @@ interface SidebarProps {
   setIsProfileModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isNotificationEnabled: boolean;
   setIsNotificationEnabled: (val: boolean) => void;
+  headerPosition: "top" | "bottom";
+  setHeaderPosition: React.Dispatch<React.SetStateAction<"top" | "bottom">>;
 }
 
-export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, setOpenSections, themeColor, searchQuery, setSearchQuery, handleSearchExecute, setIsSearchMode, setIsColorPickerOpen, isDarkMode, setIsDarkMode, events, categories, targetType, setTargetType, targetValue, setTargetValue, currentMonthEvents, currentYearEvents, quickTemplates, setQuickTemplates, setMode, setStartDate, setEndDate, setStartH, setStartM, setEndH, setEndM, setTitle, setLocation, setMemo, setPhotoUrls, setIsStocked, setIsTentative, setRating, setIsPinned, setIsModalOpen, setCategoryName, setIsAllDayBackground, setEventColor, setIsAnalyticsModalOpen, setIsGalleryOpen, setIsCategoryModalOpen, setIsRoutineModalOpen, setIsAnniversaryModalOpen, syncWithCloud, handleEventClick, setCustomFieldsData, homeLocation, setHomeLocation, nearestStation, setNearestStation, walkTime, setWalkTime, startPointType, setStartPointType, displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter, activeUserId, activeUserName, activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen, setIsTimetableModalOpen, setIsTemplateModalOpen, userProfile, setIsProfileModalOpen, isNotificationEnabled, setIsNotificationEnabled }: SidebarProps) {
+export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, setOpenSections, themeColor, searchQuery, setSearchQuery, handleSearchExecute, setIsSearchMode, setIsColorPickerOpen, isDarkMode, setIsDarkMode, events, categories, targetType, setTargetType, targetValue, setTargetValue, currentMonthEvents, currentYearEvents, quickTemplates, setQuickTemplates, setMode, setStartDate, setEndDate, setStartH, setStartM, setEndH, setEndM, setTitle, setLocation, setMemo, setPhotoUrls, setIsStocked, setIsTentative, setRating, setIsPinned, setIsModalOpen, setCategoryName, setIsAllDayBackground, setEventColor, setIsAnalyticsModalOpen, setIsGalleryOpen, setIsCategoryModalOpen, setIsRoutineModalOpen, setIsAnniversaryModalOpen, syncWithCloud, handleEventClick, setCustomFieldsData, homeLocation, setHomeLocation, nearestStation, setNearestStation, walkTime, setWalkTime, startPointType, setStartPointType, displayMode, setDisplayMode, viewType, calendarCategoryFilter, setCalendarCategoryFilter, activeUserId, activeUserName, activeUserAvatar, setActiveUserAvatar, setActiveUserName, onLogout, setIsFinanceGraphOpen, setIsScheduleAssistantOpen, setIsAdvanceModalOpen, setIsTimetableModalOpen, setIsTemplateModalOpen, userProfile, setIsProfileModalOpen, isNotificationEnabled, setIsNotificationEnabled, headerPosition, setHeaderPosition }: SidebarProps) {
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [isCategoryHistoryOpen, setIsCategoryHistoryOpen] = useState(false);
   const [historyCategory, setHistoryCategory] = useState("すべて");
@@ -1034,6 +1036,15 @@ export default function Sidebar({ isSidebarOpen, setIsSidebarOpen, setOpenSectio
                 <select className="pop-input" value={incomeCalcBasis} onChange={(e) => setIncomeCalcBasis(e.target.value as any)} style={{ fontSize: "0.85rem", fontWeight: "bold" }}>
                   <option value="wage">時給・シフトの予定から自動計算</option>
                   <option value="payday">給料日・実際の入金のみを計算</option>
+                </select>
+              </div>
+
+              {/* メニュー配置設定 */}
+              <div>
+                <span style={{ fontSize: "0.8rem", fontWeight: "bold", color: themeColor, marginBottom: "8px", display: "block" }}>メニュー（ヘッダー）の配置</span>
+                <select className="pop-input" value={headerPosition} onChange={(e) => setHeaderPosition(e.target.value as any)} style={{ fontSize: "0.85rem", fontWeight: "bold" }}>
+                  <option value="top">画面の上部</option>
+                  <option value="bottom">画面の下部</option>
                 </select>
               </div>
 

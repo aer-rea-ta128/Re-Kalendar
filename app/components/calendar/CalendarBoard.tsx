@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -61,7 +61,7 @@ interface CalendarBoardProps {
   fetchEvents: () => Promise<void>;
 }
 
-export default function CalendarBoard({ calendarRef, displayMode, overlapMode, viewType, setViewType, displayEvents, holidays, walkTime, startPointType, searchResults, currentSearchIndex, isDeleteMode, selectedForDelete, useEventColorForTitle, isDraggingRef, blockCalendarClick, isSwipingRef, wasEventSelectedRef, isSidebarOpen, isViewSelectorExpanded, isDayPickerOpen, clipboardEvent, setClipboardEvent, setMode, setSelectedId, setTitle, setLocation, setCategoryName, setEventColor, setStartH, setStartM, setEndH, setEndM, setIsAllDayBackground, setIsMilestone, setCustomFieldsData, setStartDate, setEndDate, setIsModalOpen, setIsViewSelectorExpanded, setCurrentYear, setCurrentMonthNum, setCurrentDayNum, setIsDayPickerOpen, handleEventClick, fetchEvents }: CalendarBoardProps) {
+function CalendarBoardComponent({ calendarRef, displayMode, overlapMode, viewType, setViewType, displayEvents, holidays, walkTime, startPointType, searchResults, currentSearchIndex, isDeleteMode, selectedForDelete, useEventColorForTitle, isDraggingRef, blockCalendarClick, isSwipingRef, wasEventSelectedRef, isSidebarOpen, isViewSelectorExpanded, isDayPickerOpen, clipboardEvent, setClipboardEvent, setMode, setSelectedId, setTitle, setLocation, setCategoryName, setEventColor, setStartH, setStartM, setEndH, setEndM, setIsAllDayBackground, setIsMilestone, setCustomFieldsData, setStartDate, setEndDate, setIsModalOpen, setIsViewSelectorExpanded, setCurrentYear, setCurrentMonthNum, setCurrentDayNum, setIsDayPickerOpen, handleEventClick, fetchEvents }: CalendarBoardProps) {
   const renderEventContent = (arg: any) => {
     const { event, view } = arg;
     const { start, end, extendedProps } = event;
@@ -127,47 +127,6 @@ export default function CalendarBoard({ calendarRef, displayMode, overlapMode, v
       }
     }
 
-    if (extendedProps.isTransitEvent) {
-      if (viewType === "dayGridMonth") return null;
-      const startObj = new Date(start);
-      const endObj = end ? new Date(end) : new Date(startObj.getTime() + 3600000);
-      const sT = `${String(startObj.getHours()).padStart(2, "0")}:${String(startObj.getMinutes()).padStart(2, "0")}`;
-      const eT = `${String(endObj.getHours()).padStart(2, "0")}:${String(endObj.getMinutes()).padStart(2, "0")}`;
-      const targetId = event.id.replace("-travel", "").replace("-transit-out", "").replace("-transit-ret", "");
-
-      let TransitIcon = Train;
-      if (extendedProps.transitType === "plane") TransitIcon = Plane;
-      else if (extendedProps.transitType === "bus") TransitIcon = Bus;
-      else if (extendedProps.transitType === "home") TransitIcon = Home;
-
-      return (
-        <div
-          data-travel-target={targetId}
-          style={{
-            width: "100%",
-            height: "100%",
-            padding: "4px 2px",
-            background: hexToRgba(cColor, 0.1),
-            border: `1.5px solid ${cColor}`,
-            borderRadius: "4px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-            gap: "2px",
-          }}
-        >
-          <TransitIcon size={12} color={cColor} style={{ flexShrink: 0, marginBottom: "2px" }} />
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", fontSize: "0.55rem", fontWeight: "900", color: cColor, lineHeight: 1.1 }}>
-            <span>{sT}</span>
-            <span style={{ margin: "-1px 0" }}>〜</span>
-            <span>{eT}</span>
-          </div>
-        </div>
-      );
-    }
-
     const actualStart = extendedProps.originalStart ? new Date(extendedProps.originalStart) : start;
     const durationMin = end && actualStart ? (end.getTime() - actualStart.getTime()) / 60000 : 60;
 
@@ -178,13 +137,67 @@ export default function CalendarBoard({ calendarRef, displayMode, overlapMode, v
       if (end) endTimeOnly = `${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
     }
 
-    const transitBadge =
-      metadata.customFields?.isTransit && (viewType === "timeGridWeek" || viewType === "timeGridDay") ? (
-        <div style={{ position: "absolute", top: "2px", right: "4px", fontSize: "0.65rem", background: "#fff", color: cColor, padding: "2px 4px", borderRadius: "4px", border: `1px solid ${cColor}`, zIndex: 50, fontWeight: "bold", boxShadow: "0 2px 4px rgba(0,0,0,0.1)", display: "flex", alignItems: "center", gap: "2px" }}>
-          {metadata.customFields.transitType === "plane" ? <Plane size={10} /> : metadata.customFields.transitType === "bus" ? <Bus size={10} /> : <Train size={10} />}
-          <span>{metadata.customFields.transitDepTime}発</span>
-        </div>
-      ) : null;
+    // 🌟 インナーバー（移動時間）を描画するための関数
+    const renderTransitInnerBar = () => {
+      if (viewType === "dayGridMonth" || !metadata.customFields?.isTransit || !actualStart || !end) return null;
+
+      const eventStartMin = actualStart.getHours() * 60 + actualStart.getMinutes();
+      const eventEndMin = end.getHours() * 60 + end.getMinutes() + (end.getDate() > actualStart.getDate() ? 1440 : 0);
+      const totalEventMin = eventEndMin - eventStartMin;
+      if (totalEventMin <= 0) return null;
+
+      // 🌟 修正：型を明示的に指定してTypeScriptエラーを解消
+      const bars: React.ReactNode[] = [];
+
+      // 往路
+      if (metadata.customFields.transitDepTime && metadata.customFields.transitArrTime) {
+        const [dH, dM] = metadata.customFields.transitDepTime.split(":").map(Number);
+        const [aH, aM] = metadata.customFields.transitArrTime.split(":").map(Number);
+        const depMin = dH * 60 + dM;
+        const arrMin = aH * 60 + aM + (aH < dH ? 1440 : 0);
+
+        // イベントの枠内に収まるようパーセンテージを計算
+        const topPercent = Math.max(0, ((depMin - eventStartMin) / totalEventMin) * 100);
+        const heightPercent = Math.max(0, Math.min(100 - topPercent, ((arrMin - depMin) / totalEventMin) * 100));
+
+        if (heightPercent > 0) {
+          const TIcon = metadata.customFields.transitType === "plane" ? Plane : metadata.customFields.transitType === "bus" ? Bus : Train;
+          bars.push(
+            <div key="outbound" style={{ position: "absolute", top: `${topPercent}%`, height: `${heightPercent}%`, left: 0, width: "100%", background: `repeating-linear-gradient(45deg, transparent, transparent 5px, ${hexToRgba(cColor, 0.15)} 5px, ${hexToRgba(cColor, 0.15)} 10px)`, borderTop: `1px dashed ${hexToRgba(cColor, 0.4)}`, borderBottom: `1px dashed ${hexToRgba(cColor, 0.4)}`, zIndex: 0 }}>
+              <div style={{ position: "absolute", top: "50%", left: "4px", transform: "translateY(-50%)", color: cColor, opacity: 0.8, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                <TIcon size={12} />
+              </div>
+            </div>,
+          );
+        }
+      }
+
+      // 復路
+      if (metadata.customFields.hasReturnTransit && metadata.customFields.returnTransitDepTime && metadata.customFields.returnTransitArrTime) {
+        const [dH, dM] = metadata.customFields.returnTransitDepTime.split(":").map(Number);
+        const [aH, aM] = metadata.customFields.returnTransitArrTime.split(":").map(Number);
+        const depMin = dH * 60 + dM + (dH < (actualStart.getHours() * 60 + actualStart.getMinutes()) / 60 ? 1440 : 0);
+        const arrMin = aH * 60 + aM + (aH < dH ? 1440 : 0);
+
+        const topPercent = Math.max(0, ((depMin - eventStartMin) / totalEventMin) * 100);
+        const heightPercent = Math.max(0, Math.min(100 - topPercent, ((arrMin - depMin) / totalEventMin) * 100));
+
+        if (heightPercent > 0) {
+          const TIcon = metadata.customFields.returnTransitType === "plane" ? Plane : metadata.customFields.returnTransitType === "bus" ? Bus : Train;
+          bars.push(
+            <div key="return" style={{ position: "absolute", top: `${topPercent}%`, height: `${heightPercent}%`, left: 0, width: "100%", background: `repeating-linear-gradient(45deg, transparent, transparent 5px, ${hexToRgba(cColor, 0.15)} 5px, ${hexToRgba(cColor, 0.15)} 10px)`, borderTop: `1px dashed ${hexToRgba(cColor, 0.4)}`, borderBottom: `1px dashed ${hexToRgba(cColor, 0.4)}`, zIndex: 0 }}>
+              <div style={{ position: "absolute", top: "50%", left: "4px", transform: "translateY(-50%)", color: cColor, opacity: 0.8, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                <TIcon size={12} />
+              </div>
+            </div>,
+          );
+        }
+      }
+
+      return <>{bars}</>;
+    };
+
+    const transitBadge = null;
 
     if (metadata.isAllDayBackground) {
       if (viewType === "timeGridWeek") {
@@ -553,7 +566,10 @@ export default function CalendarBoard({ calendarRef, displayMode, overlapMode, v
             boxSizing: "border-box",
           }}
         >
-          {showStartTime && <div style={{ padding: "2px 0", width: "100%", textAlign: "center", fontSize: "0.55rem", fontWeight: "900", color: cColor, lineHeight: 1.1 }}>{startTimeOnly}</div>}
+          {/* 🌟 追加: メインの背景内に移動時間の帯を描画する */}
+          {renderTransitInnerBar()}
+
+          {showStartTime && <div style={{ padding: "2px 0", width: "100%", textAlign: "center", fontSize: "0.55rem", fontWeight: "900", color: cColor, lineHeight: 1.1, zIndex: 10 }}>{startTimeOnly}</div>}
           <div
             style={{
               flex: 1,
@@ -564,6 +580,7 @@ export default function CalendarBoard({ calendarRef, displayMode, overlapMode, v
               flexDirection: "row",
               gap: "8px",
               position: "relative",
+              zIndex: 10, // 🌟 追加: インナーバーより手前にテキストを配置
               paddingTop: useVertical && isOverflowing ? "2px" : "0",
               transform: hasLocationRight ? "translateX(-4px)" : "none",
               paddingRight: hasLocationRight ? "12px" : "0",
@@ -915,9 +932,42 @@ export default function CalendarBoard({ calendarRef, displayMode, overlapMode, v
       }}
       dayCellContent={(arg: any) => {
         if (arg.view.type === "dayGridMonth") {
+          const dateStr = toLocalYYYYMMDD(arg.date);
+          const holidayName = holidays[dateStr];
+          const isSunday = arg.date.getDay() === 0;
+          const isSaturday = arg.date.getDay() === 6;
+          const isRed = isSunday || holidayName;
+          const isBlue = isSaturday && !holidayName;
+
           return (
-            <div style={{ position: "relative", display: "flex", justifyContent: "center", width: "100%", height: "100%" }}>
-              <span className="fc-daygrid-day-number">{arg.date.getDate()}</span>
+            <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", width: "100%", height: "100%" }}>
+              <span
+                className="fc-daygrid-day-number"
+                style={{
+                  color: isRed ? "#ef4444" : isBlue ? "#3b82f6" : "var(--text-main)",
+                  fontWeight: isRed || isBlue ? "bold" : "normal",
+                }}
+              >
+                {arg.date.getDate()}
+              </span>
+              {holidayName && (
+                <span
+                  style={{
+                    fontSize: "0.5rem",
+                    color: "#ef4444",
+                    fontWeight: "900",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    width: "100%",
+                    textAlign: "center",
+                    marginTop: "-4px",
+                    transform: "scale(0.9)",
+                  }}
+                >
+                  {holidayName}
+                </span>
+              )}
             </div>
           );
         }
@@ -949,3 +999,6 @@ export default function CalendarBoard({ calendarRef, displayMode, overlapMode, v
     />
   );
 }
+
+const CalendarBoard = memo(CalendarBoardComponent);
+export default CalendarBoard;

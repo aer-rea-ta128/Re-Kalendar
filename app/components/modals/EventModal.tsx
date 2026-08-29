@@ -117,6 +117,121 @@ export default function EventModal(props: EventModalProps) {
 
   const currentCategoryObj = categories.find((c: any) => c.name === categoryName);
 
+  // 長押しドラムロール選択用 State & Ref
+  const [isLongPressDragging, setIsLongPressDragging] = React.useState(false);
+  const [isCategoryListOpen, setIsCategoryListOpen] = React.useState(false); // 🌟 追加: タップ時のリスト展開用
+  const [dragOffsetPx, setDragOffsetPx] = React.useState<number>(0);
+  const [activeCategoryIndex, setActiveCategoryIndex] = React.useState<number>(0);
+  const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const categorySelectorRef = React.useRef<HTMLDivElement>(null); // 🌟 追加
+
+  // 🌟 追加: リストの外側をタップしたら閉じる処理
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (categorySelectorRef.current && !categorySelectorRef.current.contains(e.target as Node)) {
+        setIsCategoryListOpen(false);
+      }
+    };
+    if (isCategoryListOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isCategoryListOpen]);
+  const startYRef = React.useRef<number>(0);
+  const startIndexRef = React.useRef<number>(0);
+  const isDraggingActiveRef = React.useRef<boolean>(false);
+
+  const ITEM_HEIGHT = 40; // 視認性向上のため1項目40pxに設定
+
+  // 「設定なし」を含めた全選択肢リスト
+  const allCategoryOptions = React.useMemo(() => {
+    return [{ name: "", color: "var(--theme)", label: "設定なし" }, ...categories.map((c: any) => ({ name: c.name, color: c.color, label: c.name }))];
+  }, [categories]);
+
+  const handleCategorySelectByIndex = (index: number) => {
+    const selected = allCategoryOptions[index];
+    if (selected) {
+      setCategoryName(selected.name);
+      if (selected.color && selected.name) setEventColor(selected.color);
+    }
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    startYRef.current = e.clientY;
+    isDraggingActiveRef.current = false;
+    const currentIdx = Math.max(
+      0,
+      allCategoryOptions.findIndex((c) => c.name === (categoryName || "")),
+    );
+    startIndexRef.current = currentIdx;
+    setActiveCategoryIndex(currentIdx);
+    setDragOffsetPx(0);
+
+    // 🌟 修正: 200msの長押しでドラムロール起動
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      isDraggingActiveRef.current = true;
+      setIsLongPressDragging(true);
+      setIsCategoryListOpen(false);
+      try {
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {}
+    }, 200);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingActiveRef.current) {
+      // 長押し判定前に指が大きく動いたらキャンセル（誤爆防止）
+      if (Math.abs(e.clientY - startYRef.current) > 10 && longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      return;
+    }
+    if (allCategoryOptions.length === 0) return;
+
+    const deltaY = e.clientY - startYRef.current;
+    const minDelta = -(allCategoryOptions.length - 1 - startIndexRef.current) * ITEM_HEIGHT;
+    const maxDelta = startIndexRef.current * ITEM_HEIGHT;
+    const clampedDelta = Math.max(minDelta - 20, Math.min(deltaY, maxDelta + 20));
+
+    setDragOffsetPx(clampedDelta);
+
+    const step = Math.round(-clampedDelta / ITEM_HEIGHT);
+    let targetIdx = startIndexRef.current + step;
+    targetIdx = Math.max(0, Math.min(targetIdx, allCategoryOptions.length - 1));
+
+    if (targetIdx !== activeCategoryIndex) {
+      setActiveCategoryIndex(targetIdx);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    // タイマーはタップでも長押しでも必ずクリアする
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    // 🌟 タイマー変数ではなく、実際の「ドラッグ状態フラグ」で条件分岐する
+    if (isDraggingActiveRef.current) {
+      handleCategorySelectByIndex(activeCategoryIndex);
+      setIsLongPressDragging(false);
+      isDraggingActiveRef.current = false;
+      setDragOffsetPx(0);
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+    } else {
+      // ドラッグ状態になっていなければタップと判定
+      setIsCategoryListOpen(!isCategoryListOpen);
+    }
+  };
+
   const FuturisticDateInput = ({ label, value, onChange }: any) => (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
       <span style={{ fontSize: "0.65rem", color: "var(--theme)", fontWeight: "900", letterSpacing: "1px" }}>{label}</span>
@@ -127,25 +242,267 @@ export default function EventModal(props: EventModalProps) {
     </div>
   );
 
+  const DrumPickerSelect = ({ value, options, onChange, unit = "" }: { value: string; options: string[]; onChange: (val: string) => void; unit?: string }) => {
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [isOpen, setIsOpen] = React.useState(false); // 🌟 追加: タップ時リスト展開用
+    const [dragOffset, setDragOffset] = React.useState(0);
+    const [activeIdx, setActiveIdx] = React.useState(0);
+    const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+    const startY = React.useRef(0);
+    const startIdx = React.useRef(0);
+    const isDragActive = React.useRef(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    const ITEM_H = 38;
+
+    React.useEffect(() => {
+      const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+        if (containerRef.current && !containerRef.current.contains(event.target as Node)) setIsOpen(false);
+      };
+      if (isOpen) {
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
+      }
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
+      };
+    }, [isOpen]);
+
+    const onPointerDown = (e: React.PointerEvent) => {
+      startY.current = e.clientY;
+      isDragActive.current = false;
+      const idx = Math.max(0, options.indexOf(value));
+      startIdx.current = idx;
+      setActiveIdx(idx);
+      setDragOffset(0);
+
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {}
+
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        isDragActive.current = true;
+        setIsDragging(true);
+        setIsOpen(false);
+      }, 200);
+    };
+
+    const onPointerMove = (e: React.PointerEvent) => {
+      if (!isDragActive.current) {
+        if (Math.abs(e.clientY - startY.current) > 10 && timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        return;
+      }
+      const deltaY = e.clientY - startY.current;
+
+      const minDelta = -(options.length - 1 - startIdx.current) * ITEM_H;
+      const maxDelta = startIdx.current * ITEM_H;
+      const clampedDelta = Math.max(minDelta - 20, Math.min(deltaY, maxDelta + 20));
+
+      setDragOffset(clampedDelta);
+
+      const step = Math.round(-clampedDelta / ITEM_H);
+      let target = startIdx.current + step;
+      target = Math.max(0, Math.min(target, options.length - 1));
+
+      if (target !== activeIdx) {
+        setActiveIdx(target);
+      }
+    };
+
+    const onPointerUp = (e: React.PointerEvent) => {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+
+      // 🌟 バグ修正：早期リターンを消し、フラグによる分岐に統一
+      if (isDragActive.current) {
+        if (options[activeIdx]) onChange(options[activeIdx]);
+        setIsDragging(false);
+        isDragActive.current = false;
+        setDragOffset(0);
+      } else {
+        setIsOpen(!isOpen);
+      }
+    };
+
+    return (
+      <div ref={containerRef} style={{ position: "relative", flex: 1, minWidth: 0, zIndex: isOpen || isDragging ? 4000 : "auto" }}>
+        <div
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{
+            position: "relative",
+            width: "100%",
+            touchAction: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+            WebkitTouchCallout: "none",
+            cursor: "pointer",
+          }}
+        >
+          <div
+            className="pop-input"
+            style={{
+              width: "100%",
+              background: isDragging ? "rgba(59, 130, 246, 0.12)" : "var(--input-bg)",
+              border: `2px solid ${isDragging || isOpen ? "var(--theme)" : "var(--border-color)"}`,
+              borderRadius: "8px",
+              padding: "8px 4px",
+              fontSize: "0.85rem",
+              fontWeight: "bold",
+              color: isDragging ? "var(--theme)" : "var(--text-main)",
+              textAlign: "center",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "36px",
+              boxSizing: "border-box",
+              opacity: isDragging ? 0 : 1,
+              transition: "all 0.15s ease",
+            }}
+          >
+            {value}
+            {unit}
+          </div>
+        </div>
+
+        {/* 🌟 タップ時に展開するシンプルなリスト */}
+        {isOpen && !isDragging && (
+          <div className="hide-scrollbar" style={{ position: "absolute", top: "100%", left: 0, width: "100%", maxHeight: "200px", overflowY: "auto", background: "var(--card-bg)", border: "1px solid var(--theme)", borderRadius: "12px", zIndex: 3001, boxShadow: "0 4px 15px rgba(0,0,0,0.1)", marginTop: "4px", padding: "4px" }}>
+            {options.map((opt) => (
+              <div
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setIsOpen(false);
+                }}
+                style={{ padding: "8px", textAlign: "center", fontSize: "0.85rem", fontWeight: "bold", cursor: "pointer", borderRadius: "8px", background: value === opt ? "var(--input-bg)" : "transparent", color: value === opt ? "var(--theme)" : "var(--text-main)" }}
+              >
+                {opt}
+                {unit}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ドラムロールピッカー */}
+        {isDragging && (
+          <div
+            onContextMenu={(e) => e.preventDefault()}
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "110px",
+              height: `${ITEM_H * 5}px`,
+              background: "var(--card-bg)",
+              border: "2px solid var(--theme)",
+              borderRadius: "18px",
+              zIndex: 3000,
+              boxShadow: "0 16px 40px rgba(0,0,0,0.35)",
+              overflow: "hidden",
+              pointerEvents: "none",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              WebkitTouchCallout: "none",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: `${ITEM_H * 2}px`,
+                left: "6px",
+                right: "6px",
+                height: `${ITEM_H}px`,
+                background: "rgba(59, 130, 246, 0.18)",
+                border: "1px solid rgba(59, 130, 246, 0.35)",
+                borderRadius: "10px",
+                zIndex: 1,
+              }}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                width: "100%",
+                paddingTop: `${ITEM_H * 2}px`,
+                paddingBottom: `${ITEM_H * 2}px`,
+                transform: `translateY(${-startIdx.current * ITEM_H + dragOffset}px)`,
+                willChange: "transform",
+                zIndex: 2,
+              }}
+            >
+              {options.map((opt, idx) => {
+                const isSelected = idx === activeIdx;
+                const dist = Math.abs(idx - activeIdx);
+                const opacity = dist === 0 ? 1 : dist === 1 ? 0.65 : 0.3;
+                const scale = dist === 0 ? 1.12 : dist === 1 ? 0.92 : 0.8;
+
+                return (
+                  <div
+                    key={opt}
+                    style={{
+                      height: `${ITEM_H}px`,
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity,
+                      transform: `scale(${scale})`,
+                      transition: "opacity 0.08s ease, transform 0.08s ease",
+                      userSelect: "none",
+                      WebkitUserSelect: "none",
+                      WebkitTouchCallout: "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: isSelected ? "1.2rem" : "0.9rem",
+                        fontWeight: isSelected ? "900" : "bold",
+                        color: isSelected ? "var(--text-main)" : "var(--text-sub)",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {opt}
+                      {unit}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const FuturisticTimeInput = ({ label, h, m, setH, setM }: any) => (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
       {label && <span style={{ fontSize: "0.65rem", color: "var(--text-sub)", fontWeight: "bold", letterSpacing: "1px" }}>{label}</span>}
       <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-        <select value={h} onChange={(e) => setH(e.target.value)} style={{ flex: 1, appearance: "none", background: "var(--input-bg)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "8px 4px", fontSize: "0.85rem", fontWeight: "bold", color: "var(--text-main)", textAlign: "center", textAlignLast: "center", outline: "none" }}>
-          {HOURS.map((x: string) => (
-            <option key={x} value={x}>
-              {x}
-            </option>
-          ))}
-        </select>
-        <span style={{ fontWeight: "bold", color: "var(--text-sub)" }}>:</span>
-        <select value={m} onChange={(e) => setM(e.target.value)} style={{ flex: 1, appearance: "none", background: "var(--input-bg)", border: "1px solid var(--border-color)", borderRadius: "8px", padding: "8px 4px", fontSize: "0.85rem", fontWeight: "bold", color: "var(--text-main)", textAlign: "center", textAlignLast: "center", outline: "none" }}>
-          {MINUTES.map((x: string) => (
-            <option key={x} value={x}>
-              {x}
-            </option>
-          ))}
-        </select>
+        <DrumPickerSelect value={h} options={HOURS} onChange={setH} />
+        <span style={{ fontWeight: "bold", color: "var(--text-sub)", padding: "0 2px" }}>:</span>
+        <DrumPickerSelect value={m} options={MINUTES} onChange={setM} />
       </div>
     </div>
   );
@@ -509,7 +866,7 @@ export default function EventModal(props: EventModalProps) {
               );
 
               const BlockTime = (
-                <div key="time" className="card-box" style={{ padding: "16px", marginBottom: "16px" }}>
+                <div key="time" className="card-box" style={{ padding: "16px", marginBottom: "16px", overflow: "visible", position: "relative", zIndex: 30 }}>
                   {isAllDayBackground ? (
                     <div style={{ display: "flex", gap: "12px" }}>
                       <FuturisticDateInput label="開始日" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} />
@@ -850,23 +1207,178 @@ export default function EventModal(props: EventModalProps) {
               const BlockConfig = (
                 <div key="config" className="card-box" style={{ padding: "16px" }}>
                   <label className="form-label">ジャンル・カラー</label>
-                  <select
-                    value={categoryName || ""}
-                    onChange={(e) => {
-                      setCategoryName(e.target.value);
-                      const catObj = categories.find((c: any) => c.name === e.target.value);
-                      if (catObj) setEventColor(catObj.color);
-                    }}
-                    className="pop-input"
-                    style={{ marginBottom: "16px" }}
-                  >
-                    <option value="">設定なし</option>
-                    {categories.map((c: any) => (
-                      <option key={c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div ref={categorySelectorRef} style={{ position: "relative", width: "100%", marginBottom: "16px" }}>
+                    <div
+                      onPointerDown={handlePointerDown}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onPointerCancel={handlePointerUp}
+                      onContextMenu={(e) => e.preventDefault()}
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        touchAction: "none",
+                        userSelect: "none",
+                        WebkitUserSelect: "none",
+                        WebkitTouchCallout: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div
+                        className="pop-input"
+                        style={{
+                          width: "100%",
+                          marginBottom: 0,
+                          background: isLongPressDragging ? "rgba(59, 130, 246, 0.12)" : "var(--input-bg)",
+                          borderColor: isLongPressDragging || isCategoryListOpen ? "var(--theme)" : "var(--border-color)",
+                          color: isLongPressDragging ? "var(--theme)" : "var(--text-main)",
+                          fontWeight: "bold",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          opacity: isLongPressDragging ? 0 : 1,
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <span>{categoryName || "設定なし"}</span>
+                        <ChevronDown size={16} style={{ color: "var(--text-sub)" }} />
+                      </div>
+                    </div>
+
+                    {/* 🌟 タップ時に展開するシンプルなリスト */}
+                    {isCategoryListOpen && !isLongPressDragging && (
+                      <div className="hide-scrollbar" style={{ position: "absolute", top: "100%", left: 0, width: "100%", maxHeight: "250px", overflowY: "auto", background: "var(--card-bg)", border: "1px solid var(--theme)", borderRadius: "12px", zIndex: 3001, boxShadow: "0 4px 15px rgba(0,0,0,0.1)", marginTop: "4px", padding: "4px" }}>
+                        {allCategoryOptions.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              handleCategorySelectByIndex(idx);
+                              setIsCategoryListOpen(false);
+                            }}
+                            style={{ padding: "10px", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", fontWeight: "bold", cursor: "pointer", borderRadius: "8px", background: categoryName === item.name ? "var(--input-bg)" : "transparent", color: categoryName === item.name ? "var(--theme)" : "var(--text-main)" }}
+                          >
+                            <div style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: item.color }} />
+                            {item.label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 長押し時に指の動きと完全一致するドラムロールピッカー */}
+                    {isLongPressDragging && (
+                      <div
+                        onContextMenu={(e) => e.preventDefault()}
+                        style={{
+                          position: "absolute",
+                          top: "50%",
+                          left: "50%",
+                          transform: "translate(-50%, -50%)",
+                          width: "92%",
+                          height: `${ITEM_HEIGHT * 5}px`, // 5件分の高さ（200px）
+                          background: "var(--card-bg)",
+                          border: "2px solid var(--theme)",
+                          borderRadius: "20px",
+                          zIndex: 2000,
+                          boxShadow: "0 16px 40px rgba(0,0,0,0.35)",
+                          overflow: "hidden",
+                          pointerEvents: "none",
+                          backdropFilter: "blur(16px)",
+                          WebkitBackdropFilter: "blur(16px)",
+                          userSelect: "none",
+                          WebkitUserSelect: "none",
+                          WebkitTouchCallout: "none",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "flex-start",
+                          alignItems: "center",
+                        }}
+                      >
+                        {/* 中央の確定インジケーター（枠） */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: `${ITEM_HEIGHT * 2}px`, // ちょうど中央の3番目位置
+                            left: "8px",
+                            right: "8px",
+                            height: `${ITEM_HEIGHT}px`,
+                            background: "rgba(59, 130, 246, 0.18)",
+                            border: "1px solid rgba(59, 130, 246, 0.35)",
+                            borderRadius: "12px",
+                            zIndex: 1,
+                          }}
+                        />
+
+                        {/* スクロール本体（上下に2件分の余白を持って常に中心と同期） */}
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            width: "100%",
+                            paddingTop: `${ITEM_HEIGHT * 2}px`,
+                            paddingBottom: `${ITEM_HEIGHT * 2}px`,
+                            transform: `translateY(${-startIndexRef.current * ITEM_HEIGHT + dragOffsetPx}px)`,
+                            willChange: "transform",
+                            zIndex: 2,
+                          }}
+                        >
+                          {allCategoryOptions.map((item, idx) => {
+                            const isSelected = idx === activeCategoryIndex;
+                            const distance = Math.abs(idx - activeCategoryIndex);
+                            const opacity = distance === 0 ? 1 : distance === 1 ? 0.65 : 0.35;
+                            const scale = distance === 0 ? 1.06 : distance === 1 ? 0.94 : 0.85;
+
+                            return (
+                              <div
+                                key={item.name || "none"}
+                                style={{
+                                  height: `${ITEM_HEIGHT}px`,
+                                  width: "100%",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "10px",
+                                  opacity,
+                                  transform: `scale(${scale})`,
+                                  transition: "opacity 0.08s ease, transform 0.08s ease",
+                                  userSelect: "none",
+                                  WebkitUserSelect: "none",
+                                  WebkitTouchCallout: "none",
+                                  padding: "0 16px",
+                                  boxSizing: "border-box",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: isSelected ? "12px" : "8px",
+                                    height: isSelected ? "12px" : "8px",
+                                    borderRadius: "50%",
+                                    backgroundColor: item.color,
+                                    flexShrink: 0,
+                                    boxShadow: isSelected ? `0 0 8px ${item.color}` : "none",
+                                  }}
+                                />
+                                <span
+                                  style={{
+                                    fontSize: isSelected ? "1.05rem" : "0.85rem",
+                                    fontWeight: isSelected ? "900" : "bold",
+                                    color: isSelected ? "var(--text-main)" : "var(--text-sub)",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    userSelect: "none",
+                                    WebkitUserSelect: "none",
+                                    WebkitTouchCallout: "none",
+                                  }}
+                                >
+                                  {item.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <ColorSelector value={eventColor || themeColor} onChange={setEventColor} />
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "16px", paddingTop: "12px", borderTop: "1px dashed var(--border-color)" }}>

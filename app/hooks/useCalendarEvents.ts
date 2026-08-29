@@ -36,12 +36,13 @@ export function useCalendarEvents({
   walkTime,
   calendarCategoryFilter,
 }: UseCalendarEventsParams) {
-  const currentY = new Date().getFullYear();
+  const baseYear = useMemo(() => Number(currentYear) || new Date().getFullYear(), [currentYear]);
 
   // 1. 記念日イベント
   const anniversaryEvents = useMemo(() => {
+    if (!anniversaries || anniversaries.length === 0) return [];
     return anniversaries.flatMap((a: any) =>
-      [currentY - 1, currentY, currentY + 1].map((y: number) => ({
+      [baseYear - 1, baseYear, baseYear + 1].map((y: number) => ({
         id: `anniv-${a.title}-${y}`,
         title: `${a.title}`,
         start: `${y}-${a.date}`,
@@ -52,14 +53,15 @@ export function useCalendarEvents({
         extendedProps: { isAnniversary: true, category: "記念日" },
       })),
     );
-  }, [anniversaries, currentY]);
+  }, [anniversaries, baseYear]);
 
   // 2. ルーティンイベント
   const routineEvents = useMemo(() => {
+    if (!monthlyRoutines || monthlyRoutines.length === 0) return [];
     return monthlyRoutines.flatMap((r: any) => {
       const evts: any[] = [];
-      const baseDate = new Date(`${currentY - 1}-01-01`);
-      const endDate = new Date(`${currentY + 1}-12-31`);
+      const baseDate = new Date(`${baseYear - 1}-01-01`);
+      const endDate = new Date(`${baseYear + 1}-12-31`);
 
       if (r.cycle === "daily") {
         for (let d = new Date(baseDate); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -92,9 +94,9 @@ export function useCalendarEvents({
       } else {
         for (let i = 0; i < 12; i++) {
           const m = i + 1;
-          const lastDayOfMonth = new Date(currentY, m, 0).getDate();
+          const lastDayOfMonth = new Date(baseYear, m, 0).getDate();
           const targetDay = r.day > lastDayOfMonth ? lastDayOfMonth : r.day;
-          let dateObj = new Date(currentY, m - 1, targetDay);
+          let dateObj = new Date(baseYear, m - 1, targetDay);
           if (r.adjust === "prev") {
             let count = 0;
             while ((dateObj.getDay() === 0 || dateObj.getDay() === 6 || holidays[toLocalYYYYMMDD(dateObj)]) && count < 10) {
@@ -109,7 +111,7 @@ export function useCalendarEvents({
             }
           }
           evts.push({
-            id: `routine-${r.title}-${currentY}-${m}`,
+            id: `routine-${r.title}-${baseYear}-${m}`,
             title: `${r.title}`,
             start: toLocalYYYYMMDD(dateObj),
             allDay: true,
@@ -122,13 +124,14 @@ export function useCalendarEvents({
       }
       return evts;
     });
-  }, [monthlyRoutines, currentY, holidays]);
+  }, [monthlyRoutines, baseYear, holidays]);
 
   // 3. サブスクイベント
   const subEvents = useMemo(() => {
+    if (!subs || subs.length === 0) return [];
     return subs.flatMap((sub: any) => {
       const evts: any[] = [];
-      const years = [currentY - 1, currentY, currentY + 1];
+      const years = [baseYear - 1, baseYear, baseYear + 1];
       const catColor = "#8b5cf6";
 
       years.forEach((y) => {
@@ -168,14 +171,14 @@ export function useCalendarEvents({
       });
       return evts;
     });
-  }, [subs, currentY]);
+  }, [subs, baseYear]);
 
   // 4. 時間割・コマイベント
   const timetableEvents = useMemo(() => {
     const evts: any[] = [];
     if (weeklyTimetables.length === 0) return evts;
 
-    const baseDate = new Date(`${currentYear || currentY}-${String(currentMonthNum || 1).padStart(2, "0")}-01`);
+    const baseDate = new Date(`${baseYear}-${String(currentMonthNum || 1).padStart(2, "0")}-01`);
     baseDate.setDate(baseDate.getDate() - 15);
     const endLimit = new Date(baseDate);
     endLimit.setDate(endLimit.getDate() + 60);
@@ -267,117 +270,34 @@ export function useCalendarEvents({
       });
     }
     return evts;
-  }, [weeklyTimetables, currentYear, currentMonthNum, currentY, timetableTerms, exceptionDays, holidays, canceledClasses, viewType]);
+  }, [weeklyTimetables, baseYear, currentMonthNum, timetableTerms, exceptionDays, holidays, canceledClasses, viewType]);
 
-  // 5. 最終表示用イベントの統合・移動ブロック生成・フィルタリング
+  // 5. 最終表示用イベントの統合・フィルタリング（1回のループで高速処理）
   const displayEvents = useMemo(() => {
-    return [...events, ...anniversaryEvents, ...routineEvents, ...subEvents, ...timetableEvents]
-      .flatMap((e: any) => {
-        const metadata = e.extendedProps?.metadata || e.metadata || {};
-        const cColor = e.extendedProps?.cColor || e.backgroundColor || metadata.customColor || "var(--theme)";
-        const results: any[] = [];
+    const rawAll = [...events, ...anniversaryEvents, ...routineEvents, ...subEvents, ...timetableEvents];
+    const isMonthView = viewType === "dayGridMonth";
+    const hasCatFilter = calendarCategoryFilter !== "すべて";
+    const result: any[] = [];
 
-        if (metadata.isGathering && metadata.departureTime) {
-          const [dh, dm] = metadata.departureTime.split(":").map(Number);
-          const [gh, gm] = (metadata.gatheringTime || "12:00").split(":").map(Number);
-          const wTime = parseInt(metadata.walkTime || walkTime || "0", 10);
+    for (let i = 0; i < rawAll.length; i++) {
+      const e = rawAll[i];
+      if (String(e.id).startsWith("sub-")) continue;
 
-          const moveStart = new Date(e.start);
-          moveStart.setHours(dh, dm, 0);
-          if (metadata.departureType !== "home") moveStart.setMinutes(moveStart.getMinutes() - wTime);
+      if (isMonthView) {
+        if (e.extendedProps?.metadata?.isPureFinance) continue;
+        if (e.extendedProps?.isRoutine && e.extendedProps?.cycle !== "monthly") continue;
+        if (hasCatFilter && e.extendedProps?.category !== calendarCategoryFilter) continue;
+      }
 
-          const moveEnd = new Date(e.start);
-          moveEnd.setHours(gh, gm, 0);
-
-          results.push({
-            id: `${e.id}-travel`,
-            groupId: e.id,
-            title: `${moveStart.getHours()}:${String(moveStart.getMinutes()).padStart(2, "0")} → ${metadata.gatheringTime}`,
-            start: moveStart.toISOString(),
-            end: moveEnd.toISOString(),
-            allDay: false,
-            backgroundColor: "transparent",
-            borderColor: cColor,
-            extendedProps: { isTransitEvent: true, cColor, transitType: metadata.departureType },
-          });
-        }
-
-        if (metadata.customFields?.isTransit) {
-          if (metadata.customFields.transitDepTime && metadata.customFields.transitArrTime) {
-            const [dh, dm] = metadata.customFields.transitDepTime.split(":").map(Number);
-            const [ah, am] = metadata.customFields.transitArrTime.split(":").map(Number);
-
-            const tStart = new Date(e.start);
-            tStart.setHours(dh, dm, 0);
-
-            const tEnd = new Date(e.start);
-            tEnd.setHours(ah, am, 0);
-            if (tEnd < tStart) tEnd.setDate(tEnd.getDate() + 1);
-
-            results.push({
-              id: `${e.id}-transit-out`,
-              groupId: e.id,
-              title: `行き`,
-              start: tStart.toISOString(),
-              end: tEnd.toISOString(),
-              allDay: false,
-              backgroundColor: "transparent",
-              borderColor: cColor,
-              extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.transitType },
-            });
-          }
-
-          if (metadata.customFields.hasReturnTransit && metadata.customFields.returnTransitDepTime && metadata.customFields.returnTransitArrTime) {
-            const [dh, dm] = metadata.customFields.returnTransitDepTime.split(":").map(Number);
-            const [ah, am] = metadata.customFields.returnTransitArrTime.split(":").map(Number);
-
-            const retBase = e.end ? new Date(e.end) : new Date(e.start);
-            if (e.allDay && e.end) retBase.setDate(retBase.getDate() - 1);
-
-            const retStart = new Date(retBase);
-            retStart.setHours(dh, dm, 0);
-
-            const retEnd = new Date(retBase);
-            retEnd.setHours(ah, am, 0);
-            if (retEnd < retStart) retEnd.setDate(retEnd.getDate() + 1);
-
-            results.push({
-              id: `${e.id}-transit-ret`,
-              groupId: e.id,
-              title: `帰り`,
-              start: retStart.toISOString(),
-              end: retEnd.toISOString(),
-              allDay: false,
-              backgroundColor: "transparent",
-              borderColor: cColor,
-              extendedProps: { isTransitEvent: true, cColor, transitType: metadata.customFields.returnTransitType },
-            });
-          }
-        }
-
-        results.push({
-          ...e,
-          groupId: e.id,
-          extendedProps: { ...e.extendedProps, originalStart: e.start },
-        });
-        return results;
-      })
-      .filter((e: any) => {
-        if (viewType === "dayGridMonth" && e.extendedProps?.isTransitEvent) return false;
-        if (viewType === "dayGridMonth" && e.extendedProps?.metadata?.isPureFinance) return false;
-
-        const isSub = String(e.id).startsWith("sub-");
-        if (isSub) return false;
-
-        if (viewType === "dayGridMonth") {
-          if (e.extendedProps?.isRoutine && e.extendedProps?.cycle !== "monthly") return false;
-          if (calendarCategoryFilter !== "すべて" && e.extendedProps?.category !== calendarCategoryFilter) {
-            return false;
-          }
-        }
-        return true;
+      result.push({
+        ...e,
+        groupId: e.id,
+        extendedProps: { ...e.extendedProps, originalStart: e.start },
       });
-  }, [events, anniversaryEvents, routineEvents, subEvents, timetableEvents, walkTime, viewType, calendarCategoryFilter]);
+    }
+
+    return result;
+  }, [events, anniversaryEvents, routineEvents, subEvents, timetableEvents, viewType, calendarCategoryFilter]);
 
   return {
     anniversaryEvents,

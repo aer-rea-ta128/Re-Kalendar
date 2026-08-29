@@ -46,6 +46,16 @@ struct SharedMetadata: Codable {
     let customColor: String?
     let isAllDayBackground: Bool?
     let location: String?
+    
+    // 🌟 追加：交通機関のデータ
+    let isTransit: Bool?
+    let transitType: String?
+    let transitDepTime: String?
+    let transitArrTime: String?
+    let hasReturnTransit: Bool?
+    let returnTransitType: String?
+    let returnTransitDepTime: String?
+    let returnTransitArrTime: String?
 }
 
 // 🌟 日付計算。深夜0時またぎや終日予定の「+1日ズレ」を防ぐ
@@ -97,14 +107,23 @@ struct Provider: TimelineProvider {
         completion(entry)
     }
     
+    // 🌟 最適化: 15分刻みで未来のタイムラインエントリを複数生成し、アプリ未起動でも自動更新
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         let fetchResult = fetchEventsFromAppGroup()
-        let entry = SimpleEntry(date: Date(), events: fetchResult.events, debugMessage: fetchResult.message)
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
-        let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
+        let currentDate = Date()
+        var entries: [SimpleEntry] = []
+        
+        // 15分間隔で4時間先（計16エントリ）まで事前に生成してOSへ渡す
+        for minuteOffset in stride(from: 0, to: 240, by: 15) {
+            if let entryDate = Calendar.current.date(byAdding: .minute, value: minuteOffset, to: currentDate) {
+                entries.append(SimpleEntry(date: entryDate, events: fetchResult.events, debugMessage: fetchResult.message))
+            }
+        }
+        
+        // タイムライン終了時（4時間後）に次のタイムラインを再要求
+        let timeline = Timeline(entries: entries, policy: .atEnd)
         completion(timeline)
     }
-    
     private func fetchEventsFromAppGroup() -> (events: [SharedEvent], message: String) {
         guard let sharedDefaults = UserDefaults(suiteName: appGroupId) else {
             return ([], "❌ AppGroupが見つかりません。")
@@ -127,7 +146,7 @@ struct Provider: TimelineProvider {
     
     private func getMockEvents() -> [SharedEvent] {
         return [
-            SharedEvent(id: "1", title: "プレビュー", start: "2026-05-24T10:00:00Z", end: "2026-05-24T11:00:00Z", extendedProps: ExtendedProps(category: "仕事", metadata: SharedMetadata(customColor: "#4D96FF", isAllDayBackground: false, location: ""), customColor: nil, cColor: nil))
+            SharedEvent(id: "1", title: "プレビュー", start: "2026-05-24T10:00:00Z", end: "2026-05-24T11:00:00Z", extendedProps: ExtendedProps(category: "仕事", metadata: SharedMetadata(customColor: "#4D96FF", isAllDayBackground: false, location: "", isTransit: false, transitType: nil, transitDepTime: nil, transitArrTime: nil, hasReturnTransit: false, returnTransitType: nil, returnTransitDepTime: nil, returnTransitArrTime: nil), customColor: nil, cColor: nil))
         ]
     }
 }
@@ -138,8 +157,73 @@ struct SimpleEntry: TimelineEntry {
     let debugMessage: String
 }
 
-// MARK: - 🎨 柔軟な背景帯を描画する専用ビュー (NEW)
-// 1日のみ＝円形、複数日＝カプセル状に連結するスマートなUI
+// MARK: - 🎨 交通機関の移動帯とアイコンを描画する専用ビュー (NEW)
+struct TransitIndicatorView: View {
+    var depTimeStr: String
+    var arrTimeStr: String
+    var type: String?
+    var color: Color
+    var radius: CGFloat
+    var strokeWidth: CGFloat
+    var center: CGPoint
+    var now: Date
+    var calendar: Calendar
+    
+    private func parseTime(_ timeStr: String) -> Int? {
+        let comps = timeStr.split(separator: ":")
+        guard comps.count == 2, let h = Int(comps[0]), let m = Int(comps[1]) else { return nil }
+        return h * 60 + m
+    }
+    
+    var body: some View {
+        Group {
+            if let depMin = parseTime(depTimeStr), let arrMin = parseTime(arrTimeStr) {
+                let actualArrMin = (arrMin <= depMin) ? arrMin + 1440 : arrMin
+                let sAngle = CGFloat(depMin) / 1440.0
+                let eAngle = CGFloat(actualArrMin) / 1440.0
+                
+                let currentMinRaw = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+                let currentMin = (actualArrMin > 1440 && currentMinRaw < depMin) ? currentMinRaw + 1440 : currentMinRaw
+                
+                ZStack {
+                    // ① 交通機関の移動時間を示す点線の帯
+                    Circle()
+                        .trim(from: sAngle, to: eAngle)
+                        .stroke(color, style: StrokeStyle(lineWidth: strokeWidth * 0.35, lineCap: .round, dash: [4, 5]))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: radius * 2, height: radius * 2)
+                        .opacity(0.8)
+                    
+                    // ② 現在時刻が移動時間内なら、アイコンをその位置に表示する
+                    if currentMin >= depMin && currentMin <= actualArrMin {
+                        let currentAngle = Angle(degrees: (Double(currentMin) / 1440.0) * 360 - 90)
+                        let iconName: String = {
+                            switch type {
+                            case "plane": return "airplane"
+                            case "bus": return "bus.fill"
+                            default: return "train.side.front.car"
+                            }
+                        }()
+                        
+                        ZStack {
+                            Circle().fill(Color.white).frame(width: 18, height: 18)
+                                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                            Image(systemName: iconName)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(color)
+                        }
+                        .position(
+                            x: center.x + radius * CGFloat(cos(currentAngle.radians)),
+                            y: center.y + radius * CGFloat(sin(currentAngle.radians))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 🎨 柔軟な背景帯を描画する専用ビュー
 struct EventBandView: View {
     var isStart: Bool
     var isEnd: Bool
@@ -148,12 +232,10 @@ struct EventBandView: View {
     var body: some View {
         Group {
             if isStart && isEnd {
-                // 1日のみの場合はかわいい正円
                 Circle()
                     .fill(color)
                     .frame(width: 26, height: 26)
             } else if isStart {
-                // 開始日: 左だけ丸く、右は直角で隣と合体
                 ZStack {
                     RoundedRectangle(cornerRadius: 13).fill(color)
                     HStack(spacing: 0) {
@@ -161,9 +243,8 @@ struct EventBandView: View {
                         Rectangle().fill(color)
                     }
                 }
-                .compositingGroup() // 🌟 図形を「1枚の絵」に結合し、透過時の色の濁りを完全に防ぐ
+                .compositingGroup()
             } else if isEnd {
-                // 終了日: 右だけ丸く、左は直角で隣と合体
                 ZStack {
                     RoundedRectangle(cornerRadius: 13).fill(color)
                     HStack(spacing: 0) {
@@ -171,9 +252,8 @@ struct EventBandView: View {
                         Color.clear.frame(width: 13)
                     }
                 }
-                .compositingGroup() // 🌟 図形を「1枚の絵」に結合し、透過時の色の濁りを完全に防ぐ
+                .compositingGroup()
             } else {
-                // 中間日: ただの長方形として前後の日を連結
                 Rectangle().fill(color)
             }
         }
@@ -238,10 +318,9 @@ struct FuturisticDailyView: View {
         
         let centerEventColor = allDayEvents.first?.extendedProps?.cColor ?? allDayEvents.first?.extendedProps?.metadata?.customColor
         
-        let now = Date()
-        // 🌟 修正: 過去の予定にフォールバックさせない。確実に「現在より後の終了時間」を持つ予定だけを抽出する
+        let now = entry.date
         let nextEvent = timeEvents.first { event in
-            let end = event.endDate ?? event.startDate ?? Date()
+            let end = event.endDate ?? event.startDate ?? entry.date
             return end > now
         } ?? allDayEvents.first { event in
             let end = event.inclusiveEndDate
@@ -264,9 +343,7 @@ struct FuturisticDailyView: View {
                 
                 GeometryReader { geometry in
                     let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                    // 🌟 修正: 円の半径を少し小さくして、外側に余白を持たせる
                     let radius = min(geometry.size.width, geometry.size.height) / 2 * 0.78
-                    // 🌟 修正: 線の太さを細くしてスタイリッシュにし、文字との被りを防ぐ
                     let strokeWidth: CGFloat = 16
                     
                     ZStack {
@@ -284,39 +361,73 @@ struct FuturisticDailyView: View {
                             let angle = Angle(degrees: Double(hour) * 15 - 90)
                             if hour % 3 == 0 {
                                 Text("\(hour)")
-                                    .font(.system(size: 11, weight: .bold)) // 🌟 文字も少しスッキリさせる
+                                    .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(subTextColor.opacity(0.7))
-                                // 🌟 修正: 文字を線からしっかりと離して配置する
                                     .position(x: center.x + (radius + strokeWidth/2 + 14) * CGFloat(cos(angle.radians)),
                                               y: center.y + (radius + strokeWidth/2 + 14) * CGFloat(sin(angle.radians)))
                             } else {
                                 Circle().fill(Color.gray.opacity(0.4)).frame(width: 2, height: 2)
-                                // 🌟 修正: ドットも線から離して配置する
                                     .position(x: center.x + (radius + strokeWidth/2 + 10) * CGFloat(cos(angle.radians)),
                                               y: center.y + (radius + strokeWidth/2 + 10) * CGFloat(sin(angle.radians)))
                             }
                         }
+                        
                         ForEach(timeEvents) { event in
                             let start = event.startDate!
                             let end = event.endDate ?? start
                             let startMin = calendar.component(.hour, from: start) * 60 + calendar.component(.minute, from: start)
                             let endRaw = calendar.component(.hour, from: end) * 60 + calendar.component(.minute, from: end)
-                            let endMin = (endRaw <= startMin) ? endRaw + 60 : endRaw
+                            // 日またぎの予定は24時間(1440分)を加算
+                            let endMin = (endRaw <= startMin) ? endRaw + 1440 : endRaw
                             
                             let sAngle = CGFloat(startMin) / 1440.0
                             let eAngle = CGFloat(endMin) / 1440.0
                             let color = Color(hex: event.extendedProps?.cColor ?? event.extendedProps?.metadata?.customColor ?? "#3b82f6")
                             
+                            // 現在時刻の分数を計算
+                            let currentMinRaw = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+                            let currentMin = (endMin > 1440 && currentMinRaw < startMin) ? currentMinRaw + 1440 : currentMinRaw
+                            
+                            // ① まず全体を薄く描画（過去の部分のベースになる）
                             Circle()
                                 .trim(from: sAngle, to: eAngle)
                                 .stroke(color, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
                                 .rotationEffect(.degrees(-90))
                                 .frame(width: radius * 2, height: radius * 2)
-                                .opacity(0.85)
+                                .opacity(0.3)
+                            
+                            // ② 現在時刻から終了時刻までの未来部分があれば、濃く重ねて描画する
+                            if currentMin < endMin {
+                                let futureStartMin = max(startMin, currentMin)
+                                let fsAngle = CGFloat(futureStartMin) / 1440.0
+                                
+                                Circle()
+                                    .trim(from: fsAngle, to: eAngle)
+                                    .stroke(color, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
+                                    .rotationEffect(.degrees(-90))
+                                    .frame(width: radius * 2, height: radius * 2)
+                                    .opacity(0.85)
+                            }
+                            
+                            // 🌟 交通機関の帯が予定に被らないよう、半径を内側にずらす
+                            let innerRadius = radius - strokeWidth + 2
+                            
+                            // 🌟 交通機関（往路）の点線帯とアイコン描画
+                            if event.extendedProps?.metadata?.isTransit == true,
+                               let depStr = event.extendedProps?.metadata?.transitDepTime,
+                               let arrStr = event.extendedProps?.metadata?.transitArrTime {
+                                TransitIndicatorView(depTimeStr: depStr, arrTimeStr: arrStr, type: event.extendedProps?.metadata?.transitType, color: color, radius: innerRadius, strokeWidth: strokeWidth, center: center, now: now, calendar: calendar)
+                            }
+                            
+                            // 🌟 交通機関（復路）の点線帯とアイコン描画
+                            if event.extendedProps?.metadata?.hasReturnTransit == true,
+                               let depStr = event.extendedProps?.metadata?.returnTransitDepTime,
+                               let arrStr = event.extendedProps?.metadata?.returnTransitArrTime {
+                                TransitIndicatorView(depTimeStr: depStr, arrTimeStr: arrStr, type: event.extendedProps?.metadata?.returnTransitType, color: color, radius: innerRadius, strokeWidth: strokeWidth, center: center, now: now, calendar: calendar)
+                            }
                         }
                         
-                        // 🌟 ギミック1: 円周上に「現在時刻」を示す光るインジケーターを配置
-                        let currentAngle = Angle(degrees: (Double(calendar.component(.hour, from: Date()) * 60 + calendar.component(.minute, from: Date())) / 1440.0) * 360 - 90)
+                        let currentAngle = Angle(degrees: (Double(calendar.component(.hour, from: entry.date) * 60 + calendar.component(.minute, from: entry.date)) / 1440.0) * 360 - 90)
                         
                         Circle()
                             .fill(Color.red)
@@ -325,9 +436,7 @@ struct FuturisticDailyView: View {
                                       y: center.y + radius * CGFloat(sin(currentAngle.radians)))
                             .shadow(color: Color.red.opacity(0.8), radius: 5, x: 0, y: 0)
                         
-                        // 🌟 修正: 中央のテキストを階層化し、時計と次の予定をスタイリッシュに表示
                         VStack(spacing: -2) {
-                            // 🌟 ギミック2: iOSウィジェットの機能で、アプリを開かなくても動き続けるデジタル時計
                             Text(Date(), style: .time)
                                 .font(.system(size: 13, weight: .bold, design: .monospaced))
                                 .foregroundColor(subTextColor)
@@ -336,7 +445,6 @@ struct FuturisticDailyView: View {
                                 .font(.system(size: 52, weight: .black, design: .rounded))
                                 .foregroundColor(centerEventColor != nil ? Color(hex: centerEventColor!) : textColor)
                             
-                            // 🌟 ギミック3: NEXT予定の時刻表示
                             if let next = nextEvent, let start = next.startDate {
                                 let isAllDay = (next.extendedProps?.metadata?.isAllDayBackground == true) || (next.start.count <= 10)
                                 let c = Color(hex: next.extendedProps?.cColor ?? next.extendedProps?.metadata?.customColor ?? "#3b82f6")
@@ -394,10 +502,46 @@ struct FuturisticDailyView: View {
                                         .foregroundColor(subTextColor)
                                     }
                                 }
-                                Text(event.title)
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(subTextColor)
-                                    .lineLimit(1)
+                                // 🌟 修正: 幅を固定(frame width: 82)して行き・帰りの幅を完全一致に統一
+                                HStack(alignment: .center, spacing: 4) {
+                                    Text(event.title)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(subTextColor)
+                                        .lineLimit(1)
+                                    Spacer(minLength: 0)
+                                    
+                                    if event.extendedProps?.metadata?.isTransit == true {
+                                        let meta = event.extendedProps?.metadata
+                                        VStack(alignment: .trailing, spacing: 1.5) {
+                                            if let dTime = meta?.transitDepTime, let aTime = meta?.transitArrTime {
+                                                let tIcon = meta?.transitType == "plane" ? "airplane" : (meta?.transitType == "bus" ? "bus.fill" : "train.side.front.car")
+                                                HStack(spacing: 2) {
+                                                    Image(systemName: tIcon)
+                                                    Text("\(dTime)-\(aTime)")
+                                                        .monospacedDigit()
+                                                }
+                                                .font(.system(size: 8, weight: .bold))
+                                                .foregroundColor(subTextColor.opacity(0.85))
+                                                .frame(width: 82)
+                                                .padding(.vertical, 1)
+                                                .background(Color.gray.opacity(0.15)).cornerRadius(3)
+                                            }
+                                            if meta?.hasReturnTransit == true, let rdTime = meta?.returnTransitDepTime, let raTime = meta?.returnTransitArrTime {
+                                                let rIcon = meta?.returnTransitType == "plane" ? "airplane" : (meta?.returnTransitType == "bus" ? "bus.fill" : "train.side.front.car")
+                                                HStack(spacing: 2) {
+                                                    Image(systemName: rIcon)
+                                                    Text("\(rdTime)-\(raTime)")
+                                                        .monospacedDigit()
+                                                }
+                                                .font(.system(size: 8, weight: .bold))
+                                                .foregroundColor(subTextColor.opacity(0.85))
+                                                .frame(width: 82)
+                                                .padding(.vertical, 1)
+                                                .background(Color.gray.opacity(0.15)).cornerRadius(3)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             Spacer(minLength: 0)
                         }
@@ -406,7 +550,6 @@ struct FuturisticDailyView: View {
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
                     } else {
-                        // 🌟 ご要望のテキストに変更
                         Text("今日これ以降予定はありません")
                             .font(.system(size: 12, weight: .bold))
                             .foregroundColor(subTextColor.opacity(0.6))
@@ -491,6 +634,22 @@ extension Date {
     }
 }
 
+// MARK: - 🎨 ユーティリティ拡張 (Color)
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        default: (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue:  Double(b) / 255, opacity: Double(a) / 255)
+    }
+}
+
 // MARK: - 🎨 週間カレンダー (Medium用)
 struct WeeklyCalendarView: View {
     var entry: Provider.Entry
@@ -509,10 +668,8 @@ struct WeeklyCalendarView: View {
         }.sorted { ($0.startDate ?? Date()) < ($1.startDate ?? Date()) }
         
         let displayEvents = Array(allFutureEvents.prefix(2))
-        let remainingCount = allFutureEvents.count > 2 ? allFutureEvents.count - 2 : 0
         
         VStack(spacing: 12) {
-            // 🌟 修正: HStackのspacingを完全に0にし、背景の帯が一切の隙間なく連結されるようにする
             HStack(alignment: .top, spacing: 0) {
                 ForEach(days, id: \.self) { day in
                     let isToday = calendar.isDateInToday(day)
@@ -535,16 +692,13 @@ struct WeeklyCalendarView: View {
                         
                         VStack(spacing: 4) {
                             ZStack {
-                                // 🌟 修正: 日付テキストの「直下」のレイヤーに EventBandView を敷き、美しい帯を描画
                                 if let event = allDayEvent {
-                                    // 🌟 色自体は不透明のままにする（opacity(0.3)を削除）
                                     let cColor = Color(hex: event.extendedProps?.cColor ?? event.extendedProps?.metadata?.customColor ?? "#3b82f6")
                                     let eStart = calendar.startOfDay(for: event.startDate ?? Date())
                                     let eEnd = calendar.startOfDay(for: event.inclusiveEndDate)
                                     let isStart = calendar.isDate(day, inSameDayAs: eStart)
                                     let isEnd = calendar.isDate(day, inSameDayAs: eEnd)
                                     
-                                    // 🌟 図形を描画した後に、全体をまとめて透けさせる
                                     EventBandView(isStart: isStart, isEnd: isEnd, color: cColor)
                                         .opacity(0.3)
                                 }
@@ -556,9 +710,8 @@ struct WeeklyCalendarView: View {
                                     .font(.system(size: 15, weight: isToday ? .black : .medium))
                                     .foregroundColor(dateColor)
                             }
-                            .frame(height: 26) // 帯の太さを固定
+                            .frame(height: 26)
                             
-                            // 🌟 修正: ドットは帯の下に独立して配置し、高さ崩れを防ぐ
                             HStack(spacing: 2) {
                                 let timeEvents = dayEvents.filter { !($0.extendedProps?.metadata?.isAllDayBackground == true || $0.start.count <= 10) }
                                 let topEvents = Array(timeEvents.prefix(3))
@@ -614,7 +767,43 @@ struct WeeklyCalendarView: View {
                                     }
                                 }
                             }
-                            Text(event.title).font(.system(size: 13, weight: .heavy)).foregroundColor(textColor).lineLimit(1).padding(.leading, 7)
+                            // 🌟 修正: 予定が2件ある時はタイトルを優先し、1件のみの時だけ交通機関を表示
+                            HStack(alignment: .center, spacing: 4) {
+                                Text(event.title).font(.system(size: 13, weight: .heavy)).foregroundColor(textColor).lineLimit(1).padding(.leading, 7)
+                                Spacer(minLength: 0)
+                                
+                                if displayEvents.count == 1 && event.extendedProps?.metadata?.isTransit == true {
+                                    let meta = event.extendedProps?.metadata
+                                    VStack(alignment: .trailing, spacing: 1.5) {
+                                        if let dTime = meta?.transitDepTime, let aTime = meta?.transitArrTime {
+                                            let tIcon = meta?.transitType == "plane" ? "airplane" : (meta?.transitType == "bus" ? "bus.fill" : "train.side.front.car")
+                                            HStack(spacing: 2) {
+                                                Image(systemName: tIcon)
+                                                Text("\(dTime)-\(aTime)")
+                                                    .monospacedDigit()
+                                            }
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundColor(subTextColor.opacity(0.85))
+                                            .frame(width: 82)
+                                            .padding(.vertical, 1)
+                                            .background(Color.gray.opacity(0.15)).cornerRadius(3)
+                                        }
+                                        if meta?.hasReturnTransit == true, let rdTime = meta?.returnTransitDepTime, let raTime = meta?.returnTransitArrTime {
+                                            let rIcon = meta?.returnTransitType == "plane" ? "airplane" : (meta?.returnTransitType == "bus" ? "bus.fill" : "train.side.front.car")
+                                            HStack(spacing: 2) {
+                                                Image(systemName: rIcon)
+                                                Text("\(rdTime)-\(raTime)")
+                                                    .monospacedDigit()
+                                            }
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundColor(subTextColor.opacity(0.85))
+                                            .frame(width: 82)
+                                            .padding(.vertical, 1)
+                                            .background(Color.gray.opacity(0.15)).cornerRadius(3)
+                                        }
+                                    }
+                                }
+                            }
                         }
                         .padding(.vertical, 8)
                         .padding(.horizontal, 10)
@@ -622,18 +811,13 @@ struct WeeklyCalendarView: View {
                         .background(Color.gray.opacity(0.08))
                         .cornerRadius(12)
                     }
-                    if remainingCount > 0 {
-                        VStack { Text("+\(remainingCount)").font(.system(size: 11, weight: .bold)).foregroundColor(subTextColor) }
-                            .frame(width: 26, height: 26).background(Color.gray.opacity(0.15)).clipShape(Circle())
-                    }
                 }
             }
             .padding(.horizontal, 2)
             Spacer(minLength: 0)
         }
         .padding(12)
-    }
-}
+    }}
 
 // MARK: - 🔒 ロック画面用
 struct LockScreenAddShortcutView: View {
@@ -648,7 +832,6 @@ struct LockScreenRectangularView: View {
     var entry: Provider.Entry
     var body: some View {
         let now = Date()
-        // 🌟 修正: 開始時刻ではなく「終了時刻」で過ぎたかどうかを正確に判定する
         let nextEvent = entry.events.filter { event in
             let end = event.inclusiveEndDate
             return end > now
@@ -662,23 +845,7 @@ struct LockScreenRectangularView: View {
     }
 }
 
-// MARK: - 🎨 ユーティリティ拡張
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        default: (a, r, g, b) = (1, 1, 1, 0)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue:  Double(b) / 255, opacity: Double(a) / 255)
-    }
-}
-
-// MARK: - 🎨 月毎カレンダー (Largeサイズ用・新規作成)
+// MARK: - 🎨 月毎カレンダー (Largeサイズ用)
 struct MonthlyCalendarView: View {
     var entry: Provider.Entry
     var textColor: Color
@@ -717,7 +884,6 @@ struct MonthlyCalendarView: View {
             
             VStack(spacing: 6) {
                 ForEach(0..<rows, id: \.self) { row in
-                    // 🌟 修正: HStackのspacingを「0」にし、隙間なく結合させる
                     HStack(spacing: 0) {
                         ForEach(0..<7, id: \.self) { col in
                             let cellIndex = row * 7 + col
@@ -739,16 +905,13 @@ struct MonthlyCalendarView: View {
                                 
                                 VStack(spacing: 3) {
                                     ZStack {
-                                        // 🌟 修正: 日付テキストの「直下」のレイヤーに EventBandView を敷く
                                         if let event = allDayEvent {
-                                            // 🌟 色自体は不透明のままにする（opacity(0.3)を削除）
                                             let cColor = Color(hex: event.extendedProps?.cColor ?? event.extendedProps?.metadata?.customColor ?? "#3b82f6")
                                             let eStart = calendar.startOfDay(for: event.startDate ?? Date())
                                             let eEnd = calendar.startOfDay(for: event.inclusiveEndDate)
                                             let isStart = calendar.isDate(date, inSameDayAs: eStart)
                                             let isEnd = calendar.isDate(date, inSameDayAs: eEnd)
                                             
-                                            // 🌟 図形を描画した後に、全体をまとめて透けさせる
                                             EventBandView(isStart: isStart, isEnd: isEnd, color: cColor)
                                                 .opacity(0.3)
                                         }
@@ -760,7 +923,7 @@ struct MonthlyCalendarView: View {
                                             .font(.system(size: 13, weight: isToday ? .black : .medium))
                                             .foregroundColor(dateColor)
                                     }
-                                    .frame(height: 26) // 帯の太さを固定
+                                    .frame(height: 26)
                                     
                                     HStack(spacing: 2) {
                                         let timeEvents = dayEvents.filter { !($0.extendedProps?.metadata?.isAllDayBackground == true || $0.start.count <= 10) }

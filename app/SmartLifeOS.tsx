@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -177,32 +177,51 @@ export default function SmartLifeOS() {
     localStorage.setItem("user_notification_enabled", String(isNotificationEnabled));
   }, [isNotificationEnabled]);
 
-  // 🌟 収支管理アプリのアルゴリズムを踏襲したウィジェット同期処理
+  // 🌟 最適化: 予定データ本体(events)が更新された時のみ同期を発火（画面切り替え時の不要な通信をカット）
   useEffect(() => {
-    if (!isDataLoaded) return;
+    if (!isDataLoaded || !events || events.length === 0) return;
 
-    // 描画処理との競合を防ぐため、0.5秒遅延させて実行
     const timer = setTimeout(() => {
       try {
         if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStr = toLocalYYYYMMDD(new Date());
+        const uniqueEventsMap = new Map();
 
-        // 🌟 修正1: URLの文字数制限を突破するため、直近5件に絞り、不要なデータを削ぎ落とす
-        const widgetEvents = displayEvents
-          .filter((e: any) => new Date(e.start) >= today && !e.extendedProps?.metadata?.isPureFinance)
+        events
+          .filter((e: any) => {
+            const startStr = typeof e.start === "string" ? e.start.split("T")[0] : toLocalYYYYMMDD(new Date(e.start));
+            return startStr >= todayStr && !e.extendedProps?.metadata?.isPureFinance;
+          })
+          .forEach((e: any) => {
+            if (e.extendedProps?.isTravel || String(e.id).includes("-travel") || String(e.id).includes("-transit")) return;
+
+            const key = `${e.title}_${e.start}`;
+            if (!uniqueEventsMap.has(key)) {
+              uniqueEventsMap.set(key, e);
+            }
+          });
+
+        const widgetEvents = Array.from(uniqueEventsMap.values())
           .sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime())
-          .slice(0, 5) // 👈 5件に制限
+          .slice(0, 10)
           .map((e: any) => ({
             id: String(e.id).substring(0, 8),
-            title: String(e.title || "予定").substring(0, 15), // タイトルも短く
+            title: String(e.title || "予定").substring(0, 15),
             start: typeof e.start === "string" ? e.start : new Date(e.start).toISOString(),
             end: e.end ? (typeof e.end === "string" ? e.end : new Date(e.end).toISOString()) : null,
             extendedProps: {
               cColor: e.extendedProps?.cColor || e.backgroundColor || "#3b82f6",
               metadata: {
                 isAllDayBackground: e.extendedProps?.metadata?.isAllDayBackground || false,
+                isTransit: e.extendedProps?.metadata?.customFields?.isTransit || e.extendedProps?.metadata?.isTransit || false,
+                transitType: e.extendedProps?.metadata?.customFields?.transitType || e.extendedProps?.metadata?.transitType || "train",
+                transitDepTime: e.extendedProps?.metadata?.customFields?.transitDepTime || e.extendedProps?.metadata?.transitDepTime,
+                transitArrTime: e.extendedProps?.metadata?.customFields?.transitArrTime || e.extendedProps?.metadata?.transitArrTime,
+                hasReturnTransit: e.extendedProps?.metadata?.customFields?.hasReturnTransit || e.extendedProps?.metadata?.hasReturnTransit || false,
+                returnTransitType: e.extendedProps?.metadata?.customFields?.returnTransitType || e.extendedProps?.metadata?.returnTransitType || "train",
+                returnTransitDepTime: e.extendedProps?.metadata?.customFields?.returnTransitDepTime || e.extendedProps?.metadata?.returnTransitDepTime,
+                returnTransitArrTime: e.extendedProps?.metadata?.customFields?.returnTransitArrTime || e.extendedProps?.metadata?.returnTransitArrTime,
               },
             },
           }));
@@ -212,7 +231,6 @@ export default function SmartLifeOS() {
         const jsonString = JSON.stringify(widgetEvents);
         const encodedData = encodeURIComponent(jsonString);
 
-        // 🌟 修正2: 収支アプリと全く同じ「aタグクリック」でURL送信
         const url = `smartlifeos://widget?data=${encodedData}`;
         const link = document.createElement("a");
         link.href = url;
@@ -228,7 +246,7 @@ export default function SmartLifeOS() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [displayEvents, isDataLoaded]);
+  }, [events, isDataLoaded]);
 
   // 🌟 【バグ修正】週カレンダー未選択状態からの追加 ＆ removeエラー修正
   useEffect(() => {
@@ -592,6 +610,7 @@ export default function SmartLifeOS() {
   const [bulkEndMonth, setBulkEndMonth] = useState("");
   const [fontFamily, setFontFamily] = useState("standard");
   const [timeFormat, setTimeFormat] = useState("24h");
+  const [headerPosition, setHeaderPosition] = useState<"top" | "bottom">(() => loadData("os_headerPosition", "top"));
 
   useEffect(() => {
     // 🌟 修正：空のデータではなく、ログインしているユーザーの金庫から確実にデータを読み込む
@@ -605,6 +624,7 @@ export default function SmartLifeOS() {
       setWalkTime(loadData("os_walkTime", "10"));
       setStartPointType(loadData("os_startPointType", "address"));
       setSubs(loadData("os_subs", []));
+      setHeaderPosition(loadData("os_headerPosition", "top"));
     }
   }, [activeUserId]);
   useEffect(() => {
@@ -629,7 +649,8 @@ export default function SmartLifeOS() {
     saveData("os_timetables", activeUserId, weeklyTimetables);
     saveData("os_timetableTerms", activeUserId, timetableTerms);
     saveData("os_exceptionDays", activeUserId, exceptionDays);
-  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees, weeklyTimetables, timetableTerms, exceptionDays, activeUserId]);
+    saveData("os_headerPosition", activeUserId, headerPosition);
+  }, [categories, userColors, anniversaries, monthlyRoutines, homeLocation, nearestStation, walkTime, startPointType, isDataLoaded, themeColor, subs, customPayees, weeklyTimetables, timetableTerms, exceptionDays, headerPosition, activeUserId]);
 
   const activePresets: string[] = [...INITIAL_PRESETS, ...userColors];
 
@@ -682,47 +703,6 @@ export default function SmartLifeOS() {
       fetchEvents();
     }
   }, [activeUserId, isDataLoaded, categories]);
-
-  // 👇 カレンダー描画後に、移動ブロックの幅を本体ブロックに強制同期させる
-  useEffect(() => {
-    if (viewType !== "timeGridWeek" && viewType !== "timeGridDay") return;
-
-    const syncWidths = () => {
-      const calendarEl = document.querySelector(".fc");
-      if (!calendarEl) return;
-
-      const transitEls = calendarEl.querySelectorAll("[data-travel-target]");
-      transitEls.forEach((tEl) => {
-        const targetId = tEl.getAttribute("data-travel-target");
-        const mainEl = calendarEl.querySelector(`[data-main-id="${targetId}"]`);
-
-        if (mainEl && tEl) {
-          // FullCalendarは親要素(.fc-timegrid-event-harness)で位置と幅を管理しているため、親を取得
-          const tHarness = tEl.closest(".fc-timegrid-event-harness") as HTMLElement;
-          const mainHarness = mainEl.closest(".fc-timegrid-event-harness") as HTMLElement;
-
-          if (tHarness && mainHarness) {
-            // 本体の left, right (幅と位置) を移動枠にコピー！
-            tHarness.style.left = mainHarness.style.left;
-            tHarness.style.right = mainHarness.style.right;
-          }
-        }
-      });
-    };
-
-    // DOMの変更を監視して、カレンダーのレイアウトが変わるたびに幅を合わせる
-    const observer = new MutationObserver(() => {
-      setTimeout(syncWidths, 10);
-    });
-
-    const container = document.querySelector(".fc");
-    if (container) {
-      observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ["style"] });
-    }
-    setTimeout(syncWidths, 100);
-
-    return () => observer.disconnect();
-  }, [events, viewType]);
 
   const handleDelete = async () => {
     if (confirm("本当に削除しますか？")) {
@@ -1066,9 +1046,9 @@ export default function SmartLifeOS() {
     if (isDeleteMode) return;
     setIsViewSelectorExpanded(false);
 
-    // 🌟 追加：月カレンダーで「1日分だけの選択（なぞり）」だった場合は予定作成をキャンセルし、月のスワイプ切替を通す
-    const selectDiffDays = Math.round((new Date(info.end).getTime() - new Date(info.start).getTime()) / 86400000);
-    if (viewType === "dayGridMonth" && selectDiffDays <= 1) {
+    // 🌟 修正：スワイプ中なら予定入力をキャンセルし、タップ時のみ通す
+    if (isSwipingRef.current) {
+      isSwipingRef.current = false;
       return;
     }
 
@@ -1141,23 +1121,30 @@ export default function SmartLifeOS() {
     let endStr = toLocalYYYYMMDD(info.end);
     const adjEnd = new Date(info.end);
 
-    // 🌟 修正: 月カレンダーでの選択、または終日エリアでの選択なら「1日単位」にする
-    if (viewType === "dayGridMonth" || info.allDay) {
-      // FullCalendarの仕様で、終了日が「選択した翌日の0時」になるため1日マイナスする
+    const selectDiffDays = Math.round((new Date(info.end).getTime() - new Date(info.start).getTime()) / 86400000);
+
+    if (viewType === "dayGridMonth" && selectDiffDays > 1) {
+      // 🌟 複数日選択時は終日（1日単位）
       adjEnd.setDate(adjEnd.getDate() - 1);
-      endStr = toLocalYYYYMMDD(adjEnd);
-
       setStartDate(startStr);
-      setEndDate(endStr);
-
-      // 終日の扱いにするため時間を固定
+      setEndDate(toLocalYYYYMMDD(adjEnd));
       setStartH("00");
       setStartM("00");
       setEndH("23");
       setEndM("59");
-
-      // 🌟 ここが最重要：自動的に「終日（1日単位）」のフラグをONにする
       setIsAllDayBackground(true);
+    } else if (viewType === "dayGridMonth" || info.allDay) {
+      // 🌟 1日のみの選択時は「時間指定」にする
+      adjEnd.setDate(adjEnd.getDate() - 1);
+      setStartDate(startStr);
+      setEndDate(toLocalYYYYMMDD(adjEnd));
+
+      const nowH = new Date().getHours();
+      setStartH(String(nowH).padStart(2, "0"));
+      setStartM("00");
+      setEndH(String(Math.min(nowH + 1, 23)).padStart(2, "0"));
+      setEndM("00");
+      setIsAllDayBackground(false);
     } else {
       // 週・日カレンダーで「時間」を選択した場合は、これまで通り時間単位にする
       setStartDate(startStr);
@@ -1166,9 +1153,9 @@ export default function SmartLifeOS() {
       const sDate = new Date(info.start);
       const eDate = new Date(info.end);
       setStartH(String(sDate.getHours()).padStart(2, "0"));
-      setStartM("00"); // 🌟 端数が入らないように "00" に固定
+      setStartM("00");
       setEndH(String(eDate.getHours()).padStart(2, "0"));
-      setEndM("00"); // 🌟 ここも "00" に固定
+      setEndM("00");
 
       setIsAllDayBackground(false);
     }
@@ -1177,128 +1164,143 @@ export default function SmartLifeOS() {
     setIsModalOpen(true);
   };
 
-  const handleEventClick = (info: any) => {
-    if (isSwipingRef.current || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) {
-      setIsViewSelectorExpanded(false); // 👈 もしメニューバーが開いていれば閉じてクリックをキャンセル
-      return;
-    }
-    const { event } = info;
-
-    setIsViewSelectorExpanded(false);
-
-    if (String(event.id).startsWith("sub-")) {
-      const [_, name, y, m] = String(event.id).split("-");
-      const d = event.start.getDate();
-      const dateStr = `${y}-${m ? m.padStart(2, "0") : "01"}-${String(d).padStart(2, "0")}`;
-
-      setMode("expense");
-      setStartDate(dateStr);
-      setCategoryName(event.extendedProps.category);
-      setTitle(`${name} (今月の支払い)`);
-      setExpenseAmount(event.extendedProps.metadata?.customFields?.standardExpenseAmount || "");
-      setCustomFieldsData({ transactionMode: "expense", isExpenseSet: true, paymentMethod: "credit" });
-      setIsModalOpen(true);
-      return;
-    }
-
-    if (isDeleteMode) {
-      if (event.extendedProps.isAnniversary || event.extendedProps.isRoutine) return;
-      const id = event.id;
-      setSelectedForDelete((prev: string[]) => (prev.includes(id) ? prev.filter((i: string) => i !== id) : [...prev, id]));
-      return;
-    }
-
-    if (event.extendedProps.isAnniversary) {
-      const annivTitle = event.title;
-      const idx = anniversaries.findIndex((a: any) => a.title === annivTitle);
-      if (idx !== -1) {
-        setEditAnnivIndex(idx);
-        setNewAnnivTitle(anniversaries[idx].title);
-        const [em, ed] = anniversaries[idx].date.split("-");
-        setNewAnnivMonth(em);
-        setNewAnnivDay(ed);
-        setNewAnnivColor(anniversaries[idx].color);
-        setIsAnniversaryModalOpen(true);
+  const handleEventClick = useCallback(
+    (info: any) => {
+      if (isSwipingRef.current || isSidebarOpen || isViewSelectorExpanded || isDayPickerOpen || blockCalendarClick.current) {
+        setIsViewSelectorExpanded(false);
+        return;
       }
-      return;
-    }
-    if (event.extendedProps.isTimetableSummary) {
-      // 月カレンダーで「大学(3コマ)」をタップしたら、その日の日カレンダーにジャンプ
-      calendarRef.current?.getApi().changeView("timeGridDay", event.start);
-      return;
-    }
+      const { event } = info;
 
-    if (event.extendedProps.isTimetable) {
-      // 授業をタップした時
+      setIsViewSelectorExpanded(false);
+
+      if (String(event.id).startsWith("sub-")) {
+        const [_, name, y, m] = String(event.id).split("-");
+        const d = event.start.getDate();
+        const dateStr = `${y}-${m ? m.padStart(2, "0") : "01"}-${String(d).padStart(2, "0")}`;
+
+        setMode("expense");
+        setStartDate(dateStr);
+        setCategoryName(event.extendedProps.category);
+        setTitle(`${name} (今月の支払い)`);
+        setExpenseAmount(event.extendedProps.metadata?.customFields?.standardExpenseAmount || "");
+        setCustomFieldsData({ transactionMode: "expense", isExpenseSet: true, paymentMethod: "credit" });
+        setIsModalOpen(true);
+        return;
+      }
+
+      if (isDeleteMode) {
+        if (event.extendedProps.isAnniversary || event.extendedProps.isRoutine) return;
+        const id = event.id;
+        setSelectedForDelete((prev: string[]) => (prev.includes(id) ? prev.filter((i: string) => i !== id) : [...prev, id]));
+        return;
+      }
+
+      if (event.extendedProps.isAnniversary) {
+        const annivTitle = event.title;
+        const idx = anniversaries.findIndex((a: any) => a.title === annivTitle);
+        if (idx !== -1) {
+          setEditAnnivIndex(idx);
+          setNewAnnivTitle(anniversaries[idx].title);
+          const [em, ed] = anniversaries[idx].date.split("-");
+          setNewAnnivMonth(em);
+          setNewAnnivDay(ed);
+          setNewAnnivColor(anniversaries[idx].color);
+          setIsAnniversaryModalOpen(true);
+        }
+        return;
+      }
+      if (event.extendedProps.isTimetableSummary) {
+        // 月カレンダーで「大学(3コマ)」をタップしたら、その日の日カレンダーにジャンプ
+        calendarRef.current?.getApi().changeView("timeGridDay", event.start);
+        return;
+      }
+
+      if (event.extendedProps.isTimetable) {
+        // 授業をタップした時
+        setMode("detail");
+        const props = event.extendedProps;
+        setSelectedId(event.id);
+        setTitle(event.title);
+        setLocation(props.metadata?.location || "");
+        setCategoryName(props.category);
+        setEventColor(props.cColor);
+        setCustomFieldsData({ isTimetableEvent: true, lessonType: props.metadata?.lessonType }); // 編集不可にするための目印
+        setIsModalOpen(true);
+        return;
+      }
+
+      if (event.extendedProps.isRoutine) {
+        setMode("routine_detail");
+        setTitle(event.title);
+        setEventColor(event.backgroundColor || "var(--theme)");
+        setCustomFieldsData({ routineType: event.extendedProps.metadata?.routineType || "task" });
+        setIsModalOpen(true);
+        return;
+      }
+
       setMode("detail");
       const props = event.extendedProps;
-      setSelectedId(event.id);
+      setSelectedId(props.id);
       setTitle(event.title);
       setLocation(props.metadata?.location || "");
       setCategoryName(props.category);
-      setEventColor(props.cColor);
-      setCustomFieldsData({ isTimetableEvent: true, lessonType: props.metadata?.lessonType }); // 編集不可にするための目印
+      setIsMilestone(props.isMilestone || false);
+
+      setIsGathering(props.metadata?.isGathering || false);
+      setGatheringTime(props.metadata?.gatheringTime || "");
+      setDepartureTime(props.metadata?.departureTime || "");
+      setDepartureType(props.metadata?.departureType || (startPointType === "station" ? "train" : "home"));
+      setPhotoUrls(props.metadata?.photoUrls || (props.metadata?.photoUrl ? [props.metadata.photoUrl] : []));
+      setMemo(props.metadata?.memo || "");
+      setCompanions(props.metadata?.companions || []);
+      setRating(props.metadata?.rating || 0);
+      setIsPinned(props.metadata?.isPinned || false);
+      setIsStocked(props.metadata?.isStocked || false);
+      setIsTentative(props.metadata?.isTentative || false);
+      setExpandedBlocks([]); // 👈 支出、集合出発、交通機関のすべてのメニューを閉じた状態で開く
+
+      setIsRecordDetailsOpen(Boolean(props.metadata?.memo || props.metadata?.photoUrls?.length > 0));
+
+      const startDateStr = props.metadata?.startDateStr || (props.start_at ? props.start_at.split("T")[0] : toLocalYYYYMMDD(event.start));
+      const endDateStr = props.metadata?.endDateStr || (props.end_at ? props.end_at.split("T")[0] : toLocalYYYYMMDD(event.end || event.start));
+
+      setStartDate(startDateStr);
+      setEndDate(endDateStr);
+
+      const s = new Date(props.start_at || event.start);
+      const e = new Date(props.end_at || event.end || s);
+
+      // 🌟 過去に「16:02」などの端数で保存されてしまったバグデータを救済するため、開いた瞬間に「00分」または「5分単位」に丸める
+      let sMin = s.getMinutes();
+      let eMin = e.getMinutes();
+      if (sMin % 5 !== 0) sMin = 0;
+      if (eMin % 5 !== 0) eMin = 0;
+
+      setStartH(String(s.getHours()).padStart(2, "0"));
+      setStartM(String(sMin).padStart(2, "0"));
+      setEndH(String(e.getHours()).padStart(2, "0"));
+      setEndM(String(eMin).padStart(2, "0"));
+      setEventColor(props.metadata?.customColor || "");
+      setIsOutline(props.metadata?.isOutline || false);
+      setIsAllDayBackground(props.metadata?.isAllDayBackground || false);
+
+      const loadedCf = props.metadata?.customFields || {};
+      setCustomFieldsData({
+        ...loadedCf,
+        isTransit: loadedCf.isTransit ?? props.metadata?.isTransit ?? false,
+        transitType: loadedCf.transitType || props.metadata?.transitType || "train",
+        transitDepTime: loadedCf.transitDepTime || props.metadata?.transitDepTime || "10:00",
+        transitArrTime: loadedCf.transitArrTime || props.metadata?.transitArrTime || "12:00",
+        hasReturnTransit: loadedCf.hasReturnTransit ?? props.metadata?.hasReturnTransit ?? false,
+        returnTransitType: loadedCf.returnTransitType || props.metadata?.returnTransitType || "train",
+        returnTransitDepTime: loadedCf.returnTransitDepTime || props.metadata?.returnTransitDepTime || "18:00",
+        returnTransitArrTime: loadedCf.returnTransitArrTime || props.metadata?.returnTransitArrTime || "20:00",
+      });
       setIsModalOpen(true);
-      return;
-    }
-
-    if (event.extendedProps.isRoutine) {
-      setMode("routine_detail");
-      setTitle(event.title);
-      setEventColor(event.backgroundColor || "var(--theme)");
-      setCustomFieldsData({ routineType: event.extendedProps.metadata?.routineType || "task" });
-      setIsModalOpen(true);
-      return;
-    }
-
-    setMode("detail");
-    const props = event.extendedProps;
-    setSelectedId(props.id);
-    setTitle(event.title);
-    setLocation(props.metadata?.location || "");
-    setCategoryName(props.category);
-    setIsMilestone(props.isMilestone || false);
-
-    setIsGathering(props.metadata?.isGathering || false);
-    setGatheringTime(props.metadata?.gatheringTime || "");
-    setDepartureTime(props.metadata?.departureTime || "");
-    setDepartureType(props.metadata?.departureType || (startPointType === "station" ? "train" : "home"));
-    setPhotoUrls(props.metadata?.photoUrls || (props.metadata?.photoUrl ? [props.metadata.photoUrl] : []));
-    setMemo(props.metadata?.memo || "");
-    setCompanions(props.metadata?.companions || []);
-    setRating(props.metadata?.rating || 0);
-    setIsPinned(props.metadata?.isPinned || false);
-    setIsStocked(props.metadata?.isStocked || false);
-    setIsTentative(props.metadata?.isTentative || false);
-    setExpandedBlocks([]); // 👈 支出、集合出発、交通機関のすべてのメニューを閉じた状態で開く
-
-    setIsRecordDetailsOpen(Boolean(props.metadata?.memo || props.metadata?.photoUrls?.length > 0));
-
-    const startDateStr = props.metadata?.startDateStr || (props.start_at ? props.start_at.split("T")[0] : toLocalYYYYMMDD(event.start));
-    const endDateStr = props.metadata?.endDateStr || (props.end_at ? props.end_at.split("T")[0] : toLocalYYYYMMDD(event.end || event.start));
-
-    setStartDate(startDateStr);
-    setEndDate(endDateStr);
-
-    const s = new Date(props.start_at || event.start);
-    const e = new Date(props.end_at || event.end || s);
-
-    // 🌟 過去に「16:02」などの端数で保存されてしまったバグデータを救済するため、開いた瞬間に「00分」または「5分単位」に丸める
-    let sMin = s.getMinutes();
-    let eMin = e.getMinutes();
-    if (sMin % 5 !== 0) sMin = 0;
-    if (eMin % 5 !== 0) eMin = 0;
-
-    setStartH(String(s.getHours()).padStart(2, "0"));
-    setStartM(String(sMin).padStart(2, "0"));
-    setEndH(String(e.getHours()).padStart(2, "0"));
-    setEndM(String(eMin).padStart(2, "0"));
-    setEventColor(props.metadata?.customColor || "");
-    setIsOutline(props.metadata?.isOutline || false);
-    setIsAllDayBackground(props.metadata?.isAllDayBackground || false);
-    setCustomFieldsData(props.metadata?.customFields || {});
-    setIsModalOpen(true);
-  };
+    },
+    [isSidebarOpen, isViewSelectorExpanded, isDayPickerOpen, isDeleteMode, anniversaries, canceledClasses, startPointType],
+  );
 
   const handleStartHChange = (val: string) => {
     setStartH(val);
@@ -1792,12 +1794,18 @@ export default function SmartLifeOS() {
     </div>
   );
 
+  // 🌟 最適化: requestAnimationFrame で間引き、過剰なDOM再計算を抑止してスクロールを高速化
   useEffect(() => {
     if (viewType !== "timeGridWeek" && viewType !== "timeGridDay") return;
+
+    let rafId: number | null = null;
     const syncWidths = () => {
       const calendarEl = document.querySelector(".fc");
       if (!calendarEl) return;
+
       const transitEls = calendarEl.querySelectorAll("[data-travel-target]");
+      if (transitEls.length === 0) return;
+
       transitEls.forEach((tEl) => {
         const targetId = tEl.getAttribute("data-travel-target");
         const mainEl = calendarEl.querySelector(`[data-main-id="${targetId}"]`);
@@ -1805,7 +1813,6 @@ export default function SmartLifeOS() {
           const tHarness = tEl.closest(".fc-timegrid-event-harness") as HTMLElement;
           const mainHarness = mainEl.closest(".fc-timegrid-event-harness") as HTMLElement;
           if (tHarness && mainHarness) {
-            // 本体の幅と位置（left/right）を、そのまま移動枠にコピー
             tHarness.style.left = mainHarness.style.left;
             tHarness.style.right = mainHarness.style.right;
             tHarness.style.width = mainHarness.style.width;
@@ -1816,11 +1823,26 @@ export default function SmartLifeOS() {
         }
       });
     };
-    const observer = new MutationObserver(() => syncWidths());
+
+    const throttledSync = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        syncWidths();
+        rafId = null;
+      });
+    };
+
+    const observer = new MutationObserver(throttledSync);
     const container = document.querySelector(".fc");
-    if (container) observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ["style"] });
-    setTimeout(syncWidths, 50);
-    return () => observer.disconnect();
+    if (container) {
+      observer.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ["style"] });
+    }
+    throttledSync();
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [events, viewType, currentWeekStartStr]);
 
   // 🚨 エラー修正＆機能強化：文章生成のロジック
@@ -1866,16 +1888,20 @@ export default function SmartLifeOS() {
   const { isNative } = require("@/app/lib/utils");
   const currentCategoryObj = categories.find((c: any) => c.name === categoryName);
 
+  // 🌟 最適化: Date オブジェクトの過剰生成を排除し、文字列前方一致で高速判定
+  const targetMonthPrefix = currentYear && currentMonthNum ? `${currentYear}-${String(currentMonthNum).padStart(2, "0")}` : "";
+  const targetYearPrefix = currentYear ? `${currentYear}` : "";
+
   const currentMonthEvents = displayEvents.filter((e: any) => {
-    if (!e.start || e.extendedProps?.isAnniversary) return false;
-    const d = new Date(e.start);
-    return d.getFullYear() === Number(currentYear) && d.getMonth() + 1 === Number(currentMonthNum);
+    if (!e.start || e.extendedProps?.isAnniversary || !targetMonthPrefix) return false;
+    const s = typeof e.start === "string" ? e.start : toLocalYYYYMMDD(new Date(e.start));
+    return s.startsWith(targetMonthPrefix);
   });
 
   const currentYearEvents = displayEvents.filter((e: any) => {
-    if (!e.start) return false;
-    const d = new Date(e.start);
-    return d.getFullYear() === Number(currentYear);
+    if (!e.start || !targetYearPrefix) return false;
+    const s = typeof e.start === "string" ? e.start : toLocalYYYYMMDD(new Date(e.start));
+    return s.startsWith(targetYearPrefix);
   });
 
   return (
@@ -1916,15 +1942,28 @@ export default function SmartLifeOS() {
             
             * {
               box-sizing: border-box;
+              -webkit-tap-highlight-color: transparent; /* iOS特有のタップ時グレー枠を消去 */
             }
-    
-            /* 👇 追加：画面全体のスクロールとバウンス（引っ張る動き）を完全に止める */
+
+            /* 👇 追加：画面全体のスクロールとバウンスを止め、タップ遅延を0ms化 */
             html, body {
               margin: 0;
               padding: 0;
               height: 100dvh;
               overflow: hidden;
               overscroll-behavior: none;
+              touch-action: manipulation; /* 300msのダブルタップ待機を無効化し、即時反応させる */
+            }
+
+            /* ボタンやインタラクティブ要素の即時レスポンス設定 */
+            button, .btn-pop, .btn-secondary, .btn-icon, .day-btn, .fc-event {
+              touch-action: manipulation;
+              cursor: pointer;
+            }
+
+            button:active, .btn-pop:active, .btn-secondary:active, .btn-icon:active {
+              transform: scale(0.96); /* タップした瞬間に物理ボタンのような即時フィードバック */
+              transition: transform 0.05s ease;
             }
     
             body, .fixed-mobile-frame, .fc {
@@ -2320,8 +2359,9 @@ export default function SmartLifeOS() {
             </button>
           </div>
         )}
-        {/* ヘッダー・検索バーコンポーネント */}
-        <Header currentYear={currentYear} currentMonthNum={currentMonthNum} currentDayNum={currentDayNum} viewType={viewType} setViewType={setViewType} calendarRef={calendarRef} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setOpenSections={setOpenSections} setStoryDate={setStoryDate} setIsStoryModalOpen={setIsStoryModalOpen} isViewSelectorExpanded={isViewSelectorExpanded} setIsViewSelectorExpanded={setIsViewSelectorExpanded} isSearchMode={isSearchMode} setIsSearchMode={setIsSearchMode} searchQuery={searchQuery} setSearchQuery={setSearchQuery} handleSearchExecute={handleSearchExecute} handleYearMonthChange={handleYearMonthChange} blockCalendarClick={blockCalendarClick} setCurrentYear={setCurrentYear} setCurrentMonthNum={setCurrentMonthNum} setCurrentDayNum={setCurrentDayNum} firstDayOfWeek={firstDayOfWeek} />
+
+        {/* ヘッダー上部配置 */}
+        {headerPosition === "top" && <Header currentYear={currentYear} currentMonthNum={currentMonthNum} currentDayNum={currentDayNum} viewType={viewType} setViewType={setViewType} calendarRef={calendarRef} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setOpenSections={setOpenSections} setStoryDate={setStoryDate} setIsStoryModalOpen={setIsStoryModalOpen} isViewSelectorExpanded={isViewSelectorExpanded} setIsViewSelectorExpanded={setIsViewSelectorExpanded} isSearchMode={isSearchMode} setIsSearchMode={setIsSearchMode} searchQuery={searchQuery} setSearchQuery={setSearchQuery} handleSearchExecute={handleSearchExecute} handleYearMonthChange={handleYearMonthChange} blockCalendarClick={blockCalendarClick} setCurrentYear={setCurrentYear} setCurrentMonthNum={setCurrentMonthNum} setCurrentDayNum={setCurrentDayNum} firstDayOfWeek={firstDayOfWeek} headerPosition={headerPosition} />}
 
         {/* 👇 カレンダーのデザインを制御する統合スタイル（これ一つで全ての表示崩れと二重表示を直します） */}
         <style
@@ -2331,27 +2371,27 @@ export default function SmartLifeOS() {
                  🌟 1. 全体ステルスグリッド設定
                  ========================================= */
               .fc-scrollgrid { border: none !important; }
-              
+
               .fc-theme-standard td, .fc-theme-standard th { 
                 border-color: rgba(150, 150, 150, 0.15) !important; 
                 transition: border-color 0.3s; 
               }
-    
+
               .fc-theme-standard th:last-child, 
               .fc-theme-standard td:last-child { 
                 border-right: none !important; 
               }
-    
+
               .fc-theme-standard .fc-scrollgrid-section-body:last-child td,
               .fc-theme-standard .fc-daygrid-body tr:last-child td {
                 border-bottom: none !important;
               }
-              
+
               .fc-theme-standard th { 
                 padding: 0 !important; 
                 border-bottom: none !important; 
               }
-              
+
               .fc .fc-col-header-cell-cushion { padding: 4px 0 !important; }
 
               .fc-event { border-radius: 4px !important; cursor: pointer; border: none !important; transition: transform 0.1s; touch-action: none !important; }
@@ -2363,7 +2403,7 @@ export default function SmartLifeOS() {
               .fc-day-today, .fc-timegrid-col.fc-day-today {
                 background-color: transparent !important;
               }
-              
+
               /* 日付エリアのレイアウトと干渉防止 */
               .fc-daygrid-day-top {
                 display: flex !important;
@@ -2451,9 +2491,9 @@ export default function SmartLifeOS() {
           }}
         />
 
-        {/* 👇 カレンダー全体ブロック */}
+        {/* 👇 カレンダー全体ブロック（ヘッダー下部配置時は高さを一切変えずに、全体を16px下にスライドさせる） */}
         <div style={{ flex: 1, position: "relative", padding: "0 6px 16px 6px", overflow: "hidden" }} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-          <div className="glass-panel" style={{ position: "absolute", top: "2px", left: "0px", right: "0px", bottom: "16px", padding: "2px 4px", borderRadius: "20px", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div className="glass-panel" style={{ position: "absolute", top: headerPosition === "bottom" ? "18px" : "2px", left: "0px", right: "0px", bottom: headerPosition === "bottom" ? "0px" : "16px", padding: "2px 4px", borderRadius: "20px", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* 日毎カスタム円形ダッシュボード */}
             {viewType === "timeGridDay" && <DayCircleView currentYear={currentYear} currentMonthNum={currentMonthNum} currentDayNum={currentDayNum} displayEvents={displayEvents} holidays={holidays} walkTime={walkTime} startPointType={startPointType} calendarRef={calendarRef} blockCalendarClick={blockCalendarClick} handleEventClick={handleEventClick} />}
 
@@ -2461,6 +2501,9 @@ export default function SmartLifeOS() {
             <CalendarBoard calendarRef={calendarRef} displayMode={displayMode} overlapMode={overlapMode} viewType={viewType} setViewType={setViewType} displayEvents={displayEvents} holidays={holidays} walkTime={walkTime} startPointType={startPointType} searchResults={searchResults} currentSearchIndex={currentSearchIndex} isDeleteMode={isDeleteMode} selectedForDelete={selectedForDelete} setSelectedForDelete={setSelectedForDelete} useEventColorForTitle={useEventColorForTitle} firstDayOfWeek={firstDayOfWeek} isDraggingRef={isDraggingRef} blockCalendarClick={blockCalendarClick} isSwipingRef={isSwipingRef} wasEventSelectedRef={wasEventSelectedRef} isSidebarOpen={isSidebarOpen} isViewSelectorExpanded={isViewSelectorExpanded} isDayPickerOpen={isDayPickerOpen} clipboardEvent={clipboardEvent} setClipboardEvent={setClipboardEvent} setMode={setMode} setSelectedId={setSelectedId} setTitle={setTitle} setLocation={setLocation} setCategoryName={setCategoryName} setEventColor={setEventColor} setStartH={setStartH} setStartM={setStartM} setEndH={setEndH} setEndM={setEndM} setIsAllDayBackground={setIsAllDayBackground} setIsMilestone={setIsMilestone} setCustomFieldsData={setCustomFieldsData} setStartDate={setStartDate} setEndDate={setEndDate} setIsModalOpen={setIsModalOpen} setIsViewSelectorExpanded={setIsViewSelectorExpanded} setCurrentYear={setCurrentYear} setCurrentMonthNum={setCurrentMonthNum} setCurrentDayNum={setCurrentDayNum} setIsDayPickerOpen={setIsDayPickerOpen} handleEventClick={handleEventClick} fetchEvents={fetchEvents} />
           </div>
         </div>
+
+        {/* ヘッダー下部配置 */}
+        {headerPosition === "bottom" && <Header currentYear={currentYear} currentMonthNum={currentMonthNum} currentDayNum={currentDayNum} viewType={viewType} setViewType={setViewType} calendarRef={calendarRef} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} setOpenSections={setOpenSections} setStoryDate={setStoryDate} setIsStoryModalOpen={setIsStoryModalOpen} isViewSelectorExpanded={isViewSelectorExpanded} setIsViewSelectorExpanded={setIsViewSelectorExpanded} isSearchMode={isSearchMode} setIsSearchMode={setIsSearchMode} searchQuery={searchQuery} setSearchQuery={setSearchQuery} handleSearchExecute={handleSearchExecute} handleYearMonthChange={handleYearMonthChange} blockCalendarClick={blockCalendarClick} setCurrentYear={setCurrentYear} setCurrentMonthNum={setCurrentMonthNum} setCurrentDayNum={setCurrentDayNum} firstDayOfWeek={firstDayOfWeek} headerPosition={headerPosition} />}
 
         {isColorPickerOpen && (
           <div className="modal-overlay" onClick={() => setIsColorPickerOpen(false)}>
@@ -2606,10 +2649,12 @@ export default function SmartLifeOS() {
         setIsTemplateModalOpen={setIsTemplateModalOpen}
         userProfile={userProfile}
         setIsProfileModalOpen={setIsProfileModalOpen}
+        headerPosition={headerPosition}
+        setHeaderPosition={setHeaderPosition}
       />
 
       {/* 📋 よくある予定（テンプレート）管理 モーダル */}
-      <TemplateModal isOpen={isTemplateModalOpen} onClose={() => setIsTemplateModalOpen(false)} quickTemplates={quickTemplates} setQuickTemplates={setQuickTemplates} editTemplateIndex={editTemplateIndex} setEditTemplateIndex={setEditTemplateIndex} templateForm={templateForm} setTemplateForm={setTemplateForm} categories={categories} activeUserId={activeUserId} endM={endM} ModalHeader={ModalHeader} />
+      {isTemplateModalOpen && <TemplateModal isOpen={isTemplateModalOpen} onClose={() => setIsTemplateModalOpen(false)} quickTemplates={quickTemplates} setQuickTemplates={setQuickTemplates} editTemplateIndex={editTemplateIndex} setEditTemplateIndex={setEditTemplateIndex} templateForm={templateForm} setTemplateForm={setTemplateForm} categories={categories} activeUserId={activeUserId} endM={endM} ModalHeader={ModalHeader} />}
 
       {/* 🏫 時間割・週間ルーティン設定 モーダル（ここに配置するのが正解です！） */}
       {isTimetableModalOpen &&
@@ -2938,10 +2983,10 @@ export default function SmartLifeOS() {
       )}
 
       {/* ルーティンモーダル */}
-      <RoutineModal isOpen={isRoutineModalOpen} onClose={() => setIsRoutineModalOpen(false)} monthlyRoutines={monthlyRoutines} setMonthlyRoutines={setMonthlyRoutines} editRoutineIndex={editRoutineIndex} setEditRoutineIndex={setEditRoutineIndex} newRoutineTitle={newRoutineTitle} setNewRoutineTitle={setNewRoutineTitle} newRoutineDay={newRoutineDay} setNewRoutineDay={setNewRoutineDay} newRoutineColor={newRoutineColor} setNewRoutineColor={setNewRoutineColor} newRoutineType={newRoutineType} setNewRoutineType={setNewRoutineType} newRoutineCycle={newRoutineCycle} setNewRoutineCycle={setNewRoutineCycle} newRoutineDayOfWeek={newRoutineDayOfWeek} setNewRoutineDayOfWeek={setNewRoutineDayOfWeek} handleAddRoutine={handleAddRoutine} renderListItem={renderListItem} ColorSelector={ColorSelector} ModalHeader={ModalHeader} />
+      {isRoutineModalOpen && <RoutineModal isOpen={isRoutineModalOpen} onClose={() => setIsRoutineModalOpen(false)} monthlyRoutines={monthlyRoutines} setMonthlyRoutines={setMonthlyRoutines} editRoutineIndex={editRoutineIndex} setEditRoutineIndex={setEditRoutineIndex} newRoutineTitle={newRoutineTitle} setNewRoutineTitle={setNewRoutineTitle} newRoutineDay={newRoutineDay} setNewRoutineDay={setNewRoutineDay} newRoutineColor={newRoutineColor} setNewRoutineColor={setNewRoutineColor} newRoutineType={newRoutineType} setNewRoutineType={setNewRoutineType} newRoutineCycle={newRoutineCycle} setNewRoutineCycle={setNewRoutineCycle} newRoutineDayOfWeek={newRoutineDayOfWeek} setNewRoutineDayOfWeek={setNewRoutineDayOfWeek} handleAddRoutine={handleAddRoutine} renderListItem={renderListItem} ColorSelector={ColorSelector} ModalHeader={ModalHeader} />}
 
       {/* ジャンル編集モーダル（別ファイルに分離済み！） */}
-      <CategoryStudio isOpen={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} categories={categories} setCategories={setCategories} themeColor={themeColor} activePresets={activePresets} userColors={userColors} setUserColors={setUserColors} />
+      {isCategoryModalOpen && <CategoryStudio isOpen={isCategoryModalOpen} onClose={() => setIsCategoryModalOpen(false)} categories={categories} setCategories={setCategories} themeColor={themeColor} activePresets={activePresets} userColors={userColors} setUserColors={setUserColors} />}
 
       {/* 👇 ここから振り返りダッシュボードのコードを追加 👇 */}
       {/* 📊 振り返りダッシュボード モーダル */}
@@ -3038,7 +3083,7 @@ export default function SmartLifeOS() {
         })()}
 
       {/* 📊 収支グラフ（棒グラフ）モーダル */}
-      <FinanceModal isOpen={isFinanceGraphOpen} onClose={() => setIsFinanceGraphOpen(false)} events={events} currentYear={currentYear} currentMonthNum={currentMonthNum} graphSpan={graphSpan} setGraphSpan={setGraphSpan} ModalHeader={ModalHeader} />
+      {isFinanceGraphOpen && <FinanceModal isOpen={isFinanceGraphOpen} onClose={() => setIsFinanceGraphOpen(false)} events={events} currentYear={currentYear} currentMonthNum={currentMonthNum} graphSpan={graphSpan} setGraphSpan={setGraphSpan} ModalHeader={ModalHeader} />}
 
       {/* 🖼 思い出ギャラリー モーダル */}
       {isGalleryOpen && (
@@ -3090,10 +3135,10 @@ export default function SmartLifeOS() {
       )}
 
       {/* 🤝 立替・貸し借り管理 モーダル */}
-      <AdvanceModal isOpen={isAdvanceModalOpen} onClose={() => setIsAdvanceModalOpen(false)} events={events} themeColor={themeColor} activeUserId={activeUserId} advanceTab={advanceTab} setAdvanceTab={setAdvanceTab} viewingPartner={viewingPartner} setViewingPartner={setViewingPartner} customPayees={customPayees} setCustomPayees={setCustomPayees} newPayeeName={newPayeeName} setNewPayeeName={setNewPayeeName} fetchEvents={fetchEvents} ModalHeader={ModalHeader} />
+      {isAdvanceModalOpen && <AdvanceModal isOpen={isAdvanceModalOpen} onClose={() => setIsAdvanceModalOpen(false)} events={events} themeColor={themeColor} activeUserId={activeUserId} advanceTab={advanceTab} setAdvanceTab={setAdvanceTab} viewingPartner={viewingPartner} setViewingPartner={setViewingPartner} customPayees={customPayees} setCustomPayees={setCustomPayees} newPayeeName={newPayeeName} setNewPayeeName={setNewPayeeName} fetchEvents={fetchEvents} ModalHeader={ModalHeader} />}
 
       {/* 👤 プロフィール設定 モーダル */}
-      <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} cropImageSrc={cropImageSrc} setCropImageSrc={setCropImageSrc} setCropZoom={setCropZoom} setCropPanX={setCropPanX} setCropPanY={setCropPanY} userProfile={userProfile} setUserProfile={setUserProfile} activeUserId={activeUserId} activeUserName={activeUserName} setActiveUserName={setActiveUserName} syncWithCloud={syncWithCloud} handleLogout={handleLogout} ModalHeader={ModalHeader} />
+      {isProfileModalOpen && <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} cropImageSrc={cropImageSrc} setCropImageSrc={setCropImageSrc} setCropZoom={setCropZoom} setCropPanX={setCropPanX} setCropPanY={setCropPanY} userProfile={userProfile} setUserProfile={setUserProfile} activeUserId={activeUserId} activeUserName={activeUserName} setActiveUserName={setActiveUserName} syncWithCloud={syncWithCloud} handleLogout={handleLogout} ModalHeader={ModalHeader} />}
 
       {/* 👇 ここから追加：🎞️ デイリー・ストーリー モーダル 👇 */}
       {isStoryModalOpen &&
@@ -3173,7 +3218,7 @@ export default function SmartLifeOS() {
         })()}
 
       {/* 予定追加・編集・支出・サブスク入力モーダル */}
-      <EventModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} mode={mode} setMode={setMode} selectedId={selectedId} title={title} setTitle={setTitle} startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} startH={startH} startM={startM} endH={endH} endM={endM} setEndH={setEndH} setEndM={setEndM} handleStartHChange={handleStartHChange} handleStartMChange={handleStartMChange} location={location} setLocation={setLocation} categoryName={categoryName} setCategoryName={setCategoryName} eventColor={eventColor} setEventColor={setEventColor} isAllDayBackground={isAllDayBackground} setIsAllDayBackground={setIsAllDayBackground} isMilestone={isMilestone} setIsMilestone={setIsMilestone} isPinned={isPinned} setIsPinned={setIsPinned} isTentative={isTentative} setIsTentative={setIsTentative} memo={memo} setMemo={setMemo} photoUrls={photoUrls} setPhotoUrls={setPhotoUrls} handlePhotoUpload={handlePhotoUpload} companions={companions} setCompanions={setCompanions} companionInput={companionInput} setCompanionInput={setCompanionInput} selectedDays={selectedDays} setSelectedDays={setSelectedDays} customFieldsData={customFieldsData} handleCustomFieldChange={handleCustomFieldChange} handleScoreChange={handleScoreChange} isGathering={isGathering} setIsGathering={setIsGathering} gatheringTime={gatheringTime} setGatheringTime={setGatheringTime} departureTime={departureTime} setDepartureTime={setDepartureTime} expandedBlocks={expandedBlocks} toggleBlock={toggleBlock} expenseAmount={expenseAmount} setExpenseAmount={setExpenseAmount} subName={subName} setSubName={setSubName} subAmount={subAmount} setSubAmount={setSubAmount} subCycle={subCycle} setSubCycle={setSubCycle} subDate={subDate} setSubDate={setSubDate} subs={subs} setSubs={setSubs} routineAmount={routineAmount} setRoutineAmount={setRoutineAmount} routineBonusAmount={routineBonusAmount} setRoutineBonusAmount={setRoutineBonusAmount} categories={categories} themeColor={themeColor} activeUserId={activeUserId} events={events} customPayees={customPayees} setCustomPayees={setCustomPayees} quickTemplates={quickTemplates} setQuickTemplates={setQuickTemplates} homeLocation={homeLocation} nearestStation={nearestStation} startPointType={startPointType} isDarkMode={isDarkMode} isRecordDetailsOpen={isRecordDetailsOpen} setIsRecordDetailsOpen={setIsRecordDetailsOpen} handleSave={handleSave} handleDelete={handleDelete} handleDuplicate={handleDuplicate} handleCompleteRoutine={handleCompleteRoutine} handleRecordRoutineMoney={handleRecordRoutineMoney} fetchEvents={fetchEvents} setIsScheduleAssistantOpen={setIsScheduleAssistantOpen} setAssistTimeSlots={setAssistTimeSlots} setAssistMode={setAssistMode} setCustomFieldsData={setCustomFieldsData} ColorSelector={ColorSelector} ExpenseTypeSelector={ExpenseTypeSelector} PaymentMethodSelector={PaymentMethodSelector} PayeeComboInput={PayeeComboInput} ModalHeader={ModalHeader} />
+      {isModalOpen && <EventModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} mode={mode} setMode={setMode} selectedId={selectedId} title={title} setTitle={setTitle} startDate={startDate} setStartDate={setStartDate} endDate={endDate} setEndDate={setEndDate} startH={startH} startM={startM} endH={endH} endM={endM} setEndH={setEndH} setEndM={setEndM} handleStartHChange={handleStartHChange} handleStartMChange={handleStartMChange} location={location} setLocation={setLocation} categoryName={categoryName} setCategoryName={setCategoryName} eventColor={eventColor} setEventColor={setEventColor} isAllDayBackground={isAllDayBackground} setIsAllDayBackground={setIsAllDayBackground} isMilestone={isMilestone} setIsMilestone={setIsMilestone} isPinned={isPinned} setIsPinned={setIsPinned} isTentative={isTentative} setIsTentative={setIsTentative} memo={memo} setMemo={setMemo} photoUrls={photoUrls} setPhotoUrls={setPhotoUrls} handlePhotoUpload={handlePhotoUpload} companions={companions} setCompanions={setCompanions} companionInput={companionInput} setCompanionInput={setCompanionInput} selectedDays={selectedDays} setSelectedDays={setSelectedDays} customFieldsData={customFieldsData} handleCustomFieldChange={handleCustomFieldChange} handleScoreChange={handleScoreChange} isGathering={isGathering} setIsGathering={setIsGathering} gatheringTime={gatheringTime} setGatheringTime={setGatheringTime} departureTime={departureTime} setDepartureTime={setDepartureTime} expandedBlocks={expandedBlocks} toggleBlock={toggleBlock} expenseAmount={expenseAmount} setExpenseAmount={setExpenseAmount} subName={subName} setSubName={setSubName} subAmount={subAmount} setSubAmount={setSubAmount} subCycle={subCycle} setSubCycle={setSubCycle} subDate={subDate} setSubDate={setSubDate} subs={subs} setSubs={setSubs} routineAmount={routineAmount} setRoutineAmount={setRoutineAmount} routineBonusAmount={routineBonusAmount} setRoutineBonusAmount={setRoutineBonusAmount} categories={categories} themeColor={themeColor} activeUserId={activeUserId} events={events} customPayees={customPayees} setCustomPayees={setCustomPayees} quickTemplates={quickTemplates} setQuickTemplates={setQuickTemplates} homeLocation={homeLocation} nearestStation={nearestStation} startPointType={startPointType} isDarkMode={isDarkMode} isRecordDetailsOpen={isRecordDetailsOpen} setIsRecordDetailsOpen={setIsRecordDetailsOpen} handleSave={handleSave} handleDelete={handleDelete} handleDuplicate={handleDuplicate} handleCompleteRoutine={handleCompleteRoutine} handleRecordRoutineMoney={handleRecordRoutineMoney} fetchEvents={fetchEvents} setIsScheduleAssistantOpen={setIsScheduleAssistantOpen} setAssistTimeSlots={setAssistTimeSlots} setAssistMode={setAssistMode} setCustomFieldsData={setCustomFieldsData} ColorSelector={ColorSelector} ExpenseTypeSelector={ExpenseTypeSelector} PaymentMethodSelector={PaymentMethodSelector} PayeeComboInput={PayeeComboInput} ModalHeader={ModalHeader} />}
     </div>
   );
 }
